@@ -16,7 +16,7 @@ import java.io.File
  */
 class PromptBodyTest {
 
-    private fun payload() = File("../workflows/itv_h3_mobile_r2v.json").readText()
+    private fun payload() = File("src/main/res/raw/itv_h3_mobile_r2v.json").readText()
 
     @Test
     fun bareNodeMapIsWrappedUnderPrompt() {

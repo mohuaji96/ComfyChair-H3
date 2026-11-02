@@ -13,7 +13,7 @@ import java.io.File
  */
 class H3PayloadDumpTest {
 
-    private fun raw(name: String) = File("../workflows/$name").readText()
+    private fun raw(name: String) = File("src/main/res/raw/$name").readText()
 
     @Test
     fun dumpFourModePayloads() {

@@ -167,17 +167,20 @@ class H3P0RegressionTest {
         val files = raw.listFiles { file -> file.isFile && file.name.endsWith(".json") }?.sorted().orEmpty()
         assertTrue("raw workflows missing", files.size >= 20)
         val ordinary = files.filterNot { it.name.contains("_h3_") }
-        // Since 0.9.8.6 no H3 template ships inside the APK: model names and custom nodes are
-        // machine-specific, so the samples live in the repository's workflows/ directory.
-        assertEquals("no H3 template should ship in res/raw",
-            emptyList<String>(), files.filter { it.name.contains("_h3_") }.map { it.name })
+        val builtInH3 = files.filter { it.name.contains("_h3_") }
+        // Two mobile templates ship in the APK, and the same files are published under workflows/
+        // so people can inspect them in ComfyUI before importing.
+        assertEquals("built-in H3 templates must all be recognised",
+            2, builtInH3.count { H3WorkflowAdapter.inspectAny(it.readText()) != null })
+        assertEquals("every H3 template must also resolve into a plan",
+            builtInH3.size, builtInH3.count { H3Plan.resolve(it.readText()) != null })
         val samples = File("../workflows")
             .listFiles { file -> file.isFile && file.name.endsWith(".json") }
             ?.sorted().orEmpty()
-        assertEquals("sample workflows missing", 2, samples.size)
-        assertEquals("sample H3 templates must all be recognised",
-            2, samples.count { H3WorkflowAdapter.inspectAny(it.readText()) != null })
-        assertEquals("every sample must also resolve into a plan",
+        assertEquals("published samples missing", 2, samples.size)
+        assertEquals("published samples must parse like the built-in ones",
+            builtInH3.map { it.name }.sorted(), samples.map { it.name }.sorted())
+        assertEquals("published samples must resolve into plans",
             samples.size, samples.count { H3Plan.resolve(it.readText()) != null })
         val recognised = ordinary.filter { H3WorkflowAdapter.inspectAny(it.readText()) != null }.map { it.name }
         assertEquals("ordinary workflows must not be recognised as H3: $recognised", emptyList<String>(), recognised)

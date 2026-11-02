@@ -16,7 +16,7 @@ import java.io.File
  */
 class H3PlanTest {
 
-    private fun raw(name: String) = File("../workflows/$name").readText()
+    private fun raw(name: String) = File("src/main/res/raw/$name").readText()
 
     private val frames = raw("ttv_h3_mobile_frames.json")
     private val r2v = raw("itv_h3_mobile_r2v.json")
@@ -242,7 +242,7 @@ class H3PlanTest {
             })
         }
         // And the file on disk is untouched.
-        assertFalse(File("../workflows/ttv_h3_mobile_frames.json").readText().contains("b.safetensors"))
+        assertFalse(File("src/main/res/raw/ttv_h3_mobile_frames.json").readText().contains("b.safetensors"))
     }
 
     @Test
