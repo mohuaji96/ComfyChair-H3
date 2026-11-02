@@ -5,20 +5,34 @@ on:
     branches: [ main ]
   pull_request:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+
+      # Checked out on Windows upstream, so the bit may be missing on the runner.
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # The ubuntu runner already ships an Android SDK; the android-actions/setup-android
+      # step was what failed on the first run, and the Gradle Android plugin will fetch a
+      # missing platform itself because the runner has the licences pre-accepted.
       - name: Unit tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
+
       - name: Debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: app-debug
