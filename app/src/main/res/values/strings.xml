@@ -612,6 +612,7 @@
     <string name="label_about_version">Version %1$s</string>
     <string name="title_about_license">License</string>
     <string name="label_about_license_name">GNU General Public License v3.0 (GPL-3.0)</string>
+    <string name="title_about_upstream">Based on</string>
     <string name="title_about_source">Source Code</string>
 
     <!-- Debug Logging strings -->

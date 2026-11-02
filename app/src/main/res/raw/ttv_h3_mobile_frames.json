@@ -238,7 +238,7 @@
     },
     "941": {
       "inputs": {
-        "text": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, intimate bedroom setting illuminated by soft warm lamp light. A medium shot frames a nude woman wearing black sheer stockings and a shirtless man on a rumpled white bed, their bodies pressed tightly together in a side-entry position. The camera remains relatively static, focusing on their joined bodies as the man thrusts deeply and rhythmically into her vagina. Her breasts move with the motion and her expression shifts to one of pure pleasure, eyes closed and head thrown back slightly. The woman (S1) grits her teeth and says: <d>[Chinese] 好舒服，还要，快点，再快点，啊！好舒服</d>\n\noverall_soundscape: Skin slapping against skin with a wet, rhythmic sound as the bodies grind together. Heavy, audible breathing from both characters mixes with the creaking of the bed frame under their weight. The woman's voice cuts through the low-frequency thrum of her moaning and the physical friction of their joined limbs.\n\nnon_diegetic_music: A soft, low-pitched ambient drone with a very slow, subtle rhythmic pulse that underpins the scene without drawing attention away from the physical sounds."
+        "text": ""
       },
       "class_type": "CR Text",
       "_meta": {

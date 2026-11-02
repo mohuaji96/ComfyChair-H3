@@ -487,6 +487,7 @@
     <string name="label_about_version">版本 %1$s</string>
     <string name="title_about_license">许可证</string>
     <string name="label_about_license_name">GNU General Public License v3.0 (GPL-3.0)</string>
+    <string name="title_about_upstream">基于</string>
     <string name="title_about_source">源代码</string>
 
     <!-- Debug Logging strings -->

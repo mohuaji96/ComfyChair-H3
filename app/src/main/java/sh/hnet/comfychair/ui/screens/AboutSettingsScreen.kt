@@ -106,7 +106,7 @@ fun AboutSettingsScreen(
                     .clickable {
                         val intent = Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/legal-hkr/comfychair")
+                            Uri.parse("https://github.com/mohuaji96/ComfyChair-H3")
                         )
                         context.startActivity(intent)
                     }
@@ -125,6 +125,46 @@ fun AboutSettingsScreen(
                     Column {
                         Text(
                             text = stringResource(R.string.title_about_source),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "github.com/mohuaji96/ComfyChair-H3",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Upstream project this fork is based on
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clickable {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/legal-hkr/comfychair")
+                        )
+                        context.startActivity(intent)
+                    }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = stringResource(R.string.title_about_upstream),
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
