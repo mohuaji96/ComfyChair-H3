@@ -12,6 +12,12 @@ is **not** published on F-Droid.
 - Minimum: Android 13 (API 33)
 - Requires your own ComfyUI server, reachable from the phone (LAN or VPN)
 
+<p align="center">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/01-h3-studio.png" width="45%">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/02-refs-tailframe.png" width="45%"><br>
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/03-params.png" width="45%">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/04-models-lora.png" width="45%">
+</p>
 ## What this fork adds
 
 **H3 video workspace**
