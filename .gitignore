@@ -56,3 +56,6 @@ signing/
 deliveries/
 h3_payloads/
 *.aab
+
+# Local audit scripts (absolute paths from a private machine)
+app/audit/
