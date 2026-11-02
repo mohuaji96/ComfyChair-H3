@@ -48,13 +48,16 @@ App 内置两套手机端 H3 模板，装上就能跑：
 
 | 文件 | 说明 |
 |---|---|
-| [`workflows/ttv_h3_mobile_frames.json`](workflows/ttv_h3_mobile_frames.json) | 与内置模板一致 |
-| [`workflows/itv_h3_mobile_r2v.json`](workflows/itv_h3_mobile_r2v.json) | 与内置模板一致 |
+| [`workflows/ttv_h3_mobile_frames.json`](workflows/ttv_h3_mobile_frames.json) | 可直接拖进 ComfyUI 打开 |
+| [`workflows/itv_h3_mobile_r2v.json`](workflows/itv_h3_mobile_r2v.json) | 可直接拖进 ComfyUI 打开 |
 
 内置模板里的 UNET 和 LoRA 写的是开发机上的文件名，换台机器必然对不上。两条路：
 
 - 直接用内置模板，进「模型与 LoRA」按自己服务器上的文件重选一次；
 - 或把 `workflows/` 里的 JSON 拖进 ComfyUI 打开，缺节点会直接报错，缺模型在加载器里一眼能看到。
+
+`workflows/` 里放的是 **ComfyUI 界面格式**（`nodes` / `links`），拖进网页就能打开；App 内置的是同一套逻辑的
+**API 格式**，两种格式内容对应、节点一致，只是给不同地方用。
 
 如果导入的是别人分享的工作流：App 内「工作流管理」→ 导入 JSON → 选中文件。无论内置还是导入，
 **都要按自己服务器上的文件重选 UNET / CLIP / VAE / LoRA**，否则会报模型不存在。
@@ -139,8 +142,9 @@ and burst capture; a two-tier media cache that survives a ComfyUI restart; galle
 grouping.
 
 **Two mobile workflows are bundled** (`ttv_h3_mobile_frames`, `itv_h3_mobile_r2v`), and the same
-JSON files live in [`workflows/`](workflows) so you can open them in ComfyUI first and see which
-nodes or models your machine is missing. Both carry the developer's UNET and LoRA filenames, so
+JSON files live in [`workflows/`](workflows) in ComfyUI's UI format, so you can drag them into the
+web UI and see which nodes or models your machine is missing. The bundled copies use the API format
+the app submits; the two versions describe the same graph. Both carry the developer's UNET and LoRA filenames, so
 reselect them once under "Model & LoRA" for your own server. Required node packs:
 MiniMax H3 nodes, ComfyUI-KJNodes, rgthree, ComfyUI-Easy-Use, VideoHelperSuite, plus
 `ComfyMathExpression`, `ResolutionSelector` and `CR Text`. The samples enable a 4-step turbo LoRA,
