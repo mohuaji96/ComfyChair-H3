@@ -17,6 +17,8 @@
 - 最低 Android 13（API 33）
 - 需要你自己的 ComfyUI 服务器，手机能访问到（局域网或 VPN）
 
+**下载**：[最新 Release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) · APK 与两份示例工作流
+
 ## 功能
 
 **H3 视频工作区**
@@ -136,6 +138,8 @@ segment's last frame. Derived from [ComfyChair](https://github.com/legal-hkr/com
 
 - Package `com.comfychair.h3` — installs alongside upstream `sh.hnet.comfychair`
 - Android 13 (API 33) or newer; you need your own ComfyUI server reachable from the phone
+
+**Download**: [latest release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) — APK plus the two sample workflows.
 
 **Features**: H3 workspace (T2V / I2V / FL2V / reference-to-video) with phone-side tail-frame capture
 and burst capture; a two-tier media cache that survives a ComfyUI restart; gallery filters and day
