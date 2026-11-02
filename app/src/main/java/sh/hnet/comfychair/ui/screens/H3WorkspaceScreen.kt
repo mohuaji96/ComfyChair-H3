@@ -240,8 +240,12 @@ private fun MissingArea(tab: H3Plan.Area, onOpenWorkflowSettings: () -> Unit) {
         Text("未找到${tab.label}的 H3 工作流", style = MaterialTheme.typography.titleMedium)
         Text(
             when (tab) {
-                H3Plan.Area.FRAMES -> "同一个模板就能跑文生、图生和首尾帧，导入含 MiniMaxH3ImageToVideo 的工作流即可。"
-                H3Plan.Area.R2V -> "参考生视频需要含 MiniMaxH3ReferenceToVideo 的模板。"
+                H3Plan.Area.FRAMES ->
+                    "同一个模板就能跑文生、图生和首尾帧：导入含 MiniMaxH3ImageToVideo 的工作流即可。" +
+                        "仓库 workflows/ 目录有示例 JSON，导入后记得按自己服务器上的模型重选 UNET 和 LoRA。"
+                H3Plan.Area.R2V ->
+                    "参考生视频需要含 MiniMaxH3ReferenceToVideo 的模板，" +
+                        "示例见仓库 workflows/itv_h3_mobile_r2v.json。"
             },
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp)
         )
