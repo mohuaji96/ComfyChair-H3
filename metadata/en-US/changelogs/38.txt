@@ -1,0 +1,11 @@
+v0.8.11
+
+Improvements:
+- Added fetching state to Generation button (shows "Fetching..." while downloading results)
+- Adjusted Random Seed toggle color for better visibility
+- Refactored text strings to follow Android naming standards
+
+Bug fixes:
+- Fixed Random Seed and Randomize button sizing and alignment
+- Fixed field mapping for some generation screens (#17)
+- Fixed preview freezing when generation completes in background

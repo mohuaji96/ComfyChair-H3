@@ -1,0 +1,12 @@
+v0.8.10
+
+New features:
+- Added per-app language selection using Android's native LocaleManager API (#15)
+- Implemented Prompt Library for saving, organizing, and reusing prompts (#16)
+
+Improvements:
+- Refactored prompt reset functionality
+
+Bug fixes:
+- Fixed Delete icon in Gallery to use MaterialTheme.colorScheme.error
+- Fixed race condition between HTTP job registration and WebSocket execution_start

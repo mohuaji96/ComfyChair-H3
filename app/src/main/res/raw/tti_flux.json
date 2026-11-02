@@ -1,0 +1,162 @@
+{
+  "name": "Flux",
+  "description": "Workflow for Flux UNET model with dual CLIP",
+  "defaults": {
+    "width": 1024,
+    "height": 1024,
+    "steps": 30,
+    "sampler_name": "euler",
+    "scheduler": "simple"
+  },
+  "groups": [
+    {
+      "id": 1,
+      "title": "CLIP Configuration",
+      "member_nodes": ["3", "note:1"]
+    },
+    {
+      "id": 2,
+      "title": "VAE Configuration",
+      "member_nodes": ["2", "note:2"]
+    }
+  ],
+  "notes": [
+    {
+      "id": 1,
+      "title": "CLIP Model Selection",
+      "content": "### Recommended CLIP Models\n\n- **CLIP 1:** T5 XXL\n- **CLIP 2:** L (clip_l)\n\nFlux uses a dual-encoder architecture that combines the text understanding capabilities of T5 with CLIP's visual-semantic alignment."
+    },
+    {
+      "id": 2,
+      "title": "VAE Selection",
+      "content": "### Recommended VAE\n\nUse **AE** (ae.safetensors) for optimal results with Flux models."
+    }
+  ],
+  "nodes": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "{{unet_name}}",
+        "weight_dtype": "default"
+      },
+      "_meta": {
+        "title": "Load Diffusion Model"
+      }
+    },
+    "2": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "{{vae_name}}"
+      },
+      "_meta": {
+        "title": "Load VAE"
+      }
+    },
+    "3": {
+      "class_type": "DualCLIPLoader",
+      "inputs": {
+        "clip_name1": "{{clip_name1}}",
+        "clip_name2": "{{clip_name2}}",
+        "type": "flux",
+        "device": "default"
+      },
+      "_meta": {
+        "title": "DualCLIPLoader"
+      }
+    },
+    "4": {
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "width": "{{width}}",
+        "height": "{{height}}",
+        "batch_size": "{{batch_size}}"
+      },
+      "_meta": {
+        "title": "Empty Latent Image"
+      }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "{{positive_prompt}}",
+        "clip": ["3", 0]
+      },
+      "_meta": {
+        "title": "CLIP Text Encode (Prompt)"
+      }
+    },
+    "6": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": "{{seed}}"
+      },
+      "_meta": {
+        "title": "RandomNoise"
+      }
+    },
+    "7": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "{{sampler_name}}"
+      },
+      "_meta": {
+        "title": "KSamplerSelect"
+      }
+    },
+    "8": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "{{scheduler}}",
+        "steps": "{{steps}}",
+        "denoise": 1.0,
+        "model": ["1", 0]
+      },
+      "_meta": {
+        "title": "BasicScheduler"
+      }
+    },
+    "9": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": ["1", 0],
+        "conditioning": ["5", 0]
+      },
+      "_meta": {
+        "title": "BasicGuider"
+      }
+    },
+    "10": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": ["6", 0],
+        "guider": ["9", 0],
+        "sampler": ["7", 0],
+        "sigmas": ["8", 0],
+        "latent_image": ["4", 0]
+      },
+      "_meta": {
+        "title": "SamplerCustomAdvanced"
+      }
+    },
+    "11": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["10", 0],
+        "vae": ["2", 0]
+      },
+      "_meta": {
+        "title": "VAE Decode"
+      }
+    },
+    "12": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "ComfyChair",
+        "images": ["11", 0]
+      },
+      "_meta": {
+        "title": "Save Image"
+      }
+    }
+  }
+}

@@ -1,0 +1,511 @@
+{
+  "nodes": {
+    "908": {
+      "class_type": "VHS_VideoCombine",
+      "inputs": {
+        "save_output": true,
+        "filename_prefix": "h3",
+        "images": [
+          "122",
+          0
+        ],
+        "loop_count": 0,
+        "pix_fmt": "yuv420p",
+        "save_metadata": true,
+        "crf": 19,
+        "trim_to_audio": false,
+        "format": "video/h264-mp4",
+        "audio": [
+          "121",
+          0
+        ],
+        "frame_rate": 24,
+        "pingpong": false
+      }
+    },
+    "1000": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    "1066": {
+      "class_type": "VHS_LoadAudioUpload",
+      "inputs": {
+        "duration": 0,
+        "start_time": 0,
+        "audio": "{{audio}}"
+      }
+    },
+    "1062": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "1061": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "1060": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "131": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "values.a": [
+          "887",
+          0
+        ]
+      }
+    },
+    "136": {
+      "class_type": "MiniMaxH3ReferenceToVideo",
+      "inputs": {
+        "ref_images.ref_image_0": [
+          "879",
+          0
+        ],
+        "ref_images.ref_image_1": [
+          "1045",
+          0
+        ],
+        "length": [
+          "131",
+          1
+        ],
+        "ref_images.ref_image_6": [
+          "1061",
+          0
+        ],
+        "ref_images.ref_image_7": [
+          "1060",
+          0
+        ],
+        "ref_images.ref_image_8": [
+          "1062",
+          0
+        ],
+        "ref_images.ref_image_2": [
+          "1054",
+          0
+        ],
+        "ref_image_size": "match",
+        "audio_vae": [
+          "1003",
+          0
+        ],
+        "ref_images.ref_image_3": [
+          "1057",
+          0
+        ],
+        "ref_images.ref_image_4": [
+          "1058",
+          0
+        ],
+        "ref_images.ref_image_5": [
+          "1059",
+          0
+        ],
+        "ref_audios.ref_audio_2": [
+          "1068",
+          0
+        ],
+        "width": [
+          "884",
+          1
+        ],
+        "vae": [
+          "1002",
+          0
+        ],
+        "ref_audios.ref_audio_1": [
+          "1067",
+          0
+        ],
+        "prompt": [
+          "138",
+          0
+        ],
+        "ref_audios.ref_audio_0": [
+          "1066",
+          0
+        ],
+        "clip": [
+          "1000",
+          0
+        ],
+        "height": [
+          "885",
+          1
+        ]
+      }
+    },
+    "1059": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "1058": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "138": {
+      "class_type": "PrimitiveStringMultiline",
+      "inputs": {
+        "value": [
+          "886",
+          0
+        ]
+      }
+    },
+    "996": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "weight_dtype": "default",
+        "unet_name": "H3\\社区画质增强版minimaxH3Singularity_prunedInt8.safetensors"
+      }
+    },
+    "1057": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "975": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "H3\\4步加速-全模式可以用，推荐参考图生视频minimax_h3_fl2v_turbo_4step_v1.2_768p_comfyui_bf16.safetensors",
+        "strength_model": 1,
+        "model": [
+          "996",
+          0
+        ]
+      }
+    },
+    "1034": {
+      "class_type": "MiniMaxChunkFeedForward",
+      "inputs": {
+        "chunks": 2,
+        "model": [
+          "1033",
+          0
+        ],
+        "seq_threshold": 4096
+      }
+    },
+    "910": {
+      "class_type": "easy seed",
+      "inputs": {
+        "seed": 223414220715341,
+        "control_after_generate": "randomize"
+      }
+    },
+    "955": {
+      "class_type": "ResolutionSelector",
+      "inputs": {
+        "aspect_ratio": "16:9 (Widescreen)",
+        "megapixels": 0.4,
+        "multiple": 32
+      }
+    },
+    "879": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "825c5239724052b942757612cc4039d1a02e96f15a2008-ikwdlE.png",
+        "upload": "image"
+      }
+    },
+    "958": {
+      "class_type": "Display Any (rgthree)",
+      "inputs": {
+        "output": "",
+        "source": [
+          "955",
+          0
+        ]
+      }
+    },
+    "1033": {
+      "class_type": "MiniMaxLowVRAMAttention",
+      "inputs": {
+        "head_chunks": 4,
+        "model": [
+          "1029",
+          0
+        ]
+      }
+    },
+    "1055": {
+      "class_type": "Power Lora Loader (rgthree)",
+      "inputs": {
+        "➕ Add Lora": "",
+        "model": [
+          "975",
+          0
+        ]
+      }
+    },
+    "1054": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "e1e4cf6c-0a95-4873-9687-28336ee77eaa.png",
+        "upload": "image"
+      }
+    },
+    "121": {
+      "class_type": "VAEDecodeAudio",
+      "inputs": {
+        "vae": [
+          "1003",
+          0
+        ],
+        "samples": [
+          "1009",
+          0
+        ]
+      }
+    },
+    "1008": {
+      "class_type": "easy cleanGpuUsed",
+      "inputs": {
+        "anything": [
+          "125",
+          0
+        ]
+      }
+    },
+    "122": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "vae": [
+          "1002",
+          0
+        ],
+        "samples": [
+          "1009",
+          0
+        ]
+      }
+    },
+    "1007": {
+      "class_type": "easy clearCacheAll",
+      "inputs": {
+        "anything": [
+          "1006",
+          0
+        ]
+      }
+    },
+    "1029": {
+      "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "inputs": {
+        "model": [
+          "1028",
+          0
+        ]
+      }
+    },
+    "123": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "euler"
+      }
+    },
+    "981": {
+      "class_type": "ModelPreviewOverrideKJ",
+      "inputs": {
+        "preview": "",
+        "preview_frames": [
+          "131",
+          1
+        ],
+        "suppress_default_preview": true,
+        "jpeg_quality": 80,
+        "tiny_vae": "none",
+        "model": [
+          "1034",
+          0
+        ],
+        "preview_fps": 8,
+        "max_resolution": 1024
+      }
+    },
+    "1006": {
+      "class_type": "easy cleanGpuUsed",
+      "inputs": {
+        "anything": [
+          "136",
+          1
+        ]
+      }
+    },
+    "1028": {
+      "class_type": "PathchSageAttentionKJ",
+      "inputs": {
+        "sage_attention": "auto",
+        "model": [
+          "1055",
+          0
+        ],
+        "allow_compile": false
+      }
+    },
+    "124": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "beta",
+        "denoise": 1,
+        "model": [
+          "981",
+          0
+        ],
+        "steps": 4
+      }
+    },
+    "125": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "guider": [
+          "126",
+          0
+        ],
+        "latent_image": [
+          "1007",
+          0
+        ],
+        "noise": [
+          "129",
+          0
+        ],
+        "sigmas": [
+          "124",
+          0
+        ],
+        "sampler": [
+          "123",
+          0
+        ]
+      }
+    },
+    "884": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "(a // 32) * 32",
+        "values.a": [
+          "955",
+          0
+        ]
+      }
+    },
+    "126": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "conditioning": [
+          "136",
+          0
+        ],
+        "model": [
+          "981",
+          0
+        ]
+      }
+    },
+    "885": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "(a // 32) * 32",
+        "values.a": [
+          "955",
+          1
+        ]
+      }
+    },
+    "1003": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "886": {
+      "class_type": "CR Text",
+      "inputs": {
+        "text": "subject_definitions:\n<Subject 1> is the fully nude adult female from <Picture 1> (<Picture 1> is a full-body frontal nude reference of the same character). Throughout the entire video she is completely naked and barefoot, with no clothing or fabric of any kind touching her body, only the ornaments shown in the reference. She wears her glasses throughout the entire video without removing them at any moment; the glasses stay on her nose, both ear hooks stay behind her ears, and the lenses stay clear and readable in every frame. Her entire appearance — her face, her glasses, her ears, her long black hair — is taken exactly from <Picture 1>. Her overall build, her proportions and the silhouette of her body are taken from <Picture 1>: her body keeps exactly the build, the silhouette and the level of fullness that <Picture 1> shows, and the front of her body carries that same fullness straight through, unchanged, at one even level across the whole of her front; her two feet are completely bare.\n\nThe skin reads as smooth, uninterrupted and even, with extremely soft and long light-to-shadow transitions across the whole of it.\n\nThis subject is defined by the identity and design of <Picture 1> together with the timeline state written below.\n\n<Subject 2> is the bathroom environment from <Picture 3>. A Japanese-style home bathroom with a large bathtub on the left, a rainfall showerhead mounted above and slightly to the right of center, cream-colored tiled walls covering the lower two-thirds, a frosted glass shower door standing slightly open on the right, a small wooden bath stool near the tub, a folded white towel on a wall rack, warm yellow overhead lighting from a flush ceiling fixture, and visible steam rising and drifting through the space. The shower is running and water falls continuously from the showerhead throughout the entire video.\n\n<Subject 3> is the fixed rendering style applied to every frame of the entire video: Japanese 2D anime style with clean separating outlines, cel shading, flat even colour blocks, soft and restrained colour transitions within each block, minimal gradient, low saturation with a warm-pink and cool-blue dual-tone palette, characters rendered with clear separating lines so bodies and limbs stay distinct and countable, flat/even lighting with no complex shadow maps, no photorealism, no next-generation CG, no thick paint, no watercolour, no ink-wash.\n\n<Subject 4> is the fully nude adult male from <Picture 2> (<Picture 2> is a full-body frontal nude reference of the same character). Throughout the entire video he is completely naked and barefoot, with no clothing or fabric of any kind touching his body. His entire appearance — his face, his short dark hair — is taken exactly from <Picture 2>. His overall build, his proportions and the silhouette of his body are taken from <Picture 2>. His overall build, bone structure and shoulder width are taken exactly from <Picture 2>, and keep an adult male proportion throughout; his body never becomes feminine or overly slender.\n\nThis subject is defined by the identity and design of <Picture 2> together with the timeline state written below.\n\nsummary:\nA woman and a man in a steamy bathroom. They embrace and kiss under the running shower, then shift into a face-to-face seated position and make love with increasing intensity until simultaneous climax.\n\nretention_analysis:\n<Picture 1>: partially_preserved\n<Picture 2>: partially_preserved\n<Picture 3>: fully_preserved\n\ndetailed_description:\nThe entire video is rendered in <Subject 3>: Japanese 2D anime style with clean separating outlines, cel shading and flat even colour blocks. <Picture 1> supplies the first character's identity and design, <Picture 2> supplies the second character's identity and design, and <Picture 3> supplies the environment. All current character colours, clothing colours and environmental lighting still follow the present reference images and requirements. A 16:9 landscape frame.\n\n[Shot 1]\nThe camera holds a medium shot from a three-quarter side angle at eye level, framing both figures from the waist up inside the shower area. Warm yellow overhead light and the side-falling shower water create a soft, even illumination across both bodies; steam drifts through the frame in slow curls. She stands facing him, her body turned three-quarters toward the lens, his body facing her with his back more to the camera. Both are completely naked. She has her arms looped around his neck, his hands rest on her waist. Water streams down from the showerhead onto their shoulders and runs along their skin in thin, flat rivulets. Her glasses sit firmly on her nose, lenses slightly misted from the steam but still clear. Their mouths press together in a long, slow kiss. Her eyes are closed for the kiss and reopen at 00:01.200, her gaze finding his face. His eyes are open and fixed on her face. She says <d>[zh] 好喜欢这样…</d>, her voice soft and intimate, the words leaving her lips as the kiss briefly parts. Her breathing is slow and warm; his breathing matches hers. The shower water patters steadily against the tub floor and their bodies; steam wisps curl past the lens. Her hair hangs damp and dark down her back; his short hair glistens with water. The light lies as one single wide, shallow gradient across the visible skin of both figures. Each body keeps its own outline and does not merge into another; arms, legs and torsos stay separable and countable at every moment.\n\n[Shot 2] At 00:02.000, the camera cuts to a medium-close shot from directly in front and slightly above, tilted in a gentle high angle looking down at both figures. He sits on the wooden bath stool; she sits astride him facing him, her knees on the stool on either side of his hips, her weight settled on his lap. Both are still completely naked. The shower water continues to fall, striking her upper back and shoulders and running down between their pressed bodies. Her glasses remain on her nose throughout. His hands grip her waist; her hands rest on his shoulders.\n\nFrom 00:02.000 to 00:04.000, they move together in a slow initial rhythm: he holds her waist and she rocks forward and back along his lap, their bodies pressing and releasing in a steady, unhurried cycle of about one full rock every two seconds. Her breathing deepens; her lips part slightly; a quiet moan leaves her throat with each forward press. He breathes evenly, his jaw settling, his nostrils slightly flared. Her eyes stay open and fixed on his face; his eyes stay open and fixed on hers. She says <d>[zh] 再深一点…</d> at 00:03.500, her voice low and breathless. Water splashes softly from their moving bodies onto the stool and tub floor.\n\nFrom 00:04.000 to 00:07.000, the rhythm quickens: she rocks faster, about one full cycle per second, pressing deeper onto him with each forward motion. His hands slide from her waist to grip her hips, pulling her closer on each forward beat. Her thighs press against his sides; her fingers tighten on his shoulders. Her breathing grows quicker and shallower; her moans rise in pitch and come with each forward press. His breathing deepens; a low groan leaves him at 00:05.500. She says <d>[zh] 好舒服…不要停…</d> at 00:06.000, the words broken between breaths. Her brows gently knit; one corner of her mouth lifts a very little. His brows are level; his jaw is set. Small drops of water fly from her shoulders with the faster motion; the shower water keeps falling. Her hair swings with the rhythm; her glasses stay steady on her nose.\n\nFrom 00:07.000 to 00:08.500, the pace reaches its fastest: she rocks rapidly, nearly twice per second, her body pressing hard against his on each beat. Both their breaths are fast and shallow. Her moans come in short, high bursts; his breathing is ragged with low, tight sounds. Her eyes stay open and wet with tears gathering along the lower lash line; his eyes stay open and fixed on her. Her hands move from his shoulders to cup his face for a brief moment at 00:07.500, then slide back to his shoulders. His hands hold her hips firmly. She says <d>[zh] 快要…!</d> at 00:08.000, her voice strained and high. Water cascades down their bodies; steam swirls around them.\n\nFrom 00:08.500 to 00:09.500, both reach climax together: he pulls her hips down hard onto his lap and holds still, a deep groan leaving him; her body tenses, her back arches, her thighs tremble against his sides, her toes curl, and a long, broken moan leaves her. She says <d>[zh] 啊…!</d> at 00:08.800. Both hold the pressed-close position for a full second, their bodies trembling slightly, their breathing held and then released in long, shaking exhales. A light trace of tears runs from the outer corner of each of her eyes; her glasses sit undisturbed. His forehead rests against hers.\n\nFrom 00:09.500 to 00:10.000, the release settles: their breathing slowly calms, their grips loosen, she rests her forehead against his shoulder, his arms wrap loosely around her back. The shower water continues to fall. Steam drifts. The camera holds steady. Her eyes close once at 00:09.600 and reopen at 00:09.800, her gaze soft and resting on his shoulder. The light lies as one single wide, shallow gradient across both figures.\n\nEvery frame maintains the fixed rendering logic of <Subject 3> without change: Japanese 2D anime style with clean separating outlines, cel shading, flat even colour blocks, minimal gradient, low saturation, so every frame keeps the same Japanese 2D anime quality.\n\noverall_soundscape:\nContinuous shower water falling and splashing on bodies, tub and tile floor throughout the entire 10 seconds. At 00:00–00:02: slow, warm breathing from both, soft parting of lips during kiss, quiet intimate speech. At 00:02–00:04: deeper breathing from both, quiet moans from her at each forward press (one every ~2s), low groan from him at 00:03.500, wet skin-on-skin sliding sounds in slow rhythm, water displaced by gentle rocking. At 00:04–00:07: quicker breathing, her moans rising in pitch and doubling in frequency, his breathing audibly deeper, wet sliding sounds faster and more audible, water splashing with increased motion. At 00:07–00:08.500: fast shallow breathing from both, her moans in short high bursts, his low tight vocalisations, rapid wet sliding and skin impacts, water flying off moving bodies. At 00:08.500–00:09.500: simultaneous climax — both breaths held then released in long shaking exhales, a deep groan from him, a long broken moan from her, one final firm skin-press sound, then trembling settles. At 00:09.5–00:10: breathing slowly calms, only shower water and quiet breaths remain.\n\nnon_diegetic_music:\nN/A"
+      }
+    },
+    "1002": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "1068": {
+      "class_type": "VHS_LoadAudioUpload",
+      "inputs": {
+        "duration": 0,
+        "start_time": 0,
+        "audio": "{{audio}}"
+      }
+    },
+    "887": {
+      "class_type": "PrimitiveFloat",
+      "inputs": {
+        "value": 10
+      }
+    },
+    "1045": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "5aec8351bd21dd7dc75eed812ceafc389c8fe02a.jpg",
+        "upload": "image"
+      }
+    },
+    "1067": {
+      "class_type": "VHS_LoadAudioUpload",
+      "inputs": {
+        "duration": 0,
+        "start_time": 0,
+        "audio": "{{audio}}"
+      }
+    },
+    "129": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": [
+          "910",
+          0
+        ],
+        "control_after_generate": "randomize"
+      }
+    },
+    "1009": {
+      "class_type": "easy clearCacheAll",
+      "inputs": {
+        "anything": [
+          "1008",
+          0
+        ]
+      }
+    }
+  },
+  "name": "H3 参考生视频（手机模板）",
+  "description": "参考图生视频：9 张参考图 + 最多 3 路独立参考音频；参考视频本版本不提交。",
+  "h3Preferred": true
+}

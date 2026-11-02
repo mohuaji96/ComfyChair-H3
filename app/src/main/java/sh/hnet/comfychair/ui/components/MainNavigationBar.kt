@@ -1,0 +1,239 @@
+package sh.hnet.comfychair.ui.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.navigation.MainRoute
+import sh.hnet.comfychair.repository.GalleryRepository
+
+/**
+ * Main navigation bar for the app with 4 destinations:
+ * - Text-to-Image (icon button)
+ * - Image-to-Image (icon button)
+ * - Text-to-Video (icon button)
+ * - Image-to-Video (icon button)
+ *
+ * FAB launches Gallery activity.
+ *
+ * Uses BottomAppBar with navigation buttons on left and FAB on right.
+ */
+@Composable
+fun MainNavigationBar(
+    navController: NavController,
+    onNavigateToGallery: () -> Unit
+) {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Observe gallery items to show latest thumbnail in FAB
+    val galleryItems by GalleryRepository.getInstance().galleryItems.collectAsState()
+    val latestItem = galleryItems.firstOrNull()
+
+    // Lazy load thumbnail for FAB - keep previous thumbnail until new one is ready
+    val displayedThumbnail = rememberRetainedBitmap(
+        cacheKey = latestItem?.toCacheKey(),
+        isVideo = latestItem?.isVideo ?: false,
+        subfolder = latestItem?.subfolder ?: "",
+        type = latestItem?.type ?: ""
+    )
+
+    BottomAppBar(
+        actions = {
+            // Add left padding to align with screen content (16dp - default 4dp = 12dp extra)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Text to Image
+            if (currentRoute == MainRoute.TextToImage.route) {
+                FilledIconButton(
+                    onClick = { },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.text_to_image_24px),
+                        contentDescription = stringResource(R.string.nav_text_to_image)
+                    )
+                }
+            } else {
+                IconButton(onClick = {
+                    navController.navigate(MainRoute.TextToImage.route) {
+                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.text_to_image_24px),
+                        contentDescription = stringResource(R.string.nav_text_to_image),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Image to Image
+            if (currentRoute == MainRoute.ImageToImage.route) {
+                FilledIconButton(
+                    onClick = { },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.image_to_image_24px),
+                        contentDescription = stringResource(R.string.nav_image_to_image)
+                    )
+                }
+            } else {
+                IconButton(onClick = {
+                    navController.navigate(MainRoute.ImageToImage.route) {
+                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.image_to_image_24px),
+                        contentDescription = stringResource(R.string.nav_image_to_image),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Text to Video
+            if (currentRoute == MainRoute.TextToVideo.route) {
+                FilledIconButton(
+                    onClick = { },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.text_to_video_24px),
+                        contentDescription = stringResource(R.string.nav_text_to_video)
+                    )
+                }
+            } else {
+                IconButton(onClick = {
+                    navController.navigate(MainRoute.TextToVideo.route) {
+                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.text_to_video_24px),
+                        contentDescription = stringResource(R.string.nav_text_to_video),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Image to Video
+            if (currentRoute == MainRoute.ImageToVideo.route) {
+                FilledIconButton(
+                    onClick = { },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.image_to_video_24px),
+                        contentDescription = stringResource(R.string.nav_image_to_video)
+                    )
+                }
+            } else {
+                IconButton(onClick = {
+                    navController.navigate(MainRoute.ImageToVideo.route) {
+                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.image_to_video_24px),
+                        contentDescription = stringResource(R.string.nav_image_to_video),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // H3 Workspace (independent four-mode entry)
+            if (currentRoute == MainRoute.H3Workspace.route) {
+                FilledIconButton(
+                    onClick = { },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.h3_24px),
+                        contentDescription = stringResource(R.string.nav_h3_workspace)
+                    )
+                }
+            } else {
+                IconButton(onClick = {
+                    navController.navigate(MainRoute.H3Workspace.route) {
+                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }) {
+                    Icon(
+                        painter = painterResource(R.drawable.h3_24px),
+                        contentDescription = stringResource(R.string.nav_h3_workspace),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToGallery,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                if (displayedThumbnail != null) {
+                    Image(
+                        bitmap = displayedThumbnail.asImageBitmap(),
+                        contentDescription = stringResource(R.string.nav_gallery),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Collections,
+                        contentDescription = stringResource(R.string.nav_gallery),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+    )
+}

@@ -1,0 +1,173 @@
+{
+  "name": "Z-Image Turbo",
+  "description": "Inpainting workflow using Z-Image Turbo model",
+  "defaults": {
+    "steps": 9,
+    "cfg": 1.0,
+    "sampler_name": "euler",
+    "scheduler": "simple",
+    "negative_prompt": "",
+    "denoise": 1.0
+  },
+  "groups": [
+    {
+      "id": 1,
+      "title": "CLIP Configuration",
+      "member_nodes": ["2", "note:1"]
+    },
+    {
+      "id": 2,
+      "title": "VAE Configuration",
+      "member_nodes": ["3", "note:2"]
+    },
+    {
+      "id": 3,
+      "title": "Sampling Configuration",
+      "member_nodes": ["8", "note:3"]
+    }
+  ],
+  "notes": [
+    {
+      "id": 1,
+      "title": "CLIP Model Selection",
+      "content": "### Recommended CLIP Model\n\nUse **Qwen 3 4V** for optimal text-to-image generation with Z-Image Turbo."
+    },
+    {
+      "id": 2,
+      "title": "VAE Selection",
+      "content": "### Recommended VAE\n\nUse **AE** (ae.safetensors) for optimal results with Z-Image Turbo."
+    },
+    {
+      "id": 3,
+      "title": "Sampler Settings",
+      "content": "### Recommended Settings\n\n- **Steps:** 9\n- **CFG:** 1.0\n- **Negative prompt:** Not required\n\n---\n\n*Z-Image Turbo is optimized for fast inference without the need for negative conditioning.*"
+    }
+  ],
+  "nodes": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "{{unet_name}}",
+        "weight_dtype": "default"
+      },
+      "_meta": {
+        "title": "Load Diffusion Model"
+      }
+    },
+    "2": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "{{clip_name}}",
+        "type": "stable_diffusion",
+        "device": "default"
+      },
+      "_meta": {
+        "title": "Load CLIP"
+      }
+    },
+    "3": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "{{vae_name}}"
+      },
+      "_meta": {
+        "title": "Load VAE"
+      }
+    },
+    "4": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "uploaded_image.png [input]"
+      },
+      "_meta": {
+        "title": "Load Image"
+      }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "{{positive_prompt}}",
+        "clip": ["2", 0]
+      },
+      "_meta": {
+        "title": "CLIP Text Encode (Positive Prompt)"
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "{{negative_prompt}}",
+        "clip": ["2", 0]
+      },
+      "_meta": {
+        "title": "CLIP Text Encode (Negative Prompt)"
+      }
+    },
+    "7": {
+      "class_type": "InpaintModelConditioning",
+      "inputs": {
+        "noise_mask": true,
+        "positive": ["5", 0],
+        "negative": ["6", 0],
+        "vae": ["3", 0],
+        "pixels": ["4", 0],
+        "mask": ["4", 1]
+      },
+      "_meta": {
+        "title": "InpaintModelConditioning"
+      }
+    },
+    "8": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": "{{seed}}",
+        "steps": "{{steps}}",
+        "cfg": "{{cfg}}",
+        "sampler_name": "{{sampler_name}}",
+        "scheduler": "{{scheduler}}",
+        "denoise": "{{denoise}}",
+        "model": ["1", 0],
+        "positive": ["7", 0],
+        "negative": ["7", 1],
+        "latent_image": ["7", 2]
+      },
+      "_meta": {
+        "title": "KSampler"
+      }
+    },
+    "9": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["8", 0],
+        "vae": ["3", 0]
+      },
+      "_meta": {
+        "title": "VAE Decode"
+      }
+    },
+    "10": {
+      "class_type": "ImageCompositeMasked",
+      "inputs": {
+        "x": 0,
+        "y": 0,
+        "resize_source": false,
+        "destination": ["4", 0],
+        "source": ["9", 0],
+        "mask": ["4", 1]
+      },
+      "_meta": {
+        "title": "ImageCompositeMasked"
+      }
+    },
+    "11": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "ComfyChair",
+        "images": ["10", 0]
+      },
+      "_meta": {
+        "title": "Save Image"
+      }
+    }
+  }
+}

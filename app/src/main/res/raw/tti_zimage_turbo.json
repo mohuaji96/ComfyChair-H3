@@ -1,0 +1,148 @@
+{
+  "name": "Z-Image Turbo",
+  "description": "Workflow using Z-Image Turbo model",
+  "defaults": {
+    "width": 832,
+    "height": 1216,
+    "steps": 9,
+    "cfg": 1.0,
+    "sampler_name": "euler",
+    "scheduler": "simple",
+    "negative_prompt": "blurry ugly bad"
+  },
+  "groups": [
+    {
+      "id": 1,
+      "title": "CLIP Configuration",
+      "member_nodes": ["3", "note:1"]
+    },
+    {
+      "id": 2,
+      "title": "VAE Configuration",
+      "member_nodes": ["2", "note:2"]
+    },
+    {
+      "id": 3,
+      "title": "Sampling Configuration",
+      "member_nodes": ["7", "note:3"]
+    }
+  ],
+  "notes": [
+    {
+      "id": 1,
+      "title": "CLIP Model Selection",
+      "content": "### Recommended CLIP Model\n\nUse **Qwen 3 4V** for optimal text-to-image generation with Z-Image Turbo."
+    },
+    {
+      "id": 2,
+      "title": "VAE Selection",
+      "content": "### Recommended VAE\n\nUse **AE** (ae.safetensors) for optimal results with Z-Image Turbo."
+    },
+    {
+      "id": 3,
+      "title": "Sampler Settings",
+      "content": "### Recommended Settings\n\n- **Steps:** 9\n- **CFG:** 1.0\n- **Negative prompt:** Not required\n\n---\n\n*Z-Image Turbo is optimized for fast inference without the need for negative conditioning.*"
+    }
+  ],
+  "nodes": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "{{unet_name}}",
+        "weight_dtype": "default"
+      },
+      "_meta": {
+        "title": "Load Diffusion Model"
+      }
+    },
+    "2": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "{{vae_name}}"
+      },
+      "_meta": {
+        "title": "Load VAE"
+      }
+    },
+    "3": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "{{clip_name}}",
+        "type": "lumina2",
+        "device": "default"
+      },
+      "_meta": {
+        "title": "Load CLIP"
+      }
+    },
+    "4": {
+      "class_type": "EmptySD3LatentImage",
+      "inputs": {
+        "width": "{{width}}",
+        "height": "{{height}}",
+        "batch_size": "{{batch_size}}"
+      },
+      "_meta": {
+        "title": "EmptySD3LatentImage"
+      }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "{{positive_prompt}}",
+        "clip": ["3", 0]
+      },
+      "_meta": {
+        "title": "CLIP Text Encode (Positive Prompt)"
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "{{negative_prompt}}",
+        "clip": ["3", 0]
+      },
+      "_meta": {
+        "title": "CLIP Text Encode (Negative Prompt)"
+      }
+    },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": "{{seed}}",
+        "steps": "{{steps}}",
+        "cfg": "{{cfg}}",
+        "sampler_name": "{{sampler_name}}",
+        "scheduler": "{{scheduler}}",
+        "denoise": 1.0,
+        "model": ["1", 0],
+        "positive": ["5", 0],
+        "negative": ["6", 0],
+        "latent_image": ["4", 0]
+      },
+      "_meta": {
+        "title": "KSampler"
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["7", 0],
+        "vae": ["2", 0]
+      },
+      "_meta": {
+        "title": "VAE Decode"
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "ComfyChair",
+        "images": ["8", 0]
+      },
+      "_meta": {
+        "title": "Save Image"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+v0.8.12
+
+New features:
+- Browser-based SSO authentication (#21)
+- Hierarchical folder tree in model and LoRA dropdowns (#23)
+- Opt-in: expandable prompt field while typing - fills available space above keyboard (#24)
+- Opt-in: Spell check with highlight for the positive prompt field (#24)
+- Monochrome app icon for Android themed icons (#26)
+- Quick switch back to online mode from the connection screen (#27)
+
+Improvements:
+- Samplers and schedulers loaded dynamically from server (#22)

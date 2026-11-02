@@ -1,0 +1,673 @@
+<resources>
+    <string name="app_name" translatable="false">ComfyChair H3</string>
+
+    <!-- Login screen strings -->
+    <string name="hint_hostname">Hostname</string>
+    <string name="hint_port">Port</string>
+
+    <!-- Server management strings -->
+    <string name="title_server_add">Add Server</string>
+    <string name="title_server_edit">Edit Server</string>
+    <string name="label_server_name">Server Name</string>
+    <string name="placeholder_server_name">My Server</string>
+    <string name="placeholder_server_hostname">192.168.1.100</string>
+    <string name="error_server_name_taken">This name is already used</string>
+    <string name="placeholder_server_select">Select a Server</string>
+    <string name="button_server_edit">Edit Server</string>
+    <string name="button_server_add">Add Server</string>
+    <string name="button_server_delete">Delete Server</string>
+    <string name="title_server_delete">Delete Server</string>
+    <string name="msg_server_delete">Are you sure you want to delete \"%s\"? This will also remove all saved preferences for this server.</string>
+    <string name="msg_server_deleted_success">Server deleted</string>
+
+    <!-- Authentication strings -->
+    <string name="label_auth_type">Authentication</string>
+    <string name="option_auth_type_none">None</string>
+    <string name="option_auth_type_basic">Basic</string>
+    <string name="option_auth_type_bearer">API key</string>
+    <string name="label_auth_username">Username</string>
+    <string name="label_auth_password">Password</string>
+    <string name="label_auth_token">API key / token</string>
+    <string name="error_auth_unauthorized">Authentication failed. Please check your credentials.</string>
+    <string name="option_auth_type_browser">Browser</string>
+    <string name="label_auth_browser_info">Authenticate via your browser. You will be prompted to sign in when connecting.</string>
+    <string name="title_browser_auth">Sign In</string>
+    <string name="button_browser_auth_done">Done</string>
+    <string name="button_reauthenticate">Sign In Again</string>
+    <string name="error_browser_auth_cancelled">Sign in was not completed</string>
+
+    <!-- Connection alert dialog -->
+    <string name="title_connection_lost">Connection Lost</string>
+    <string name="msg_connection_lost">Unable to connect to the server after multiple attempts.</string>
+    <string name="title_session_expired">Session Expired</string>
+    <string name="msg_session_expired">Your session has expired. Please log in again.</string>
+    <string name="title_transfer_stalled">Transfer Stalled</string>
+    <string name="msg_transfer_stalled">No data was transferred for 30 seconds. This may indicate a connection problem.</string>
+    <string name="error_upload_stalled">Upload stalled</string>
+    <string name="action_reconnect">Reconnect</string>
+    <string name="action_reconnecting">Reconnecting…</string>
+    <string name="msg_reconnect_failed">Unable to reconnect</string>
+    <string name="action_go_offline">Go Offline</string>
+    <string name="action_return_to_login">Return to Login</string>
+
+    <!-- Connection button states -->
+    <string name="button_connect">Connect</string>
+    <string name="button_connecting">Connecting…</string>
+    <string name="button_failed">Failed</string>
+    <string name="button_connected">Connected</string>
+    <string name="button_offline">Offline</string>
+    <string name="error_no_offline_cache">No cached data available for this server</string>
+    <string name="title_offline_prompt">Server Unreachable</string>
+    <string name="msg_offline_prompt">Cannot connect to the server. Would you like to continue in offline mode using cached data?</string>
+    <string name="button_offline_prompt_confirm">Go Offline</string>
+    <string name="button_offline_prompt_dismiss">Cancel</string>
+    <string name="button_go_online">Go Online</string>
+
+    <!-- Validation error messages -->
+    <string name="error_required">Required</string>
+    <string name="error_invalid_port">Invalid port number</string>
+    <string name="error_invalid_hostname">Invalid hostname or IP address</string>
+
+    <!-- SSL certificate warnings -->
+    <string name="warning_self_signed_cert">Cannot validate the certificate, connecting anyway</string>
+    <string name="warning_unknown_ca">Unknown certificate issuer, connecting anyway</string>
+
+    <!-- Query screen strings -->
+    <string name="hint_prompt">Prompt</string>
+    <string name="hint_negative_prompt">Negative prompt</string>
+    <string name="button_generate">Generate</string>
+
+    <!-- Gallery screen strings -->
+    <string name="title_gallery">Gallery</string>
+    <string name="content_description_gallery_thumbnail">Generated image thumbnail</string>
+    <string name="content_description_not_cached">Not available offline</string>
+
+    <!-- Navigation strings -->
+    <string name="nav_text_to_image">Text to Image</string>
+    <string name="nav_image_to_image">Image to Image</string>
+    <string name="nav_gallery">Gallery</string>
+
+    <!-- Configuration fragment strings -->
+    <string name="title_server_info">Server Information</string>
+    <string name="label_hostname">Hostname:</string>
+    <string name="label_port">Port:</string>
+    <string name="title_server_management">Server Management</string>
+    <string name="button_clear_queue">Clear Queue</string>
+    <string name="button_clear_history">Clear History</string>
+    <string name="button_refresh_models">Refresh Models</string>
+    <string name="msg_models_refreshed_success">Models refreshed successfully</string>
+    <string name="error_models_refresh">Failed to refresh models</string>
+
+    <!-- Resource usage strings -->
+    <string name="title_ram_usage">RAM</string>
+    <string name="title_gpu_usage">GPU</string>
+    <string name="resource_usage_format">%1$.2f GB / %2$.2f GB used</string>
+
+    <!-- Server info labels -->
+    <string name="label_server_info_os">OS:</string>
+    <string name="label_server_info_comfyui">ComfyUI:</string>
+    <string name="label_server_info_python">Python:</string>
+    <string name="label_server_info_pytorch">PyTorch:</string>
+
+    <!-- Toast messages -->
+    <string name="msg_queue_cleared_success">Queue cleared successfully</string>
+    <string name="error_queue_clear">Failed to clear queue</string>
+    <string name="msg_history_cleared_success">History cleared successfully</string>
+    <string name="error_history_clear">Failed to clear history</string>
+    <string name="msg_history_item_deleted_success">Item deleted successfully</string>
+    <string name="error_history_item_delete">Failed to delete item</string>
+    <string name="msg_cache_cleared_success">Cache cleared successfully</string>
+    <string name="msg_defaults_restored_success">Defaults restored successfully</string>
+    <string name="msg_gallery_refresh_success">Gallery refreshed</string>
+    <string name="error_gallery_refresh">Failed to refresh gallery</string>
+
+    <!-- Language settings -->
+    <string name="title_settings_language">Language &amp; Spelling</string>
+    <string name="desc_settings_language">Choose your preferred app language and spelling settings</string>
+    <string name="language_system_default">System default</string>
+    <string name="label_language">App language</string>
+    <string name="language_name_en" translatable="false">English</string>
+    <string name="language_name_de" translatable="false">Deutsch</string>
+    <string name="language_name_es" translatable="false">Español</string>
+    <string name="language_name_fr" translatable="false">Français</string>
+    <string name="language_name_pl" translatable="false">Polski</string>
+    <string name="language_name_zh" translatable="false">中文</string>
+
+    <!-- Settings section titles -->
+    <string name="title_settings_connection">Connection</string>
+    <string name="desc_settings_connection">Server connection behavior</string>
+    <string name="title_settings_generation">Generation</string>
+    <string name="desc_settings_generation">Generation experience settings</string>
+    <string name="title_settings_workflow_editor">Workflow Editor</string>
+    <string name="desc_settings_workflow_editor">Customize the workflow editor appearance</string>
+    <string name="label_edge_style">Edge Style</string>
+    <string name="option_edge_router_bezier">Bezier Curve</string>
+    <string name="option_edge_router_hermite">Hermite Spline</string>
+    <string name="title_settings_cache">Cache and storage</string>
+    <string name="desc_settings_cache">Media caching settings</string>
+    <string name="title_settings_reset">Reset</string>
+    <string name="desc_settings_reset">Reset app data and settings</string>
+
+    <!-- App settings strings -->
+    <string name="label_live_preview">Show live preview</string>
+    <string name="desc_live_preview">Display intermediate images during generation</string>
+    <string name="label_memory_first_cache">In-memory first cache</string>
+    <string name="desc_memory_first_cache">Fast access, higher memory usage. Disable for slow networks or low-memory devices.</string>
+    <string name="desc_memory_first_cache_warning">Previews may be lost if the app is closed unexpectedly.</string>
+    <string name="label_disable_media_cache">Disable media cache</string>
+    <string name="desc_disable_media_cache">Do not save preview images and videos to disk</string>
+    <string name="label_offline_mode">Offline mode</string>
+    <string name="desc_offline_mode">Browse cached data without network connection</string>
+    <string name="msg_offline_mode_requires_disk_cache">Disable \"In-memory first cache\" to enable offline mode</string>
+    <string name="msg_cannot_go_online">Cannot go online - server unreachable</string>
+    <string name="label_auto_connect">Auto-connect</string>
+    <string name="desc_auto_connect">Automatically connect to the last server on app launch</string>
+    <string name="label_show_built_in_workflows">Show built-in workflows</string>
+    <string name="desc_show_built_in_workflows">Display the default workflows bundled with the app</string>
+    <string name="label_prompt_spell_check">Spell check &amp; autocorrect</string>
+    <string name="desc_prompt_spell_check">Enable spell checking and autocorrect in prompt fields. May flag AI-specific terms as errors.</string>
+    <string name="label_prompt_expand">Expand prompt field when typing</string>
+    <string name="desc_prompt_expand">When focused, the prompt field fills the screen above the keyboard. The preview is hidden until the keyboard is dismissed.</string>
+    <string name="button_reset_prompts_and_library">Reset Prompts and Library</string>
+    <string name="msg_reset_prompts_and_library_success">Prompts and library reset</string>
+    <string name="button_clear_cache">Clear Cache</string>
+    <string name="button_restore_defaults">Restore Defaults</string>
+
+    <!-- Backup and restore strings -->
+    <string name="title_backup_restore">Backup and Restore</string>
+    <string name="desc_backup_restore">Export or import your app configuration</string>
+    <string name="button_backup_create">Create Backup</string>
+    <string name="button_backup_restore">Restore from Backup</string>
+    <string name="msg_backup_created_success">Backup created successfully</string>
+    <string name="error_backup_create">Failed to create backup</string>
+    <string name="msg_backup_restore_success">Settings restored successfully</string>
+    <string name="msg_backup_restore_partial">Settings partially restored. Some workflows were skipped.</string>
+    <string name="error_backup_restore">Failed to restore backup</string>
+    <string name="error_backup_invalid_json">Invalid backup file format</string>
+    <string name="error_backup_unsupported_version">Unsupported backup version</string>
+    <string name="error_backup_no_servers">No servers found in backup</string>
+    <string name="title_backup_restore_confirm">Restore Settings?</string>
+    <string name="msg_backup_restore_confirm">This will replace your current settings. This action cannot be undone.</string>
+    <string name="button_backup_restore_confirm">Restore</string>
+
+    <!-- Gallery item strings -->
+    <string name="button_delete_history_item">Delete from history</string>
+    <string name="content_description_gallery_video_thumbnail">Generated video thumbnail</string>
+
+    <!-- Text to Video fragment strings -->
+    <string name="title_text_to_video">Text to Video</string>
+    <string name="nav_text_to_video">Text to Video</string>
+
+    <!-- Image to Video fragment strings (ITV-specific) -->
+    <string name="title_image_to_video">Image to Video</string>
+    <string name="nav_image_to_video">Image to Video</string>
+    <string name="nav_h3_workspace">H3 Workspace</string>
+    <string name="placeholder_video">Generated video will appear here</string>
+
+    <!-- Image-to-image fragment strings -->
+    <string name="title_image_to_image">Image to Image</string>
+    <string name="tab_source_image">Source Image</string>
+    <string name="tab_preview">Preview</string>
+    <string name="label_megapixels">Megapixels</string>
+    <string name="button_upload_source_image">Upload Source Image</string>
+    <string name="button_edit_mask">Edit Mask</string>
+    <string name="button_clear_mask">Clear Mask</string>
+    <string name="msg_no_source_image">No source image selected</string>
+
+    <!-- Generation button states -->
+    <string name="button_add_to_queue">Add to queue (%d)</string>
+    <string name="button_uploading">Uploading…</string>
+    <string name="button_uploading_queue">Uploading… (%d)</string>
+    <string name="button_connecting_queue">Connecting… (%d)</string>
+    <string name="button_fetching">Fetching…</string>
+    <string name="button_fetching_queue">Fetching… (%d)</string>
+
+    <!-- Queue menu strings -->
+    <string name="menu_cancel_current">Cancel Current</string>
+    <string name="menu_add_to_front_of_queue">Add to Front of Queue</string>
+    <string name="content_description_queue_menu">Queue menu</string>
+    <string name="content_description_server_menu">Server menu</string>
+
+    <!-- Workflow editor menu strings -->
+    <string name="menu_enable_manual_placement">Enable manual placement</string>
+    <string name="menu_disable_manual_placement">Disable manual placement</string>
+    <string name="title_disable_manual_placement">Disable Manual Placement?</string>
+    <string name="msg_disable_manual_placement">This will auto-arrange all nodes and clear custom positions. This cannot be undone.</string>
+    <string name="button_disable">Disable</string>
+
+    <!-- Error and status messages -->
+    <string name="error_not_comfyui_server">Not a ComfyUI server</string>
+    <string name="error_invalid_server_response">Invalid server response</string>
+    <string name="error_failed_load_workflow">Failed to load workflow</string>
+    <string name="error_generation_failed">Generation failed</string>
+    <string name="msg_connection_lost_generation_may_continue">Connection lost. Will check for completion when reconnected.</string>
+    <string name="error_no_connection">No connection to server</string>
+    <string name="error_workflow_not_found">Workflow not found</string>
+    <string name="error_no_workflow_specified">No workflow specified</string>
+    <string name="error_client_not_initialized">Client not initialized</string>
+
+    <!-- Save/share messages -->
+    <string name="msg_image_saved_to_gallery">Image saved to gallery</string>
+    <string name="msg_video_saved_to_gallery">Video saved to gallery</string>
+    <string name="error_save_image">Failed to save image</string>
+    <string name="error_save_video">Failed to save video</string>
+    <string name="error_share_image">Failed to share image</string>
+    <string name="error_share_video">Failed to share video</string>
+
+    <!-- Share chooser titles -->
+    <string name="share_image">Share image</string>
+    <string name="share_video">Share video</string>
+
+    <!-- Image-to-image messages -->
+    <string name="hint_paint_mask">Please paint a mask area for inpainting</string>
+
+    <!-- Save options -->
+    <string name="button_save_to_gallery">Save to gallery</string>
+    <string name="button_share">Share…</string>
+    <string name="button_save_image">Save</string>
+
+    <!-- Gallery selection mode strings -->
+    <string name="gallery_selected_count">%d selected</string>
+    <string name="button_gallery_select">Select items</string>
+    <string name="button_cancel_selection">Cancel selection</string>
+    <string name="label_item_selected">Selected</string>
+    <string name="msg_items_saved_to_gallery">Items saved to gallery</string>
+    <string name="msg_some_items_failed_to_save">Some items failed to save</string>
+    <string name="error_share_items">Failed to share items</string>
+    <string name="msg_items_deleted_success">Items deleted successfully</string>
+    <string name="msg_some_items_failed_to_delete">Some items failed to delete</string>
+
+    <!-- Mask editor strings -->
+    <string name="button_invert_mask">Invert mask</string>
+    <string name="option_paint_mode">Paint</string>
+    <string name="option_eraser_mode">Eraser</string>
+    <string name="label_brush_size">Brush size</string>
+    <string name="button_more_options">More options</string>
+
+    <!-- Top app bar menu strings -->
+    <string name="menu_generation">Generation</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_logout">Log out</string>
+    <string name="button_options">Options</string>
+
+    <!-- Configuration bottom sheet labels -->
+    <string name="option_mode_inpainting">Inpainting</string>
+    <string name="option_mode_editing">Editing</string>
+    <string name="label_workflow">Workflow</string>
+    <string name="button_view_workflow">View workflow</string>
+    <string name="label_checkpoint" translatable="false">Checkpoint</string>
+    <string name="label_unet" translatable="false">UNET</string>
+    <string name="label_vae" translatable="false">VAE</string>
+    <string name="label_clip" translatable="false">CLIP</string>
+    <string name="label_clip1" translatable="false">CLIP 1</string>
+    <string name="label_clip2" translatable="false">CLIP 2</string>
+    <string name="label_clip3" translatable="false">CLIP 3</string>
+    <string name="label_clip4" translatable="false">CLIP 4</string>
+    <string name="label_text_encoder" translatable="false">Text Encoder</string>
+    <string name="label_latent_upscale_model" translatable="false">Latent Upscale Model</string>
+    <string name="label_width">Width</string>
+    <string name="label_height">Height</string>
+    <string name="label_steps">Steps</string>
+    <string name="label_cfg" translatable="false">CFG</string>
+    <string name="label_sampler">Sampler</string>
+    <string name="label_scheduler">Scheduler</string>
+    <string name="label_seed">Seed</string>
+    <string name="label_random_seed">Random seed</string>
+    <string name="label_randomize_seed">Randomize</string>
+    <string name="label_denoise">Denoise</string>
+    <string name="label_batch_size">Batch size</string>
+    <string name="label_upscale_method">Upscale method</string>
+    <string name="label_scale_by">Scale by</string>
+    <string name="label_stop_at_clip_layer">CLIP layer</string>
+
+    <!-- ============================================== -->
+    <!-- SHARED GENERATION FIELDS                       -->
+    <!-- (Used across TTI, ITI, TTV, ITV screens)       -->
+    <!-- ============================================== -->
+
+    <!-- Shared video/dual-model labels -->
+    <string name="label_highnoise_unet">High Noise UNET</string>
+    <string name="label_lownoise_unet">Low Noise UNET</string>
+    <string name="label_highnoise_lora">High Noise LoRA</string>
+    <string name="label_lownoise_lora">Low Noise LoRA</string>
+    <string name="label_length">Length</string>
+    <string name="label_fps" translatable="false">FPS</string>
+
+    <!-- LoRA chain editor strings -->
+    <string name="title_lora_chain">LoRA chain (optional)</string>
+    <string name="title_highnoise_lora_chain">High Noise LoRAs (optional)</string>
+    <string name="title_lownoise_lora_chain">Low Noise LoRAs (optional)</string>
+    <string name="button_add_lora">Add LoRA</string>
+    <string name="label_lora" translatable="false">LoRA</string>
+    <string name="label_lora_strength">Strength:</string>
+    <string name="msg_lora_empty">No LoRAs added</string>
+    <string name="button_remove_lora">Remove LoRA</string>
+
+    <!-- Validation error messages -->
+    <string name="error_dimension_range">Must be 1–4096</string>
+    <string name="error_steps_range">Must be 1–255</string>
+    <string name="error_cfg_range">Must be 0.0–100.0</string>
+    <string name="error_megapixels_range">Must be 0.1–8.3</string>
+    <string name="error_length_range">Must be 1–129</string>
+    <string name="error_length_step">Must be 1, 5, 9, 13… (steps of 4)</string>
+    <string name="error_fps_range">Must be 1–120</string>
+    <string name="error_invalid_number">Invalid number</string>
+    <string name="error_invalid_integer">Must be a whole number</string>
+    <string name="error_value_min">Minimum: %1$d</string>
+    <string name="error_value_max">Maximum: %1$d</string>
+    <string name="error_value_min_float">Minimum: %1$.2f</string>
+    <string name="error_value_max_float">Maximum: %1$.2f</string>
+    <string name="error_invalid_option">Invalid option</string>
+    <string name="error_string_too_long">Maximum length: %1$d</string>
+    <string name="error_seed_range">Must be 0 or greater</string>
+    <string name="error_denoise_range">Must be 0.0–1.0</string>
+    <string name="error_batch_size_range">Must be 1–64</string>
+    <string name="error_scale_by_range">Must be 0.01–8.0</string>
+    <string name="error_clip_layer_range">Must be -24 to -1</string>
+
+    <!-- Node attribute editor -->
+    <string name="node_editor_reset">Reset</string>
+    <string name="node_editor_no_editable_inputs">No editable inputs</string>
+    <string name="node_editor_range_min_max">%1$s – %2$s</string>
+    <string name="node_editor_range_min">Min: %1$s</string>
+    <string name="node_editor_range_max">Max: %1$s</string>
+    <string name="node_editor_ui_field_prefix">UI: %1$s</string>
+    <string name="node_editor_image_load_error">Failed to load image</string>
+    <string name="title_node_editor_rename">Rename Node</string>
+    <string name="label_node_editor_rename">Node name</string>
+    <string name="node_editor_bypass">Bypass</string>
+
+    <!-- Field display names for workflow editor -->
+    <string name="field_positive_prompt">Positive Prompt</string>
+    <string name="field_negative_prompt">Negative Prompt</string>
+    <string name="field_cfg_scale">CFG Scale</string>
+    <string name="field_unet_model">UNET Model</string>
+    <string name="field_input_image">Input Image</string>
+    <string name="field_frame_rate">Frame Rate</string>
+
+    <!-- Field descriptions for workflow editor -->
+    <string name="field_desc_positive_prompt">The text prompt for generation</string>
+    <string name="field_desc_negative_prompt">Text describing what to avoid</string>
+    <string name="field_desc_checkpoint">The checkpoint model to use</string>
+    <string name="field_desc_unet">The diffusion model to use</string>
+    <string name="field_desc_vae">The VAE encoder/decoder</string>
+    <string name="field_desc_clip">The CLIP text encoder</string>
+    <string name="field_desc_clip1">First CLIP text encoder</string>
+    <string name="field_desc_clip2">Second CLIP text encoder</string>
+    <string name="field_desc_clip3">Third CLIP text encoder</string>
+    <string name="field_desc_clip4">Fourth CLIP text encoder</string>
+    <string name="field_desc_width">Output image width</string>
+    <string name="field_desc_height">Output image height</string>
+    <string name="field_desc_steps">Number of sampling steps</string>
+    <string name="field_desc_cfg">Classifier-free guidance scale</string>
+    <string name="field_desc_sampler">Sampling algorithm</string>
+    <string name="field_desc_scheduler">Noise scheduling method</string>
+    <string name="field_desc_megapixels">Target size in megapixels</string>
+    <string name="field_desc_lora">LoRA adapter model</string>
+    <string name="field_desc_length">Video length in frames</string>
+    <string name="field_desc_frame_rate">Video frames per second</string>
+    <string name="field_desc_image">Source image for generation</string>
+    <string name="field_desc_seed">Random seed for generation</string>
+    <string name="field_desc_denoise">Denoising strength (0.0-1.0)</string>
+    <string name="field_desc_batch_size">Number of images per batch</string>
+    <string name="field_desc_upscale_method">Interpolation method for upscaling</string>
+    <string name="field_desc_scale_by">Scale factor for upscaling</string>
+    <string name="field_desc_stop_at_clip_layer">CLIP layer to stop at (negative)</string>
+    <string name="field_text_encoder">Text Encoder</string>
+    <string name="field_desc_text_encoder">Text encoder model for prompt processing</string>
+    <string name="field_latent_upscale_model">Latent Upscale Model</string>
+    <string name="field_desc_latent_upscale_model">Model for latent space upscaling</string>
+    <string name="field_desc_fallback">Required field: %1$s</string>
+
+    <!-- Settings screen strings -->
+    <string name="nav_application_settings">Application</string>
+    <string name="nav_server_settings">Server</string>
+    <string name="nav_workflows_settings">Workflows</string>
+    <string name="title_application_settings">Application Settings</string>
+    <string name="title_server_settings">Server Settings</string>
+    <string name="title_workflows_settings">Workflows</string>
+
+    <!-- Workflow management strings -->
+    <string name="workflow_section_tti">Text to Image</string>
+    <string name="workflow_section_iti_inpainting">Image to Image: Inpainting</string>
+    <string name="workflow_section_iti_editing">Image to Image: Editing</string>
+    <string name="workflow_section_ttv">Text to Video</string>
+    <string name="workflow_section_itv">Image to Video</string>
+    <string name="workflow_section_empty">No workflows</string>
+    <string name="label_workflow_built_in">Built-in</string>
+    <string name="label_workflow_name">Name</string>
+    <string name="label_workflow_description">Description</string>
+    <string name="title_import_workflow">Import Workflow</string>
+    <string name="title_save_workflow">Save New Workflow</string>
+    <string name="title_edit_workflow">Edit Workflow</string>
+    <string name="title_delete_workflow">Delete Workflow</string>
+    <string name="msg_delete_workflow">Are you sure you want to delete \"%s\"?</string>
+    <string name="button_import">Import</string>
+    <string name="button_new_workflow">New workflow</string>
+    <string name="button_save">Save</string>
+    <string name="button_delete">Delete</string>
+    <string name="button_discard">Discard</string>
+    <string name="button_cancel">Cancel</string>
+    <string name="error_cannot_edit_builtin">Built-in workflows cannot be edited</string>
+    <string name="error_workflow_invalid_json">Invalid JSON format</string>
+    <string name="msg_workflow_import_success">Workflow imported</string>
+    <string name="error_workflow_import">Failed to import workflow</string>
+    <string name="msg_workflow_delete_success">Workflow deleted</string>
+    <string name="error_workflow_delete">Failed to delete workflow</string>
+    <string name="msg_workflow_update_success">Workflow updated</string>
+    <string name="error_workflow_update">Failed to update workflow</string>
+    <string name="msg_workflow_duplicate_success">Workflow duplicated</string>
+    <string name="workflow_menu_edit_structure">Edit workflow</string>
+    <string name="workflow_menu_rename">Rename</string>
+    <string name="workflow_menu_duplicate">Duplicate</string>
+    <string name="workflow_menu_delete">Delete</string>
+    <string name="workflow_menu_export">Export</string>
+    <string name="workflow_menu_export_api">Export (API Format)</string>
+    <string name="title_duplicate_workflow">Duplicate Workflow</string>
+    <string name="msg_workflow_export_success">Workflow exported</string>
+    <string name="error_workflow_export">Failed to export workflow</string>
+    <string name="msg_litegraph_conversion_notes">Conversion completed with %d note(s)</string>
+
+    <!-- Content descriptions for accessibility -->
+    <string name="content_description_menu">Menu</string>
+    <string name="content_description_back">Back</string>
+    <string name="content_description_close">Close</string>
+    <string name="content_description_video">Video</string>
+    <string name="content_description_clear">Clear</string>
+    <string name="content_description_generated_image">Generated image</string>
+    <string name="content_description_preview">Preview</string>
+    <string name="content_description_reference_image_1">Reference image 1</string>
+    <string name="content_description_reference_image_2">Reference image 2</string>
+    <string name="content_description_source_image">Source image</string>
+    <string name="content_description_decrease">Decrease value</string>
+    <string name="content_description_increase">Increase value</string>
+    <string name="content_description_show_help">Show help</string>
+
+    <!-- Empty state messages -->
+    <string name="msg_gallery_empty">No images yet</string>
+    <string name="gallery_date_today">Today</string>
+    <string name="gallery_date_yesterday">Yesterday</string>
+    <string name="gallery_date_earlier">Earlier</string>
+    <string name="msg_delete_needs_connection">Connect to the server to delete this one</string>
+    <string name="msg_gallery_offline_unavailable">Offline · not cached</string>
+    <string name="gallery_filter_all">All</string>
+    <string name="gallery_filter_image">Images</string>
+    <string name="gallery_filter_video">Videos</string>
+    <string name="gallery_filter_favorite">Favourites</string>
+    <string name="msg_gallery_empty_video">No videos yet</string>
+    <string name="msg_gallery_empty_favorite">Nothing saved yet \u00b7 tap the heart to keep one</string>
+    <string name="gallery_badge_cached">Cached</string>
+
+    <!-- Section titles -->
+    <string name="title_model_selection">Model selection</string>
+
+    <!-- Media viewer action buttons -->
+    <string name="media_viewer_delete">Delete</string>
+    <string name="media_viewer_save">Save</string>
+    <string name="media_viewer_share">Share</string>
+    <string name="media_viewer_previous">Previous</string>
+    <string name="media_viewer_next">Next</string>
+
+    <!-- Workflow editor strings -->
+    <string name="workflow_editor_zoom_in">Zoom in</string>
+    <string name="workflow_editor_zoom_out">Zoom out</string>
+    <string name="workflow_editor_reset_zoom">Reset view</string>
+    <string name="workflow_editor_error_loading">Failed to load workflow</string>
+    <string name="workflow_editor_zoom_percentage" translatable="false">%1$d%%</string>
+    <string name="workflow_editor_node_info" translatable="false">%1$s (%2$s)</string>
+    <string name="workflow_editor_enter_edit_mode">Edit graph</string>
+    <string name="workflow_editor_exit_edit_mode">Exit edit mode</string>
+    <string name="workflow_editor_delete_node">Delete selected</string>
+    <string name="workflow_editor_duplicate_node">Duplicate selected</string>
+    <string name="workflow_editor_add_node">Add node</string>
+    <string name="workflow_editor_more">More actions</string>
+    <string name="workflow_editor_cleanup">Cleanup</string>
+    <string name="workflow_editor_group">Group</string>
+    <string name="workflow_editor_ungroup">Ungroup</string>
+    <string name="title_workflow_editor_rename_group">Rename Group</string>
+    <string name="label_workflow_editor_rename_group">Group name</string>
+    <string name="workflow_editor_add_note">Add note</string>
+    <string name="label_workflow_editor_rename_note">Note title</string>
+    <string name="workflow_editor_edit_note_content">Edit note</string>
+    <string name="label_workflow_editor_note_content">Content (Markdown)</string>
+    <string name="workflow_editor_done">Done</string>
+    <string name="title_workflow_editor_discard">Discard Workflow?</string>
+    <string name="msg_workflow_editor_discard">You have unsaved changes. Are you sure you want to discard this workflow?</string>
+    <string name="title_workflow_editor_select_input">Connect to Input</string>
+    <string name="msg_workflow_editor_select_input">Select which input on %1$s to connect:</string>
+    <string name="title_workflow_editor_select_output">Connect from Output</string>
+    <string name="msg_workflow_editor_select_output">Select which output on %1$s to connect:</string>
+    <string name="workflow_editor_edit_mode_hint">Tap socket to connect, hold for node browser</string>
+
+    <!-- Node browser bottom sheet strings -->
+    <string name="node_browser_title">Add node</string>
+    <string name="placeholder_node_browser_search">Search nodes…</string>
+    <string name="node_browser_no_results">No nodes match your search</string>
+    <string name="node_browser_io_info">%1$d inputs, %2$d outputs</string>
+    <string name="node_browser_deprecated">Deprecated</string>
+    <string name="node_browser_experimental">Experimental</string>
+    <string name="node_browser_filter_category">Category</string>
+    <string name="node_browser_filter_subcategory">Subcategory</string>
+    <string name="node_browser_filter_group">Group</string>
+    <string name="node_browser_accepts_input">Accepts %1$s input</string>
+    <string name="node_browser_provides_output">Provides %1$s output</string>
+    <string name="button_clear_search">Clear search</string>
+
+    <!-- Workflow import dialog strings -->
+    <string name="label_workflow_type">Workflow type</string>
+    <string name="button_continue">Continue</string>
+    <string name="button_dismiss">Dismiss</string>
+    <string name="button_confirm">Confirm</string>
+    <string name="button_apply">Apply</string>
+    <string name="button_done">Done</string>
+    <string name="button_ok">OK</string>
+    <string name="msg_validating_workflow">Validating workflow…</string>
+
+    <!-- Workflow validation error dialogs -->
+    <string name="title_missing_nodes">Missing Nodes</string>
+    <string name="msg_missing_nodes">The following nodes are not available on your ComfyUI server:</string>
+    <string name="title_missing_fields">Missing Required Fields</string>
+    <string name="msg_missing_fields">The workflow is missing these required fields for the selected type:</string>
+    <string name="list_item_bullet">- %s</string>
+    <string name="title_duplicate_name">Name Already Exists</string>
+    <string name="msg_duplicate_name">A workflow with this name already exists. Please choose a different name.</string>
+
+    <!-- Field mapping UI strings -->
+    <string name="title_field_mapping">Map Fields</string>
+    <string name="button_clear_all_mapping">Clear all</string>
+    <string name="section_necessary">Necessary</string>
+    <string name="section_optional">Optional</string>
+    <string name="hint_tap_node_to_change">Tap a highlighted node to change mapping</string>
+    <string name="msg_no_matching_nodes">No matching nodes found</string>
+    <string name="msg_needs_remapping">Select a node</string>
+
+    <!-- Workflow validation errors -->
+    <string name="error_workflow_fetch_nodes_failed">Failed to fetch server nodes</string>
+    <string name="error_workflow_name_too_long">Name must be 40 characters or less</string>
+    <string name="error_workflow_description_too_long">Description must be 120 characters or less</string>
+
+    <!-- Metadata viewer strings -->
+    <string name="button_show_metadata">Info</string>
+    <string name="title_generation_parameters">Generation parameters</string>
+    <string name="msg_copied_to_clipboard">Copied to clipboard</string>
+    <string name="button_copy_to_clipboard">Copy to clipboard</string>
+    <string name="metadata_positive_prompt">Positive prompt</string>
+    <string name="metadata_negative_prompt">Negative prompt</string>
+    <string name="metadata_model">Model</string>
+    <string name="metadata_lora" translatable="false">LoRA</string>
+    <string name="metadata_seed">Seed</string>
+    <string name="metadata_steps">Steps</string>
+    <string name="metadata_cfg" translatable="false">CFG</string>
+    <string name="metadata_sampler">Sampler</string>
+    <string name="metadata_scheduler">Scheduler</string>
+    <string name="metadata_size">Size</string>
+    <string name="metadata_vae" translatable="false">VAE</string>
+    <string name="metadata_unet" translatable="false">UNET</string>
+    <string name="metadata_not_available">Metadata not available</string>
+    <string name="metadata_loading">Loading metadata…</string>
+
+    <!-- About screen strings -->
+    <string name="nav_about_settings">About</string>
+    <string name="title_about_settings">About</string>
+    <string name="label_about_version">Version %1$s</string>
+    <string name="title_about_license">License</string>
+    <string name="label_about_license_name">GNU General Public License v3.0 (GPL-3.0)</string>
+    <string name="title_about_source">Source Code</string>
+
+    <!-- Debug Logging strings -->
+    <string name="title_debug_logging">Debug logging</string>
+    <string name="desc_debug_logging">Capture operational logs for troubleshooting</string>
+    <string name="label_debug_logging_enable">Enable logging</string>
+    <string name="desc_debug_logging_enable">Logs are kept in memory only</string>
+    <string name="button_debug_logging_view">View logs</string>
+    <string name="title_debug_log">Debug log</string>
+    <string name="msg_debug_log_empty">No log entries</string>
+    <string name="debug_log_save">Save</string>
+    <string name="debug_log_follow">Follow</string>
+    <string name="msg_debug_log_saved">Log saved successfully</string>
+    <string name="error_debug_log_save">Failed to save log</string>
+
+    <!-- Prompt Presets strings -->
+    <string name="button_prompt_presets">Prompt presets</string>
+    <string name="prompt_presets_open_library">Open prompt library</string>
+    <string name="prompt_presets_save_current">Save current prompt</string>
+    <string name="prompt_preset_reset_prompt">Reset Prompt</string>
+    <string name="msg_prompt_preset_reset_success">Prompt reset to default</string>
+    <string name="title_prompt_library">Prompt Library</string>
+    <string name="placeholder_prompt_library_search">Search prompts…</string>
+    <string name="msg_prompt_library_empty">No saved prompts</string>
+    <string name="prompt_library_filter_favorites">Show favorites only</string>
+    <string name="prompt_preset_toggle_favorite">Toggle favorite</string>
+    <string name="prompt_preset_edit">Edit</string>
+    <string name="prompt_preset_duplicate">Duplicate</string>
+    <string name="prompt_preset_delete">Delete</string>
+    <string name="title_prompt_preset_save">Save prompt</string>
+    <string name="title_prompt_preset_edit">Edit prompt</string>
+    <string name="label_prompt_preset_name">Name</string>
+    <string name="error_prompt_preset_name_taken">This name is already used</string>
+    <string name="label_prompt_preset_tags">Tags</string>
+    <string name="hint_prompt_preset_add_tag">Add tag (comma to confirm)</string>
+    <string name="prompt_preset_remove_tag">Remove tag</string>
+    <string name="prompt_preset_suggested_tags">Suggested tags:</string>
+    <string name="prompt_preset_max_favorites">Maximum 8 favorites reached</string>
+    <string name="msg_prompt_preset_saved">Prompt saved</string>
+    <string name="msg_prompt_preset_duplicated">Prompt duplicated</string>
+    <string name="msg_prompt_preset_deleted">Prompt deleted</string>
+    <string name="label_prompt_preset_screen_type">Save for</string>
+
+    <!-- Screen type display names -->
+    <string name="screen_type_text_to_image">Text to Image</string>
+    <string name="screen_type_image_to_image">Image to Image</string>
+    <string name="screen_type_text_to_video">Text to Video</string>
+    <string name="screen_type_image_to_video">Image to Video</string>
+
+    <!-- Metadata actions -->
+    <string name="metadata_save_prompt">Save prompt to library</string>
+    <string name="cache_management_title">Cache management</string>
+    <string name="cache_limit_title">Cache limit</string>
+    <string name="cache_used_format">Used %1$s / %2$s</string>
+    <string name="cache_limit_unlimited">Unlimited</string>
+    <string name="cache_cleared">Cache cleared</string>
+    <string name="favorite_add">Add to favourites</string>
+    <string name="favorite_remove">Remove from favourites</string>
+</resources>

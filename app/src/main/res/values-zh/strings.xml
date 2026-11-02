@@ -1,0 +1,644 @@
+<resources>
+    <!-- Language settings -->
+    <string name="title_settings_language">语言与拼写</string>
+    <string name="desc_settings_language">选择您偏好的应用语言和拼写设置</string>
+    <string name="language_system_default">系统默认</string>
+    <string name="label_language">应用语言</string>
+
+    <!-- Login screen strings -->
+    <string name="hint_hostname">主机名</string>
+    <string name="hint_port">端口</string>
+
+    <!-- Server management strings -->
+    <string name="title_server_add">添加服务器</string>
+    <string name="title_server_edit">编辑服务器</string>
+    <string name="label_server_name">服务器名称</string>
+    <string name="placeholder_server_name">我的服务器</string>
+    <string name="placeholder_server_hostname">192.168.1.100</string>
+    <string name="error_server_name_taken">此名称已被使用</string>
+    <string name="placeholder_server_select">选择服务器</string>
+    <string name="button_server_edit">编辑服务器</string>
+    <string name="button_server_add">添加服务器</string>
+    <string name="button_server_delete">删除服务器</string>
+    <string name="title_server_delete">删除服务器</string>
+    <string name="msg_server_delete">确定要删除"%s"吗？这也将删除此服务器的所有保存的偏好设置。</string>
+    <string name="msg_server_deleted_success">服务器已删除</string>
+
+    <!-- Authentication strings -->
+    <string name="label_auth_type">身份验证</string>
+    <string name="option_auth_type_none">无</string>
+    <string name="option_auth_type_basic">基本</string>
+    <string name="option_auth_type_bearer">API 密钥</string>
+    <string name="label_auth_username">用户名</string>
+    <string name="label_auth_password">密码</string>
+    <string name="label_auth_token">API 密钥 / 令牌</string>
+    <string name="error_auth_unauthorized">身份验证失败。请检查您的凭据。</string>
+    <string name="option_auth_type_browser">浏览器</string>
+    <string name="label_auth_browser_info">通过浏览器进行身份验证。连接时将提示您登录。</string>
+    <string name="title_browser_auth">登录</string>
+    <string name="button_browser_auth_done">完成</string>
+    <string name="button_reauthenticate">重新登录</string>
+    <string name="error_browser_auth_cancelled">登录未完成</string>
+
+    <!-- Connection alert dialog -->
+    <string name="title_connection_lost">连接丢失</string>
+    <string name="msg_connection_lost">多次尝试后仍无法连接到服务器。</string>
+    <string name="title_session_expired">会话已过期</string>
+    <string name="msg_session_expired">您的会话已过期。请重新登录。</string>
+    <string name="title_transfer_stalled">传输停滞</string>
+    <string name="msg_transfer_stalled">30 秒内没有数据传输。这可能表示连接存在问题。</string>
+    <string name="error_upload_stalled">上传停滞</string>
+    <string name="action_reconnect">重新连接</string>
+    <string name="action_reconnecting">重新连接中…</string>
+    <string name="msg_reconnect_failed">无法重新连接</string>
+    <string name="action_go_offline">离线模式</string>
+    <string name="action_return_to_login">返回登录</string>
+
+    <!-- Connection button states -->
+    <string name="button_connect">连接</string>
+    <string name="button_connecting">连接中…</string>
+    <string name="button_connecting_queue">连接中… (%d)</string>
+    <string name="button_failed">连接失败</string>
+    <string name="button_connected">已连接</string>
+    <string name="button_offline">离线</string>
+
+    <!-- Offline mode strings -->
+    <string name="error_no_offline_cache">此服务器没有可用的缓存数据</string>
+    <string name="title_offline_prompt">服务器无法访问</string>
+    <string name="msg_offline_prompt">无法连接到服务器。是否要使用缓存数据继续离线模式？</string>
+    <string name="button_offline_prompt_confirm">离线模式</string>
+    <string name="button_offline_prompt_dismiss">取消</string>
+    <string name="button_go_online">切换到在线模式</string>
+    <string name="content_description_not_cached">离线不可用</string>
+    <string name="label_offline_mode">离线模式</string>
+    <string name="desc_offline_mode">无需网络连接即可浏览缓存数据</string>
+    <string name="msg_offline_mode_requires_disk_cache">禁用"内存优先缓存"以启用离线模式</string>
+    <string name="msg_cannot_go_online">无法上线 - 服务器无法访问</string>
+
+    <!-- Settings section titles -->
+    <string name="title_settings_connection">连接</string>
+    <string name="desc_settings_connection">服务器连接行为</string>
+    <string name="title_settings_generation">生成</string>
+    <string name="desc_settings_generation">生成体验设置</string>
+    <string name="title_settings_workflow_editor">工作流编辑器</string>
+    <string name="desc_settings_workflow_editor">自定义工作流编辑器外观</string>
+    <string name="label_edge_style">连线样式</string>
+    <string name="option_edge_router_bezier">贝塞尔曲线</string>
+    <string name="option_edge_router_hermite">埃尔米特样条</string>
+    <string name="title_settings_cache">缓存和存储</string>
+    <string name="desc_settings_cache">媒体缓存设置</string>
+    <string name="title_settings_reset">重置</string>
+    <string name="desc_settings_reset">重置应用数据和设置</string>
+
+    <!-- Validation error messages -->
+    <string name="error_required">必填项</string>
+    <string name="error_invalid_port">无效的端口号</string>
+    <string name="error_invalid_hostname">无效的主机名或 IP 地址</string>
+
+    <!-- SSL certificate warnings -->
+    <string name="warning_self_signed_cert">无法验证证书，仍然继续连接</string>
+    <string name="warning_unknown_ca">未知的证书颁发机构，仍然继续连接</string>
+
+    <!-- Query screen strings -->
+    <string name="hint_prompt">提示词</string>
+    <string name="hint_negative_prompt">反向提示词</string>
+    <string name="button_generate">生成</string>
+
+    <!-- Configuration panel strings -->
+
+    <!-- Gallery screen strings -->
+    <string name="title_gallery">图库</string>
+    <string name="content_description_gallery_thumbnail">生成图片缩略图</string>
+
+    <!-- Navigation strings -->
+    <string name="nav_text_to_image">文生图</string>
+    <string name="nav_image_to_image">图生图</string>
+    <string name="nav_gallery">图库</string>
+
+    <!-- Configuration fragment strings -->
+    <string name="title_server_info">服务器信息</string>
+    <string name="label_hostname">主机名：</string>
+    <string name="label_port">端口：</string>
+    <string name="title_server_management">服务器管理</string>
+    <string name="button_clear_queue">清空队列</string>
+    <string name="button_clear_history">清空历史记录</string>
+    <string name="button_refresh_models">刷新模型</string>
+    <string name="msg_models_refreshed_success">模型刷新成功</string>
+    <string name="error_models_refresh">模型刷新失败</string>
+
+    <!-- Resource usage strings -->
+    <string name="title_ram_usage">内存</string>
+    <string name="title_gpu_usage">显卡</string>
+    <string name="resource_usage_format">已用 %1$.2f GB / %2$.2f GB</string>
+
+    <!-- Server info labels -->
+    <string name="label_server_info_os">操作系统：</string>
+    <string name="label_server_info_comfyui">ComfyUI：</string>
+    <string name="label_server_info_python">Python：</string>
+    <string name="label_server_info_pytorch">PyTorch：</string>
+
+    <!-- Toast messages -->
+    <string name="msg_queue_cleared_success">队列已清空</string>
+    <string name="error_queue_clear">清空队列失败</string>
+    <string name="msg_history_cleared_success">历史记录已清空</string>
+    <string name="error_history_clear">清空历史记录失败</string>
+    <string name="msg_history_item_deleted_success">项目已删除</string>
+    <string name="error_history_item_delete">删除项目失败</string>
+    <string name="msg_cache_cleared_success">缓存已清空</string>
+    <string name="msg_defaults_restored_success">已恢复默认设置</string>
+    <string name="msg_gallery_refresh_success">图库已刷新</string>
+    <string name="error_gallery_refresh">刷新图库失败</string>
+
+    <!-- App management strings -->
+    <string name="label_live_preview">显示实时预览</string>
+    <string name="desc_live_preview">在生成过程中显示中间图像</string>
+    <string name="label_memory_first_cache">内存优先缓存</string>
+    <string name="desc_memory_first_cache">快速访问，内存占用较高。对于慢速网络或低内存设备请禁用。</string>
+    <string name="desc_memory_first_cache_warning">如果应用意外关闭，预览可能会丢失。</string>
+    <string name="label_disable_media_cache">禁用媒体缓存</string>
+    <string name="desc_disable_media_cache">不将预览图像和视频保存到磁盘</string>
+    <string name="label_auto_connect">自动连接</string>
+    <string name="desc_auto_connect">启动应用时自动连接到上次使用的服务器</string>
+    <string name="label_show_built_in_workflows">显示内置工作流</string>
+    <string name="desc_show_built_in_workflows">显示应用程序自带的默认工作流</string>
+    <string name="label_prompt_spell_check">拼写检查与自动更正</string>
+    <string name="desc_prompt_spell_check">在提示词输入框中启用拼写检查和自动更正。AI专用术语可能被标记为错误。</string>
+    <string name="label_prompt_expand">输入时展开提示词输入框</string>
+    <string name="desc_prompt_expand">获得焦点时，提示词输入框将填满键盘上方的屏幕空间。关闭键盘前预览将被隐藏。</string>
+    <string name="button_reset_prompts_and_library">重置提示词和库</string>
+    <string name="msg_reset_prompts_and_library_success">提示词和库已重置</string>
+    <string name="button_clear_cache">清空缓存</string>
+    <string name="button_restore_defaults">恢复默认设置</string>
+
+    <!-- Gallery item strings -->
+    <string name="button_delete_history_item">从历史记录中删除</string>
+    <string name="content_description_gallery_video_thumbnail">生成视频缩略图</string>
+
+    <!-- Text to Video fragment strings -->
+    <string name="title_text_to_video">文生视频</string>
+    <string name="nav_text_to_video">文生视频</string>
+
+    <!-- Image to Video fragment strings -->
+    <string name="title_image_to_video">图生视频</string>
+    <string name="nav_image_to_video">图生视频</string>
+    <string name="nav_h3_workspace">H3 视频工作区</string>
+    <string name="label_highnoise_unet">高噪声 UNET</string>
+    <string name="label_lownoise_unet">低噪声 UNET</string>
+    <string name="label_highnoise_lora">高噪声 LoRA</string>
+    <string name="label_lownoise_lora">低噪声 LoRA</string>
+    <string name="label_length">时长</string>
+    <string name="placeholder_video">生成的视频将显示在此处</string>
+
+    <!-- Image-to-image fragment strings -->
+    <string name="title_image_to_image">图生图</string>
+    <string name="tab_source_image">原图</string>
+    <string name="tab_preview">预览</string>
+    <string name="label_megapixels">百万像素</string>
+    <string name="button_upload_source_image">上传原图</string>
+    <string name="button_edit_mask">编辑蒙版</string>
+    <string name="button_clear_mask">清除蒙版</string>
+    <string name="msg_no_source_image">未选择原图</string>
+
+    <!-- Generation button states -->
+    <string name="button_add_to_queue">添加到队列 (%d)</string>
+    <string name="button_uploading">上传中…</string>
+    <string name="button_uploading_queue">上传中… (%d)</string>
+    <string name="button_fetching">获取中…</string>
+    <string name="button_fetching_queue">获取中… (%d)</string>
+
+    <!-- Queue menu strings -->
+    <string name="menu_cancel_current">取消当前</string>
+    <string name="menu_add_to_front_of_queue">添加到队列开头</string>
+    <string name="content_description_queue_menu">队列菜单</string>
+    <string name="content_description_server_menu">服务器菜单</string>
+
+    <!-- Workflow editor menu strings -->
+    <string name="menu_enable_manual_placement">启用手动放置</string>
+    <string name="menu_disable_manual_placement">禁用手动放置</string>
+    <string name="title_disable_manual_placement">禁用手动放置？</string>
+    <string name="msg_disable_manual_placement">这将自动排列所有节点并清除自定义位置。此操作无法撤消。</string>
+    <string name="button_disable">禁用</string>
+
+    <!-- Error and status messages -->
+    <string name="error_not_comfyui_server">不是 ComfyUI 服务器</string>
+    <string name="error_invalid_server_response">无效的服务器响应</string>
+    <string name="error_failed_load_workflow">加载工作流失败</string>
+    <string name="error_generation_failed">生成失败</string>
+    <string name="msg_connection_lost_generation_may_continue">连接丢失。将在重新连接后检查完成状态。</string>
+    <string name="error_no_connection">未连接到服务器</string>
+    <string name="error_workflow_not_found">未找到工作流</string>
+    <string name="error_no_workflow_specified">未指定工作流</string>
+    <string name="error_client_not_initialized">客户端未初始化</string>
+
+    <!-- Save/share messages -->
+    <string name="msg_image_saved_to_gallery">图片已保存到相册</string>
+    <string name="msg_video_saved_to_gallery">视频已保存到相册</string>
+    <string name="error_save_image">保存图片失败</string>
+    <string name="error_save_video">保存视频失败</string>
+    <string name="error_share_image">分享图片失败</string>
+    <string name="error_share_video">分享视频失败</string>
+
+    <!-- Share chooser titles -->
+    <string name="share_image">分享图片</string>
+    <string name="share_video">分享视频</string>
+
+    <!-- Image-to-image messages -->
+    <string name="hint_paint_mask">请绘制需要修复的蒙版区域</string>
+
+    <!-- Image/Video parameters section -->
+
+    <!-- Save options -->
+    <string name="button_save_to_gallery">保存到相册</string>
+    <string name="button_share">分享…</string>
+    <string name="button_save_image">保存</string>
+
+    <!-- Gallery selection mode strings -->
+    <string name="gallery_selected_count">已选择 %d 项</string>
+    <string name="button_gallery_select">选择项目</string>
+    <string name="button_cancel_selection">取消选择</string>
+    <string name="label_item_selected">已选择</string>
+    <string name="msg_items_saved_to_gallery">项目已保存到相册</string>
+    <string name="msg_some_items_failed_to_save">部分项目保存失败</string>
+    <string name="error_share_items">分享项目失败</string>
+    <string name="msg_items_deleted_success">项目已删除</string>
+    <string name="msg_some_items_failed_to_delete">部分项目删除失败</string>
+
+    <!-- Mask editor strings -->
+    <string name="button_invert_mask">反转蒙版</string>
+    <string name="option_paint_mode">画笔</string>
+    <string name="option_eraser_mode">橡皮擦</string>
+    <string name="label_brush_size">画笔大小</string>
+    <string name="button_more_options">更多选项</string>
+
+    <!-- Top app bar menu strings -->
+    <string name="menu_generation">生成</string>
+    <string name="action_settings">设置</string>
+    <string name="action_logout">退出登录</string>
+    <string name="button_options">选项</string>
+
+    <!-- Configuration bottom sheet labels -->
+    <string name="option_mode_inpainting">修复</string>
+    <string name="option_mode_editing">编辑</string>
+    <string name="label_workflow">工作流</string>
+    <string name="label_width">宽度</string>
+    <string name="label_height">高度</string>
+    <string name="label_steps">步数</string>
+    <string name="label_sampler">采样器</string>
+    <string name="label_scheduler">调度器</string>
+    <string name="label_seed">种子</string>
+    <string name="label_random_seed">随机种子</string>
+    <string name="label_randomize_seed">随机</string>
+    <string name="label_denoise">降噪</string>
+    <string name="label_batch_size">批量大小</string>
+    <string name="label_upscale_method">放大方法</string>
+    <string name="label_scale_by">缩放倍数</string>
+    <string name="label_stop_at_clip_layer">CLIP 层</string>
+
+    <!-- Validation error messages -->
+    <string name="error_dimension_range">必须在 1–4096 之间</string>
+    <string name="error_steps_range">必须在 1–255 之间</string>
+    <string name="error_cfg_range">必须在 0.0–100.0 之间</string>
+    <string name="error_megapixels_range">必须在 0.1–8.3 之间</string>
+    <string name="error_length_range">必须在 1–129 之间</string>
+    <string name="error_length_step">必须为 1、5、9、13…（间隔为 4）</string>
+    <string name="error_fps_range">必须在 1–120 之间</string>
+    <string name="error_invalid_number">无效的数字</string>
+
+    <!-- Node attribute editor -->
+    <string name="node_editor_reset">重置</string>
+    <string name="node_editor_no_editable_inputs">没有可编辑的输入</string>
+    <string name="node_editor_range_min">最小：%1$s</string>
+    <string name="node_editor_range_max">最大：%1$s</string>
+    <string name="node_editor_ui_field_prefix">界面：%1$s</string>
+    <string name="node_editor_image_load_error">加载图片失败</string>
+    <string name="title_node_editor_rename">重命名节点</string>
+    <string name="label_node_editor_rename">节点名称</string>
+    <string name="node_editor_bypass">跳过</string>
+
+    <!-- Settings screen strings -->
+    <string name="nav_application_settings">应用</string>
+    <string name="nav_server_settings">服务器</string>
+    <string name="nav_workflows_settings">工作流</string>
+    <string name="title_application_settings">应用设置</string>
+    <string name="title_server_settings">服务器设置</string>
+    <string name="title_workflows_settings">工作流</string>
+
+    <!-- Workflow management strings -->
+    <string name="workflow_section_tti">文生图</string>
+    <string name="workflow_section_iti_inpainting">图生图：修复</string>
+    <string name="workflow_section_iti_editing">图生图：编辑</string>
+    <string name="workflow_section_ttv">文生视频</string>
+    <string name="workflow_section_itv">图生视频</string>
+    <string name="workflow_section_empty">暂无工作流</string>
+    <string name="label_workflow_built_in">内置</string>
+    <string name="label_workflow_name">名称</string>
+    <string name="label_workflow_description">描述</string>
+    <string name="title_import_workflow">导入工作流</string>
+    <string name="title_edit_workflow">编辑工作流</string>
+    <string name="title_delete_workflow">删除工作流</string>
+    <string name="msg_delete_workflow">确定要删除"%s"吗？</string>
+    <string name="button_import">导入</string>
+    <string name="button_save">保存</string>
+    <string name="button_delete">删除</string>
+    <string name="button_cancel">取消</string>
+    <string name="error_cannot_edit_builtin">内置工作流无法编辑</string>
+    <string name="error_workflow_invalid_json">无效的 JSON 格式</string>
+    <string name="msg_workflow_import_success">工作流已导入</string>
+    <string name="error_workflow_import">导入工作流失败</string>
+    <string name="msg_workflow_delete_success">工作流已删除</string>
+    <string name="error_workflow_delete">删除工作流失败</string>
+    <string name="msg_workflow_update_success">工作流已更新</string>
+    <string name="error_workflow_update">更新工作流失败</string>
+    <string name="msg_workflow_duplicate_success">工作流已复制</string>
+    <string name="workflow_menu_edit_structure">编辑工作流</string>
+    <string name="workflow_menu_rename">重命名</string>
+    <string name="workflow_menu_duplicate">复制</string>
+    <string name="workflow_menu_delete">删除</string>
+    <string name="workflow_menu_export">导出</string>
+    <string name="workflow_menu_export_api">导出 (API 格式)</string>
+    <string name="title_duplicate_workflow">复制工作流</string>
+    <string name="msg_workflow_export_success">工作流已导出</string>
+    <string name="error_workflow_export">导出工作流失败</string>
+    <string name="msg_litegraph_conversion_notes">转换完成，有 %d 条备注</string>
+
+    <!-- Content descriptions for accessibility -->
+    <string name="content_description_menu">菜单</string>
+    <string name="content_description_back">返回</string>
+    <string name="content_description_close">关闭</string>
+    <string name="content_description_video">视频</string>
+    <string name="content_description_clear">清除</string>
+    <string name="content_description_generated_image">生成的图片</string>
+    <string name="content_description_preview">预览</string>
+    <string name="content_description_reference_image_1">参考图像 1</string>
+    <string name="content_description_reference_image_2">参考图像 2</string>
+    <string name="content_description_source_image">源图像</string>
+    <string name="content_description_decrease">减少值</string>
+    <string name="content_description_increase">增加值</string>
+
+    <!-- Empty state messages -->
+    <string name="msg_gallery_empty">暂无图片</string>
+    <string name="gallery_date_today">今天</string>
+    <string name="gallery_date_yesterday">昨天</string>
+    <string name="gallery_date_earlier">更早</string>
+    <string name="msg_delete_needs_connection">需连接服务器才能删除</string>
+    <string name="msg_gallery_offline_unavailable">离线 · 未缓存</string>
+    <string name="gallery_filter_all">全部</string>
+    <string name="gallery_filter_image">图片</string>
+    <string name="gallery_filter_video">视频</string>
+    <string name="gallery_filter_favorite">收藏</string>
+    <string name="msg_gallery_empty_video">暂无视频</string>
+    <string name="msg_gallery_empty_favorite">还没有收藏 · 点心形加入</string>
+    <string name="gallery_badge_cached">缓存</string>
+
+    <!-- Section titles -->
+    <string name="title_model_selection">模型选择</string>
+
+    <!-- Media viewer action buttons -->
+    <string name="media_viewer_delete">删除</string>
+    <string name="media_viewer_save">保存</string>
+    <string name="media_viewer_share">分享</string>
+    <string name="media_viewer_previous">上一个</string>
+    <string name="media_viewer_next">下一个</string>
+
+    <!-- Workflow editor strings -->
+    <string name="workflow_editor_zoom_in">放大</string>
+    <string name="workflow_editor_zoom_out">缩小</string>
+    <string name="workflow_editor_reset_zoom">重置视图</string>
+    <string name="workflow_editor_error_loading">加载工作流失败</string>
+
+    <!-- Workflow import dialog strings -->
+    <string name="label_workflow_type">工作流类型</string>
+    <string name="button_continue">继续</string>
+    <string name="button_dismiss">关闭</string>
+    <string name="button_confirm">确认</string>
+    <string name="button_apply">应用</string>
+    <string name="button_done">完成</string>
+    <string name="button_ok">确定</string>
+    <string name="msg_validating_workflow">正在验证工作流…</string>
+
+    <!-- Workflow validation error dialogs -->
+    <string name="title_missing_nodes">缺少节点</string>
+    <string name="msg_missing_nodes">以下节点在您的 ComfyUI 服务器上不可用：</string>
+    <string name="title_missing_fields">缺少必填字段</string>
+    <string name="msg_missing_fields">该工作流缺少所选类型的必填字段：</string>
+    <string name="list_item_bullet">- %s</string>
+    <string name="title_duplicate_name">名称已存在</string>
+    <string name="msg_duplicate_name">已存在同名工作流，请选择其他名称。</string>
+
+    <!-- Field mapping UI strings -->
+    <string name="title_field_mapping">映射字段</string>
+    <string name="button_clear_all_mapping">清除全部</string>
+    <string name="section_necessary">必需</string>
+    <string name="section_optional">可选</string>
+    <string name="hint_tap_node_to_change">点击高亮节点以更改映射</string>
+    <string name="msg_no_matching_nodes">未找到匹配的节点</string>
+    <string name="msg_needs_remapping">选择节点</string>
+
+    <!-- Workflow validation errors -->
+    <string name="error_workflow_fetch_nodes_failed">获取服务器节点失败</string>
+    <string name="error_workflow_name_too_long">名称不能超过 40 个字符</string>
+    <string name="error_workflow_description_too_long">描述不能超过 120 个字符</string>
+
+    <!-- Metadata viewer strings -->
+    <string name="button_show_metadata">详情</string>
+    <string name="title_generation_parameters">生成参数</string>
+    <string name="msg_copied_to_clipboard">已复制到剪贴板</string>
+    <string name="button_copy_to_clipboard">复制到剪贴板</string>
+    <string name="metadata_positive_prompt">正向提示词</string>
+    <string name="metadata_negative_prompt">负向提示词</string>
+    <string name="metadata_model">模型</string>
+    <string name="metadata_seed">种子</string>
+    <string name="metadata_steps">步数</string>
+    <string name="metadata_sampler">采样器</string>
+    <string name="metadata_scheduler">调度器</string>
+    <string name="metadata_size">尺寸</string>
+    <string name="metadata_not_available">元数据不可用</string>
+    <string name="metadata_loading">正在加载元数据…</string>
+
+    <!-- LoRA chain editor strings -->
+    <string name="title_lora_chain">LoRA 链（可选）</string>
+    <string name="title_highnoise_lora_chain">高噪声 LoRA（可选）</string>
+    <string name="title_lownoise_lora_chain">低噪声 LoRA（可选）</string>
+    <string name="button_add_lora">添加 LoRA</string>
+    <string name="label_lora_strength">强度：</string>
+    <string name="msg_lora_empty">未添加 LoRA</string>
+    <string name="button_remove_lora">移除 LoRA</string>
+
+    <!-- Backup and restore strings -->
+    <string name="title_backup_restore">备份与恢复</string>
+    <string name="desc_backup_restore">导出或导入应用配置</string>
+    <string name="button_backup_create">创建备份</string>
+    <string name="button_backup_restore">从备份恢复</string>
+    <string name="msg_backup_created_success">备份创建成功</string>
+    <string name="error_backup_create">创建备份失败</string>
+    <string name="msg_backup_restore_success">设置恢复成功</string>
+    <string name="msg_backup_restore_partial">设置部分恢复。部分工作流已跳过。</string>
+    <string name="error_backup_restore">恢复备份失败</string>
+    <string name="error_backup_invalid_json">无效的备份文件格式</string>
+    <string name="error_backup_unsupported_version">不支持的备份版本</string>
+    <string name="error_backup_no_servers">备份中未找到服务器</string>
+    <string name="title_backup_restore_confirm">恢复设置？</string>
+    <string name="msg_backup_restore_confirm">这将替换您当前的设置。此操作无法撤销。</string>
+    <string name="button_backup_restore_confirm">恢复</string>
+
+    <!-- About screen strings -->
+    <string name="nav_about_settings">关于</string>
+    <string name="title_about_settings">关于</string>
+    <string name="label_about_version">版本 %1$s</string>
+    <string name="title_about_license">许可证</string>
+    <string name="label_about_license_name">GNU General Public License v3.0 (GPL-3.0)</string>
+    <string name="title_about_source">源代码</string>
+
+    <!-- Debug Logging strings -->
+    <string name="title_debug_logging">调试日志</string>
+    <string name="desc_debug_logging">捕获操作日志以进行故障排除</string>
+    <string name="label_debug_logging_enable">启用日志记录</string>
+    <string name="desc_debug_logging_enable">日志仅保存在内存中</string>
+    <string name="button_debug_logging_view">查看日志</string>
+    <string name="title_debug_log">调试日志</string>
+    <string name="msg_debug_log_empty">无日志条目</string>
+    <string name="debug_log_save">Save</string>
+    <string name="debug_log_follow">跟随</string>
+    <string name="msg_debug_log_saved">日志保存成功</string>
+    <string name="error_debug_log_save">保存日志失败</string>
+
+    <!-- Missing translations -->
+    <string name="button_view_workflow">查看工作流</string>
+    <string name="button_discard">放弃</string>
+    <string name="button_new_workflow">新建工作流</string>
+    <string name="title_save_workflow">保存新工作流</string>
+    <string name="error_invalid_integer">必须是整数</string>
+    <string name="error_invalid_option">无效选项</string>
+    <string name="error_string_too_long">最大长度：%1$d</string>
+    <string name="error_seed_range">必须为 0 或更大</string>
+    <string name="error_denoise_range">必须为 0.0–1.0</string>
+    <string name="error_batch_size_range">必须为 1–64</string>
+    <string name="error_scale_by_range">必须为 0.01–8.0</string>
+    <string name="error_clip_layer_range">必须为 -24 至 -1</string>
+    <string name="error_value_min">最小值：%1$d</string>
+    <string name="error_value_max">最大值：%1$d</string>
+    <string name="error_value_min_float">最小值：%1$.2f</string>
+    <string name="error_value_max_float">最大值：%1$.2f</string>
+    <string name="node_editor_range_min_max">%1$s – %2$s</string>
+    <string name="node_browser_title">添加节点</string>
+    <string name="placeholder_node_browser_search">搜索节点…</string>
+    <string name="node_browser_no_results">未找到匹配的节点</string>
+    <string name="node_browser_io_info">%1$d 个输入，%2$d 个输出</string>
+    <string name="node_browser_deprecated">已弃用</string>
+    <string name="node_browser_experimental">实验性</string>
+    <string name="node_browser_filter_category">类别</string>
+    <string name="node_browser_filter_subcategory">子类别</string>
+    <string name="node_browser_filter_group">分组</string>
+    <string name="node_browser_accepts_input">接受 %1$s 输入</string>
+    <string name="node_browser_provides_output">提供 %1$s 输出</string>
+    <string name="button_clear_search">清除搜索</string>
+    <string name="workflow_editor_enter_edit_mode">编辑图表</string>
+    <string name="workflow_editor_exit_edit_mode">退出编辑模式</string>
+    <string name="workflow_editor_delete_node">删除所选</string>
+    <string name="workflow_editor_duplicate_node">复制所选</string>
+    <string name="workflow_editor_add_node">添加节点</string>
+    <string name="workflow_editor_more">更多操作</string>
+    <string name="workflow_editor_cleanup">整理</string>
+    <string name="workflow_editor_group">分组</string>
+    <string name="workflow_editor_ungroup">取消分组</string>
+    <string name="title_workflow_editor_rename_group">重命名分组</string>
+    <string name="label_workflow_editor_rename_group">分组名称</string>
+    <string name="workflow_editor_add_note">添加备注</string>
+    <string name="label_workflow_editor_rename_note">备注标题</string>
+    <string name="workflow_editor_edit_note_content">编辑备注</string>
+    <string name="label_workflow_editor_note_content">内容 (Markdown)</string>
+    <string name="workflow_editor_done">完成</string>
+    <string name="title_workflow_editor_discard">放弃工作流？</string>
+    <string name="msg_workflow_editor_discard">您有未保存的更改。确定要放弃此工作流吗？</string>
+    <string name="title_workflow_editor_select_input">连接到输入</string>
+    <string name="msg_workflow_editor_select_input">选择要连接到 %1$s 的哪个输入：</string>
+    <string name="title_workflow_editor_select_output">从输出连接</string>
+    <string name="msg_workflow_editor_select_output">选择要从 %1$s 连接的哪个输出：</string>
+    <string name="workflow_editor_edit_mode_hint">点击接口连接，长按打开节点浏览器</string>
+
+    <!-- Field display names for workflow editor -->
+    <string name="field_positive_prompt">正向提示词</string>
+    <string name="field_negative_prompt">负向提示词</string>
+    <string name="field_cfg_scale">CFG 比例</string>
+    <string name="field_unet_model">UNET 模型</string>
+    <string name="field_input_image">输入图像</string>
+    <string name="field_frame_rate">帧率</string>
+
+    <!-- Field descriptions for workflow editor -->
+    <string name="field_desc_positive_prompt">用于生成的文本提示词</string>
+    <string name="field_desc_negative_prompt">描述要避免内容的文本</string>
+    <string name="field_desc_checkpoint">要使用的检查点模型</string>
+    <string name="field_desc_unet">扩散模型</string>
+    <string name="field_desc_vae">VAE 编码器/解码器</string>
+    <string name="field_desc_clip">CLIP 文本编码器</string>
+    <string name="field_desc_clip1">第一个 CLIP 文本编码器</string>
+    <string name="field_desc_clip2">第二个 CLIP 文本编码器</string>
+    <string name="field_desc_clip3">第三个 CLIP 文本编码器</string>
+    <string name="field_desc_clip4">第四个 CLIP 文本编码器</string>
+    <string name="field_desc_width">输出图像宽度</string>
+    <string name="field_desc_height">输出图像高度</string>
+    <string name="field_desc_steps">采样步数</string>
+    <string name="field_desc_cfg">无分类器引导比例</string>
+    <string name="field_desc_sampler">采样算法</string>
+    <string name="field_desc_scheduler">噪声调度方法</string>
+    <string name="field_desc_megapixels">目标大小（百万像素）</string>
+    <string name="field_desc_lora">LoRA 适配器模型</string>
+    <string name="field_desc_length">视频长度（帧数）</string>
+    <string name="field_desc_frame_rate">视频每秒帧数</string>
+    <string name="field_desc_image">用于生成的源图像</string>
+    <string name="field_desc_seed">用于生成的随机种子</string>
+    <string name="field_desc_denoise">降噪强度（0.0-1.0）</string>
+    <string name="field_desc_batch_size">每批图像数量</string>
+    <string name="field_desc_upscale_method">放大的插值方法</string>
+    <string name="field_desc_scale_by">放大的缩放因子</string>
+    <string name="field_desc_stop_at_clip_layer">停止的 CLIP 层（负数）</string>
+    <string name="field_text_encoder">文本编码器</string>
+    <string name="field_desc_text_encoder">用于提示词处理的文本编码器模型</string>
+    <string name="field_latent_upscale_model">潜空间放大模型</string>
+    <string name="field_desc_latent_upscale_model">用于潜空间放大的模型</string>
+    <string name="field_desc_fallback">必填字段：%1$s</string>
+    <string name="content_description_show_help">显示帮助</string>
+
+    <!-- Prompt Presets -->
+    <string name="button_prompt_presets">提示词模板</string>
+    <string name="prompt_presets_open_library">打开提示词库</string>
+    <string name="prompt_presets_save_current">保存当前提示词</string>
+    <string name="prompt_preset_reset_prompt">重置提示词</string>
+    <string name="msg_prompt_preset_reset_success">提示词已恢复默认</string>
+    <string name="title_prompt_library">提示词库</string>
+    <string name="placeholder_prompt_library_search">搜索提示词…</string>
+    <string name="msg_prompt_library_empty">暂无保存的提示词</string>
+    <string name="prompt_preset_toggle_favorite">切换收藏</string>
+    <string name="prompt_preset_edit">编辑</string>
+    <string name="prompt_preset_duplicate">复制</string>
+    <string name="prompt_preset_delete">删除</string>
+    <string name="title_prompt_preset_save">保存提示词</string>
+    <string name="title_prompt_preset_edit">编辑提示词</string>
+    <string name="label_prompt_preset_name">名称</string>
+    <string name="error_prompt_preset_name_taken">此名称已被使用</string>
+    <string name="label_prompt_preset_tags">标签</string>
+    <string name="hint_prompt_preset_add_tag">添加标签（逗号确认）</string>
+    <string name="prompt_preset_remove_tag">移除标签</string>
+    <string name="prompt_preset_suggested_tags">推荐标签：</string>
+    <string name="prompt_preset_max_favorites">已达到8个收藏上限</string>
+    <string name="msg_prompt_preset_saved">提示词已保存</string>
+    <string name="msg_prompt_preset_duplicated">提示词已复制</string>
+    <string name="msg_prompt_preset_deleted">提示词已删除</string>
+    <string name="label_prompt_preset_screen_type">保存至</string>
+
+    <!-- Screen type display names -->
+    <string name="screen_type_text_to_image">文生图</string>
+    <string name="screen_type_image_to_image">图生图</string>
+    <string name="screen_type_text_to_video">文生视频</string>
+    <string name="screen_type_image_to_video">图生视频</string>
+
+    <!-- Metadata actions -->
+    <string name="metadata_save_prompt">保存提示词到库</string>
+    <string name="cache_management_title">缓存管理</string>
+    <string name="cache_limit_title">缓存上限</string>
+    <string name="cache_used_format">已用 %1$s / %2$s</string>
+    <string name="cache_limit_unlimited">不限制</string>
+    <string name="cache_cleared">已清空缓存</string>
+    <string name="favorite_add">收藏</string>
+    <string name="favorite_remove">取消收藏</string>
+</resources>
