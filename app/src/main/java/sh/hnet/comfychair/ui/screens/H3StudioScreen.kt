@@ -2969,12 +2969,15 @@ private fun H3ContinuationSlot(
     onClear: () -> Unit
 ) {
     val attached = file.isNotBlank()
-    // One 10sp tier for the explanation: at labelSmall(11sp) the first line alone overran the
-    // 168dp column, and these four short lines are what keep the block the same height as the
-    // two switch rows beside it, so no empty patch is left at the bottom of the card.
-    val noteStyle = MaterialTheme.typography.labelSmall
-        .copy(fontSize = 10.sp, lineHeight = 16.sp)
+    // 10sp against a 170dp column fits 15 Chinese characters, which is what keeps the
+    // explanation at two lines on a 320dp phone instead of wrapping to four.
+    val noteStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 16.sp)
     val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+    // The server appends its own _00001 counter, so the whole name is predictable here and the
+    // prefix alone was ambiguous about what would actually land on disk.
+    val fileName = H3Naming.prefixFor(
+        H3Naming.chainName(sequenceName, autoName), 1, autoName
+    ) + "_00001.mp4 …"
 
     Column(Modifier.fillMaxWidth()) {
         // Title and actions share one line: 取帧 / 上传 answer "where did this frame come from",
@@ -2986,8 +2989,8 @@ private fun H3ContinuationSlot(
                 color = if (attached) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface
             )
-            // Shown only when something is attached: colour already says "empty", and a
-            // permanent「未挂」badge read like part of the section name.
+            // Only when something is attached: colour already says "empty", and a permanent
+            // 「未挂」 badge read like part of the section name.
             if (attached) {
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -3028,10 +3031,11 @@ private fun H3ContinuationSlot(
 
         H3Divider()
 
-        // Two switch rows on the left, the explanation on the right. The paragraph fills the
-        // same two rows, so the card has no empty block beside the prefix field.
+        // Left column: the two switches only. Right column: what 连拍 does, then what the files
+        // will be called. Splitting it this way means neither side has to borrow a row from the
+        // other, which is what left an empty patch in every earlier arrangement.
         Row(Modifier.fillMaxWidth()) {
-            Column(Modifier.width(128.dp)) {
+            Column(Modifier.width(126.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "完整连拍",
@@ -3042,10 +3046,9 @@ private fun H3ContinuationSlot(
                     Switch(
                         checked = auto,
                         enabled = enabled,
-                        onCheckedChange = onToggleAuto,
-                        modifier = Modifier.scale(0.8f)
+                        onCheckedChange = onToggleAuto
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(6.dp))
                     Box(
                         Modifier
                             .size(18.dp)
@@ -3065,6 +3068,7 @@ private fun H3ContinuationSlot(
                         )
                     }
                 }
+                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "自动编号",
@@ -3075,25 +3079,70 @@ private fun H3ContinuationSlot(
                     Switch(
                         checked = autoName,
                         enabled = enabled,
-                        onCheckedChange = onToggleAutoName,
-                        modifier = Modifier.scale(0.8f)
+                        onCheckedChange = onToggleAutoName
                     )
                 }
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                listOf(
-                    "每段跑完自动取尾帧，当下段起点",
-                    "连续拼成一条长视频",
-                    "某段失败会停下等你，不跳过",
-                    "关掉也能手动重取尾帧接着跑"
-                ).forEach { line ->
-                    Text(
-                        line,
-                        style = noteStyle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    "每段跑完自动取尾帧，接下一段",
+                    style = noteStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "失败会停下等你；关掉能手动接",
+                    style = noteStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("前缀", style = noteStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier
+                            .width(118.dp)
+                            .height(26.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (autoName) MaterialTheme.colorScheme.surface
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                            .border(
+                                0.8.dp,
+                                if (autoName) MaterialTheme.colorScheme.outlineVariant
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 5.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        BasicTextField(
+                            value = sequenceName,
+                            onValueChange = onSequenceName,
+                            singleLine = true,
+                            enabled = enabled && autoName,
+                            textStyle = noteStyle.copy(
+                                color = if (autoName) MaterialTheme.colorScheme.onSurface else faint
+                            ),
+                            decorationBox = { inner ->
+                                if (sequenceName.isBlank()) Text(
+                                    "留空 = h3_seq",
+                                    style = noteStyle.copy(color = faint)
+                                )
+                                inner()
+                            }
+                        )
+                    }
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    fileName,
+                    style = noteStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
 
@@ -3103,70 +3152,5 @@ private fun H3ContinuationSlot(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp)
         )
-
-        Spacer(Modifier.height(6.dp))
-
-        // 前缀 → 文件名 on one line: the arrow makes "this is the name you will get" explicit,
-        // and the field greys out instead of vanishing when auto-numbering is off.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "前缀",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.width(6.dp))
-            Box(
-                Modifier
-                    .width(100.dp)
-                    .height(26.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(
-                        if (autoName) MaterialTheme.colorScheme.surface
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                    .border(
-                        0.8.dp,
-                        if (autoName) MaterialTheme.colorScheme.outlineVariant
-                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                        RoundedCornerShape(4.dp)
-                    )
-                    .padding(horizontal = 6.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                BasicTextField(
-                    value = sequenceName,
-                    onValueChange = onSequenceName,
-                    singleLine = true,
-                    enabled = enabled && autoName,
-                    textStyle = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
-                        color = if (autoName) MaterialTheme.colorScheme.onSurface else faint
-                    ),
-                    decorationBox = { inner ->
-                        if (sequenceName.isBlank()) Text(
-                            "留空 = h3_seq",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                color = faint
-                            )
-                        )
-                        inner()
-                    }
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "→ " + if (autoName) {
-                    H3Naming.prefixFor(H3Naming.chainName(sequenceName, true), 1, true) +
-                        "_00001.mp4 …"
-                } else {
-                    H3Naming.prefixFor(sequenceName, 1, false)
-                },
-                style = noteStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }

@@ -852,10 +852,10 @@
         "Node name for S&R": "CR Text"
       },
       "widgets_values": [
-        "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, intimate bedroom setting illuminated by soft warm lamp light. A medium shot frames a nude woman wearing black sheer stockings and a shirtless man on a rumpled white bed, their bodies pressed tightly together in a side-entry position. The camera remains relatively static, focusing on their joined bodies as the man thrusts deeply and rhythmically into her vagina. Her breasts move with the motion and her expression shifts to one of pure pleasure, eyes closed and head thrown back slightly. The woman (S1) grits her teeth and says: <d>[Chinese] 好舒服，还要，快点，再快点，啊！好舒服</d>\n\noverall_soundscape: Skin slapping against skin with a wet, rhythmic sound as the bodies grind together. Heavy, audible breathing from both characters mixes with the creaking of the bed frame under their weight. The woman's voice cuts through the low-frequency thrum of her moaning and the physical friction of their joined limbs.\n\nnon_diegetic_music: A soft, low-pitched ambient drone with a very slow, subtle rhythmic pulse that underpins the scene without drawing attention away from the physical sounds."
+        ""
       ],
       "widgets_values_named": {
-        "text": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, intimate bedroom setting illuminated by soft warm lamp light. A medium shot frames a nude woman wearing black sheer stockings and a shirtless man on a rumpled white bed, their bodies pressed tightly together in a side-entry position. The camera remains relatively static, focusing on their joined bodies as the man thrusts deeply and rhythmically into her vagina. Her breasts move with the motion and her expression shifts to one of pure pleasure, eyes closed and head thrown back slightly. The woman (S1) grits her teeth and says: <d>[Chinese] 好舒服，还要，快点，再快点，啊！好舒服</d>\n\noverall_soundscape: Skin slapping against skin with a wet, rhythmic sound as the bodies grind together. Heavy, audible breathing from both characters mixes with the creaking of the bed frame under their weight. The woman's voice cuts through the low-frequency thrum of her moaning and the physical friction of their joined limbs.\n\nnon_diegetic_music: A soft, low-pitched ambient drone with a very slow, subtle rhythmic pulse that underpins the scene without drawing attention away from the physical sounds."
+        "text": ""
       }
     },
     {
@@ -1095,8 +1095,8 @@
         1214
       ],
       "size": [
-        179.640234375,
-        76
+        210,
+        88
       ],
       "flags": {},
       "order": 15,
@@ -1889,30 +1889,6 @@
       "AUDIO"
     ],
     [
-      16,
-      953,
-      0,
-      936,
-      0,
-      "INT"
-    ],
-    [
-      17,
-      953,
-      1,
-      937,
-      0,
-      "INT"
-    ],
-    [
-      18,
-      942,
-      0,
-      938,
-      0,
-      "FLOAT"
-    ],
-    [
       19,
       941,
       0,
@@ -2017,14 +1993,6 @@
       "MODEL"
     ],
     [
-      32,
-      938,
-      1,
-      973,
-      3,
-      "INT"
-    ],
-    [
       33,
       1024,
       0,
@@ -2095,16 +2063,48 @@
       1050,
       0,
       "MODEL"
+    ],
+    [
+      16,
+      953,
+      0,
+      936,
+      0,
+      "INT"
+    ],
+    [
+      17,
+      953,
+      1,
+      937,
+      0,
+      "INT"
+    ],
+    [
+      18,
+      942,
+      0,
+      938,
+      0,
+      "FLOAT"
+    ],
+    [
+      32,
+      938,
+      1,
+      973,
+      3,
+      "INT"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.5644739300537773,
+      "scale": 1,
       "offset": [
-        1266.234331210697,
-        294.5765552314856
+        766.0462710469808,
+        -977.4915387635988
       ]
     },
     "frontendVersion": "1.55.18",
@@ -2112,6 +2112,12 @@
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
+  },
+  "extensions": {
+    "seed_widgets": {
+      "923": 0,
+      "943": 0
+    }
   },
   "version": 0.4,
   "seed_widgets": {
