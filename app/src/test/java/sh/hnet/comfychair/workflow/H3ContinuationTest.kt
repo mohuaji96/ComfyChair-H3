@@ -93,12 +93,13 @@ class H3ContinuationTest {
     @Test
     fun freeformPromptGetsALeadingLineInItsOwnLanguage() {
         val en = H3Continuation.apply(freeform, 4, true)
-        assertTrue(en.prompt.startsWith("Continue from the last frame of the previous segment"))
-        assertFalse(en.prompt.contains("<Picture 4>"))
+        // Free text now names the frame too, so the model can tell which picture is the anchor.
+        assertTrue(en.prompt.startsWith("<Picture 4> is the final frame of the previous segment"))
+        assertTrue(en.prompt.contains("Continue from it, keeping the same framing"))
         assertEquals(4, en.declared)
 
         val zh = H3Continuation.apply("她推开门，走进昏暗的走廊，镜头跟随。", 4, true)
-        assertTrue(zh.prompt.startsWith("承接上一段结尾的画面"))
+        assertTrue(zh.prompt.startsWith("<Picture 4> 是上一段结尾的画面"))
         val back = H3Continuation.revert(zh.prompt, zh.declared, zh.flagged)
         assertTrue(back.startsWith("她推开门"))
     }

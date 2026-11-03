@@ -78,6 +78,7 @@ import sh.hnet.comfychair.WorkflowEditorActivity
 import sh.hnet.comfychair.model.ScreenType
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.ui.components.AppMenuDropdown
 import sh.hnet.comfychair.ui.theme.Dimensions
 import sh.hnet.comfychair.storage.AppSettings
@@ -271,6 +272,7 @@ fun ImageToVideoScreen(
             title = { Text(stringResource(R.string.title_image_to_video)) },
             windowInsets = WindowInsets(0, 0, 0, 0),
             actions = {
+                ServerStatusLamp()
                 // Upload image button
                 IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.button_upload_source_image))

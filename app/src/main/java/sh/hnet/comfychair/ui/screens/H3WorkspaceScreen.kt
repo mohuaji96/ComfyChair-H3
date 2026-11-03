@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import sh.hnet.comfychair.workflow.H3Plan
+import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.workflow.H3WorkflowAdapter
 
 /**
@@ -129,6 +130,7 @@ fun H3WorkspaceScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("H3 视频工作区", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            ServerStatusLamp()
             TextButton(onClick = onOpenWorkflowSettings) { Text("工作流管理") }
         }
 

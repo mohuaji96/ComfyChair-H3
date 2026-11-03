@@ -14,6 +14,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CancellationException
 import sh.hnet.comfychair.ComfyUIClient
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.util.DebugLogger
@@ -180,6 +182,34 @@ object MediaCache {
     private fun getDiskCacheFile(context: Context, key: MediaCacheKey, isVideo: Boolean): File {
         val ext = if (isVideo) "mp4" else "png"
         return File(getDiskCacheDir(context), "${key.keyString}.$ext")
+    }
+
+    /** Video containers seen in the wild; a `.webm` cached as `.mp4` would be downloaded twice. */
+    private val VIDEO_EXTS = listOf("mp4", "webm", "mov", "m4v", "gif")
+
+    /**
+     * The file already on disk for this key, whatever container it arrived in, or null.
+     * The default `.mp4` is checked first so existing caches keep working.
+     */
+    fun localFile(context: Context, key: MediaCacheKey, isVideo: Boolean): File? {
+        return try {
+            if (!isVideo) return existingImageFile(context, key)
+            val dir = getDiskCacheDir(context)
+            VIDEO_EXTS.forEach { ext ->
+                val f = File(dir, "${key.keyString}.$ext")
+                if (f.exists() && f.length() > 0L) return f
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Writes a downloaded video under its real container so playback matches the bytes. */
+    private fun videoCacheFile(context: Context, key: MediaCacheKey, isMp4: Boolean): File {
+        val dir = getDiskCacheDir(context)
+        val ext = if (isMp4) "mp4" else "webm"
+        return File(dir, "${key.keyString}.$ext")
     }
 
     /**
@@ -359,8 +389,8 @@ object MediaCache {
      */
     private fun readVideoBytesFromDisk(context: Context, key: MediaCacheKey): ByteArray? {
         return try {
-            val file = getDiskCacheFile(context, key, true)
-            if (file.exists()) {
+            val file = localFile(context, key, true)
+            if (file != null) {
                 touchDiskAccess(file)
                 file.readBytes()
             } else null
@@ -369,12 +399,20 @@ object MediaCache {
         }
     }
 
+    /** EBML magic: a WebM/GIF that arrives here must not be stored under an `.mp4` name. */
+    private fun looksLikeWebm(bytes: ByteArray): Boolean =
+        bytes.size > 4 && bytes[0] == 0x1A.toByte() && bytes[1] == 0x45.toByte() &&
+            bytes[2] == 0xDF.toByte() && bytes[3] == 0xA3.toByte()
+
     /**
      * Write video bytes to disk cache.
      */
     private fun writeVideoToDisk(context: Context, key: MediaCacheKey, bytes: ByteArray) {
         try {
-            val file = getDiskCacheFile(context, key, true)
+            val file = videoCacheFile(context, key, isMp4 = !looksLikeWebm(bytes))
+            // The other container may be left over from a previous download of the same key.
+            val stale = localFile(context, key, true)
+            if (stale != null && stale.absolutePath != file.absolutePath) stale.delete()
             file.writeBytes(bytes)
             file.setLastModified(System.currentTimeMillis())
             LocalCachePolicy.clearTombstone(context, key.keyString)
@@ -396,6 +434,9 @@ object MediaCache {
     private val inProgressKeys = ConcurrentHashMap.newKeySet<String>()
 
     private const val MAX_CONCURRENT_PREFETCH = 3
+
+    /** A warm-up request that has not finished by then is not worth waiting for. */
+    private const val PREFETCH_TIMEOUT_MS = 30_000L
 
     // Active view tracking - MediaViewer takes precedence when open
     private var activeView = ActiveView.GALLERY
@@ -876,10 +917,21 @@ object MediaCache {
         val context = applicationContext ?: return false
         if (hasLocalCopy(context, key, false)) return true
         val client = comfyUIClient ?: return false
-        val bytes = suspendCancellableCoroutine<ByteArray?> { continuation ->
-            client.fetchRawBytes(key.filename, subfolder, type) { data, _ ->
-                continuation.resume(data)
+        // A prefetch that never returns blocks the whole warm-up loop, and one stuck request used
+        // to leave the gallery unable to cache anything else for the rest of the session.
+        val bytes = try {
+            withTimeoutOrNull(PREFETCH_TIMEOUT_MS) {
+                suspendCancellableCoroutine<ByteArray?> { continuation ->
+                    client.fetchRawBytes(key.filename, subfolder, type) { data, _ ->
+                        if (continuation.isActive) continuation.resume(data)
+                    }
+                }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            DebugLogger.w(TAG, "Prefetch failed: ${error.javaClass.simpleName}")
+            null
         } ?: return false
         writeImageBytes(context, key, bytes)
         return true

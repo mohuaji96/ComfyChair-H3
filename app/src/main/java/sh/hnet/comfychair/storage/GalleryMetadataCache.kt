@@ -17,6 +17,8 @@ object GalleryMetadataCache {
     private const val TAG = "GalleryMetadataCache"
     private const val CACHE_PREFIX = "gallery_metadata_"
     private const val CACHE_SUFFIX = ".json"
+    private const val PREFS = "gallery_meta_prefs"
+    private const val KEY_LAST_SERVER = "last_server"
 
     /**
      * Save gallery items to disk cache for a specific server.
@@ -27,6 +29,7 @@ object GalleryMetadataCache {
      */
     fun saveMetadata(context: Context, serverId: String, items: List<GalleryItem>) {
         try {
+            rememberServer(context, serverId)
             val cacheFile = getCacheFile(context, serverId)
 
             // Convert items to JSON array
@@ -161,6 +164,26 @@ object GalleryMetadataCache {
         } catch (e: Exception) {
             DebugLogger.e(TAG, "Failed to clear all gallery metadata caches: ${e.message}")
         }
+    }
+
+    /**
+     * The server this phone talked to last. A cold start has no connection yet, and without this
+     * the app cannot even find its own cached list -- which is what left the gallery blank until
+     * the network answered.
+     */
+    fun rememberServer(context: Context, serverId: String) {
+        try {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(KEY_LAST_SERVER, serverId).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun lastServer(context: Context): String? = try {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_LAST_SERVER, null)?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
     }
 
     /**

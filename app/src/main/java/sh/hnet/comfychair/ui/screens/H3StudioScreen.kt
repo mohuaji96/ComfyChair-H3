@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import sh.hnet.comfychair.ui.components.shared.ModelDropdown
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
@@ -59,6 +60,11 @@ import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
+import sh.hnet.comfychair.storage.SequenceStore
+import sh.hnet.comfychair.queue.H3RelayService
+import sh.hnet.comfychair.queue.H3RelayStatus
+import sh.hnet.comfychair.ui.components.GenerationButton
+import sh.hnet.comfychair.workflow.H3Naming
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.util.H3Frame
@@ -138,6 +144,7 @@ fun H3StudioContent(
 
     var message by remember { mutableStateOf("") }
     var showDeclareHelp by remember { mutableStateOf(false) }
+    var showRelayHelp by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var showBasic by remember { mutableStateOf(true) }
     var showModels by remember { mutableStateOf(false) }
@@ -164,8 +171,11 @@ fun H3StudioContent(
     // and /queue is the only place that order exists. Poll it while we wait, stop the moment the
     // job starts or the queue empties.
     val ownJobWaiting = queueState.ownActiveJobCount > 0
-    LaunchedEffect(ownJobWaiting) {
-        while (ownJobWaiting) {
+    // Keep polling while the page still believes our job is executing, not only while a tracked
+    // job exists: once the registry dropped the job the old loop stopped, and a stale "中止"
+    // stayed on the button with nothing left to poll it away.
+    LaunchedEffect(ownJobWaiting, ownJobExecuting) {
+        while (ownJobWaiting || ownJobExecuting) {
             ConnectionManager.pollQueueStatus()
             delay(3000)
         }
@@ -176,6 +186,44 @@ fun H3StudioContent(
     var result by remember { mutableStateOf<H3Result?>(null) }
     var resultPoster by remember { mutableStateOf<Bitmap?>(null) }
     var resultLoading by remember { mutableStateOf(false) }
+
+    // 完整连拍: queued segments are draft snapshots, so each keeps the settings it was added with.
+    var relayCount by remember { mutableStateOf(autoPrefs.getInt("relay_count", 0)) }
+    var relaySubmitAfterFrame by remember { mutableStateOf(false) }
+    var relaySubmitTick by remember { mutableStateOf(0) }
+    var relayDone by remember { mutableStateOf(autoPrefs.getInt("relay_done", 0)) }
+    val relayPaused by H3RelayStatus.paused.collectAsState()
+
+    fun persistRelay(n: Int) {
+        autoPrefs.edit().putInt("relay_count", n).apply()
+        relayCount = n
+    }
+
+    fun relaySave(index: Int, d: H3Draft) = draftStore.save("__relay$index", area, d)
+
+    fun relayLoad(index: Int): H3Draft = draftStore.load("__relay$index", area, spec)
+
+    /** Pops the head of the queue and shifts the rest down. */
+    fun relayShift(): H3Draft {
+        val head = relayLoad(0)
+        for (i in 1 until relayCount) relaySave(i - 1, relayLoad(i))
+        persistRelay(relayCount - 1)
+        return head
+    }
+
+    fun enqueueSegment() {
+        relaySave(relayCount, draft)
+        persistRelay(relayCount + 1)
+        H3RelayStatus.report(relayDone, relayCount)
+        H3RelayService.update(context)
+    }
+
+    fun finishRelay() {
+        relayDone = 0
+        autoPrefs.edit().putInt("relay_done", 0).apply()
+        H3RelayStatus.clear()
+        H3RelayService.stop(context)
+    }
 
     // Reference tiles. The template itself wires `ref_image_0..N`, so those slots are always
     // legal without asking anyone; only going past them needs the server's own declaration.
@@ -330,6 +378,11 @@ fun H3StudioContent(
                         else ->
                             "尾帧已挂为 <Picture $picture>，正文只写下一步动作（勿复述画面）"
                     }
+                    // The queued segment can only start once its frame is on the server.
+                    if (relaySubmitAfterFrame) {
+                        relaySubmitAfterFrame = false
+                        relaySubmitTick++
+                    }
                 } else {
                     message = "尾帧上传失败：${err ?: "服务器未返回文件名"}"
                 }
@@ -365,10 +418,6 @@ fun H3StudioContent(
 
     // 连拍: refill the continuation frame as soon as a run finishes, so only the prompt and the
     // length need editing between segments. Never touches the references the user picked.
-    LaunchedEffect(result?.promptId, draft.continuationAuto) {
-        if (result != null && draft.continuationAuto && !busy) captureLastFrame(auto = true)
-    }
-
     // A run that finished while the app was in the background -- or after the process was killed --
     // still gets its tail frame: the submitted id is persisted and retried when this page returns.
     LaunchedEffect(pendingAutoId) {
@@ -560,7 +609,48 @@ fun H3StudioContent(
         }
     }
 
-     fun submit() {
+    // Two rapid submissions must not both read 01 from the store and produce the same prefix.
+    val chainPositions = remember { mutableMapOf<String, Int>() }
+
+    fun nextChainPosition(chain: String): Int {
+        val next = (chainPositions[chain] ?: (SequenceStore.nextPosition(context, chain) - 1)) + 1
+        chainPositions[chain] = next
+        return next
+    }
+
+    /** Whether this mode may refill the tail frame right now. */
+    fun autoCaptureAllowed(): Boolean = when (draft.continuationMode) {
+        // One at a time and "queue without relaying" both wait until nothing else is ours.
+        0, 1 -> queueState.ownActiveJobCount == 0
+        else -> true
+    }
+
+    /** Clears only the segments this phone queued; the running one is cancelled separately. */
+    fun clearOwnQueue() {
+        finishRelay()
+        val live = ConnectionManager.clientOrNull ?: run { message = "请先连接服务器"; return }
+        val pending = queueState.ownJobs.values
+            .filter { it.status == sh.hnet.comfychair.queue.JobStatus.PENDING }
+            .map { it.promptId }
+        if (pending.isEmpty()) {
+            message = "队列里没有排着的任务"
+            return
+        }
+        live.deleteQueueItems(pending) { ok ->
+            main.post {
+                message = if (ok) "已清空自己排队的 ${pending.size} 条" else "清空队列失败：服务器未响应"
+                if (ok) pending.forEach { sh.hnet.comfychair.queue.JobRegistry.removeJob(it) }
+            }
+        }
+    }
+
+     fun submit(front: Boolean = false) {
+        // 完整连拍: only one segment runs at a time, the rest wait here on the phone.
+        if (draft.continuationAuto && queueState.ownActiveJobCount + relayCount > 0) {
+            enqueueSegment()
+            message = "已排入第 ${queueState.ownActiveJobCount + relayCount + 1} 段，前一段跑完自动接上"
+            return
+        }
         val live = ConnectionManager.clientOrNull ?: run { message = "请先连接服务器"; return }
         val errors = mutableListOf<String>()
         // Disabled slots and empty slots are compressed away, so the submitted order is
@@ -594,6 +684,12 @@ fun H3StudioContent(
         if (mpValue == null && customW == null) errors.add("像素量无效")
         if (mpValue != null && (mpValue < 0.1 || mpValue > 1.0))
             errors.add("自定义像素量需在 0.1–1.0 MP 之间")
+        // One-at-a-time is the default 连拍 behaviour: relaying a queue would take the last frame
+        // of whichever segment happened to finish, which is how a chain silently forks.
+        if (draft.continuationAuto && draft.continuationMode == 0 && queueState.ownActiveJobCount > 0) {
+            message = "连拍一次只跑一条：等这一段跑完再提交，或到「连拍」里改成排队模式"
+            return
+        }
         if (errors.isNotEmpty()) { message = errors.joinToString("；"); return }
 
         busy = true; message = "正在准备提交…"
@@ -642,12 +738,23 @@ fun H3StudioContent(
                 message = "提交前检查未通过：" + preflight.issues.joinToString("；") { it.toString() }
                 return@launch
             }
+            // 连拍 naming: one prefix per chain, numbered per submission, so the gallery can tell
+            // a chain apart and the files stay recognisable on the PC too.
+            var prompt = preflight.prompt
+            var chain: String? = null
+            var chainPosition = 0
+            if (draft.continuationAuto) {
+                chain = H3Naming.chainName(draft.sequenceName, draft.sequenceAutoName)
+                chainPosition = nextChainPosition(chain)
+                prompt = H3Naming.applyPrefix(prompt, H3Naming.prefixFor(chain, chainPosition, draft.sequenceAutoName))
+            }
             // Keep the last few real payloads: without them a failed run cannot be reproduced.
-            withContext(Dispatchers.IO) { archivePayload(context, mode, preflight.prompt) }
+            withContext(Dispatchers.IO) { archivePayload(context, mode, prompt) }
             val onResult: (Boolean, String?, String?) -> Unit = { ok, id, error ->
                 main.post {
                     busy = false
                     if (ok && id != null) {
+                        chain?.let { SequenceStore.record(context, id, it, chainPosition) }
                         pendingStore.save(PendingJobStore.PendingJob(
                             id, live.getBaseUrl().orEmpty(), "H3 ${mode.label}",
                             System.currentTimeMillis(), "QUEUED"))
@@ -664,16 +771,39 @@ fun H3StudioContent(
             val vm = generationViewModel
             if (vm != null && vm.getClient() === live) {
                 vm.startGeneration(
-                    preflight.prompt,
+                    prompt,
                     // Borrowing the ordinary pages' owner ids made their progress bars react to an
                     // H3 job and left this page unable to recognise its own.
                     H3_OWNER_ID,
                     ContentType.VIDEO, front = false,
                     onResult = { ok, id, error -> onResult(ok, id, error) })
             } else {
-                live.submitPrompt(preflight.prompt, front = false) { ok, id, error, _ -> onResult(ok, id, error) }
+                live.submitPrompt(prompt, front = front) { ok, id, error, _ -> onResult(ok, id, error) }
             }
         }
+    }
+
+    // 完整连拍: when a segment finishes, the next queued one becomes the live draft before its
+    // frame is captured, so the declaration and the picture number belong to that segment.
+    LaunchedEffect(result?.promptId, draft.continuationAuto, relayPaused) {
+        if (result == null || !draft.continuationAuto || busy) return@LaunchedEffect
+        // Paused from the notification: keep the queue, do nothing until resumed.
+        if (relayPaused) return@LaunchedEffect
+        if (relayCount > 0) {
+            draft = relayShift().copy(continuationAuto = true)
+            relaySubmitAfterFrame = true
+            relayDone += 1
+            autoPrefs.edit().putInt("relay_done", relayDone).apply()
+            H3RelayStatus.report(relayDone, relayCount)
+            H3RelayService.update(context)
+        } else if (relayDone > 0) {
+            finishRelay()
+        }
+        captureLastFrame(auto = true)
+    }
+
+    LaunchedEffect(relaySubmitTick) {
+        if (relaySubmitTick > 0) submit(front = false)
     }
 
     val frames = draft.seconds.toDoubleOrNull()?.let { sec -> spec.duration?.expression?.let { ComfyFrames(it, sec) } }
@@ -733,7 +863,7 @@ fun H3StudioContent(
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
-                                "自动写明",
+                                "代写尾帧声明",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -844,7 +974,8 @@ fun H3StudioContent(
                                                 // Always tappable: addReference() either opens the
                                                 // picker or explains the limit. A disabled button is
                                                 // how the page became unusable last time.
-                                                enabled = !busy,
+                                                enabled = true,
+                                                busy = busy,
                                                 onClick = { addReference() }
                                             )
                                         } else if (cell == H3_CELL_TAIL) {
@@ -943,6 +1074,14 @@ fun H3StudioContent(
                             auto = draft.continuationAuto,
                             enabled = !busy,
                             hasResult = result != null,
+                            mode = 0,
+                        onRelayHelp = { showRelayHelp = true },
+                            autoName = draft.sequenceAutoName,
+                            sequenceName = draft.sequenceName,
+                            queuedCount = queueState.ownActiveJobCount + relayCount,
+                            onMode = { update(draft.copy(continuationMode = it)) },
+                            onToggleAutoName = { update(draft.copy(sequenceAutoName = it)) },
+                            onSequenceName = { update(draft.copy(sequenceName = it)) },
                             onCapture = { captureLastFrame(auto = false) },
                             onPickVideo = { tailVideoPicker.launch("video/*") },
                             onToggleAuto = { update(draft.copy(continuationAuto = it)) },
@@ -1465,17 +1604,64 @@ fun H3StudioContent(
             }
         }
 
+        if (showRelayHelp) AlertDialog(
+            onDismissRequest = { showRelayHelp = false },
+            title = { Text("完整连拍") },
+            text = {
+                Text(
+                    "用途\n" +
+                        "一次排好几段，每段跑完自动接上一段最后一帧，把长视频拆开连续生成。\n\n" +
+                        "怎么用\n" +
+                        "1. 打开开关\n" +
+                        "2. 写好提示词，点「添加到队列」，点几次就是几段\n" +
+                        "3. 只把当前这段交给服务器；跑完自动取帧、换到参考槽、提交下一段\n\n" +
+                        "注意\n" +
+                        "· 每段用的是点「添加」那一刻的参数（时长 / 比例 / 步数）\n" +
+                        "· 关掉开关会暂停，剩余段不丢，重新打开继续\n" +
+                        "· 连拍期间请不要把 App 从后台划掉：取帧和提交都要靠手机，划掉会停住\n" +
+                        "· 某段失败会停下等你，不会跳过\n\n" +
+                        "相关设置\n" +
+                        "设置 → 连拍通知（默认关闭）\n" +
+                        "打开后：通知栏会显示「已跑完 2 段，还剩 3 段」，可以在通知里暂停 / 继续；\n" +
+                        "锁屏久了也不容易被系统回收。\n" +
+                        "不开也能用完整连拍，只是后台待太久时可能被系统停下，\n" +
+                        "重开 App 会从剩下的段继续。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showRelayHelp = false }) { Text("知道了") }
+            }
+        )
         if (showDeclareHelp) AlertDialog(
             onDismissRequest = { showDeclareHelp = false },
-            title = { Text("尾帧声明怎么写") },
+            title = { Text("代写尾帧声明") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("它做什么：在 subject_definitions 末段加一行，" +
-                        "告诉模型这张图是上一段的最后一帧。")
-                    Text("正文怎么写：只写下一步动作，不复述画面，" +
-                        "也不重写人物外观与服装。")
-                    Text("会不会重复：你已手写同样声明时跳过写入，" +
-                        "关掉开关也不会删你那一行。")
+                // Each question keeps its own small heading: the old copy packed all three into
+                // one run of text, so a reader looking for "will it duplicate mine?" had to
+                // parse the whole block.
+                val tailPicture = filledRefs.size + 1
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("它帮你写什么",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("在提示词开头补一行，说明第 $tailPicture 张图" +
+                            "就是上一段视频的最后一帧。")
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("正文你只需写下一步",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("不用再描述画面，也不用重复长相、衣服，" +
+                            "那一行已经交代过了。")
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("会不会重复",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("你已经手写过同样的声明，就跳过不写；" +
+                            "关掉开关也不会删掉你写的那一行。")
+                    }
                 }
             },
             confirmButton = {
@@ -1549,50 +1735,23 @@ fun H3StudioContent(
                             ) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
-                        if (queueLine == null) result?.let { finished ->
-                            H3ResultRow(
-                                result = finished,
-                                poster = resultPoster,
-                                onOpen = {
-                                    context.startActivity(
-                                        MediaViewerActivity.createSingleVideoIntent(
-                                            context, finished.uri,
-                                            filename = finished.filename,
-                                            subfolder = finished.subfolder,
-                                            type = finished.type
-                                        )
-                                    )
-                                },
-                                onSave = {
-                                    scope.launch {
-                                        VideoUtils.saveVideoToGallery(context, finished.uri, "ComfyChair_H3")
-                                    }
-                                },
-                                onShare = { VideoUtils.shareVideo(context, finished.uri) },
-                                onContinue = { captureLastFrame(auto = false) }
-                            )
-                        }
                     }
                     Spacer(Modifier.width(12.dp))
-                    Button(
-                        // While our own job occupies the queue the same button stops it; the other
-                        // pages have always offered that, and H3 did not.
-                        enabled = ownJobExecuting || (!busy && client != null && !draft.mpOutOfRange),
-                        onClick = { if (ownJobExecuting) abortOwnJob() else submit() },
-                        colors = if (ownJobExecuting) ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        ) else ButtonDefaults.buttonColors(),
-                        modifier = Modifier.widthIn(min = 96.dp)
-                    ) {
-                        Text(
-                            when {
-                                ownJobExecuting -> "中止"
-                                busy -> "处理中…"
-                                else -> "生成"
-                            }
-                        )
-                    }
+                    // The poster row that used to live here (open / save / share / continue) is
+                    // gone: everything it offered is in the gallery or on the tail-frame row, and
+                    // its height is what the split button needs. The leading half only ever
+                    // submits, so a second and third segment can be queued while one runs.
+                    GenerationButton(
+                        modifier = Modifier.width(180.dp),
+                        queueSize = queueState.ownActiveJobCount,
+                        isExecuting = ownJobExecuting,
+                        isEnabled = !busy && client != null && !draft.mpOutOfRange,
+                        isUploading = busy,
+                        onGenerate = { submit(front = false) },
+                        onAddToFrontOfQueue = { submit(front = true) },
+                        onCancelCurrent = { abortOwnJob() },
+                        onClearQueue = { clearOwnQueue() }
+                    )
                 }
             }
         }
@@ -1669,6 +1828,15 @@ private data class H3Draft(
     val continuation: String = "",
     /** 连拍: after every finished run, refill the continuation frame without being asked. */
     val continuationAuto: Boolean = false,
+    /**
+     * What 连拍 does while other segments are still queued:
+     * 0 = one at a time, 1 = queue freely but stop relaying, 2 = relay every finished segment.
+     */
+    val continuationMode: Int = 0,
+    /** Name the files of a chain automatically (`h3_seq_01`); off means use [sequenceName]. */
+    val sequenceAutoName: Boolean = true,
+    /** Custom prefix for a chain; blank keeps the default. */
+    val sequenceName: String = "",
     /** Write the continuation claim into the prompt automatically; off leaves the text alone. */
     val continuationInject: Boolean = true,
     /** Picture number of the declaration this app wrote, or -1 when the prompt is the user's. */
@@ -1862,6 +2030,9 @@ private class H3DraftStore(context: android.content.Context) {
             }.orEmpty(),
             continuation = o.optString("continuation", ""),
             continuationAuto = o.optBoolean("continuationAuto", false),
+            continuationMode = o.optInt("continuationMode", 0),
+            sequenceAutoName = o.optBoolean("sequenceAutoName", true),
+            sequenceName = o.optString("sequenceName", ""),
             continuationInject = o.optBoolean("continuationInject", true),
             continuationOwner = o.optInt("continuationOwner", H3Continuation.NONE),
             continuationFlag = o.optBoolean("continuationFlag", false)
@@ -1875,6 +2046,9 @@ private class H3DraftStore(context: android.content.Context) {
             .put("customW", draft.customW).put("customH", draft.customH)
             .put("first", draft.first).put("last", draft.last).put("unet", draft.unet)
             .put("continuation", draft.continuation).put("continuationAuto", draft.continuationAuto)
+            .put("continuationMode", draft.continuationMode)
+            .put("sequenceAutoName", draft.sequenceAutoName)
+            .put("sequenceName", draft.sequenceName)
             .put("continuationInject", draft.continuationInject)
             .put("continuationOwner", draft.continuationOwner)
             .put("continuationFlag", draft.continuationFlag)
@@ -2386,18 +2560,31 @@ private fun H3RefTile(
 private fun H3RefAddTile(
     modifier: Modifier = Modifier,
     enabled: Boolean,
+    busy: Boolean = false,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(10.dp)
+    // Three states, three labels. "上限" used to double as "busy", which told the user they had
+    // run out of slots while six were still free.
+    val label = when {
+        busy -> "…"
+        enabled -> "+"
+        else -> "上限"
+    }
     Box(
         modifier
             .aspectRatio(1f)
             .clip(shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled && !busy, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(if (enabled) "+" else "上限", style = MaterialTheme.typography.titleLarge)
+        Text(
+            label,
+            style = MaterialTheme.typography.titleLarge,
+            color = if (busy) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -2732,6 +2919,32 @@ private fun frameAspectSuggestedRatio(
     return ratios.minByOrNull { (_, wh) -> Math.abs(imageAspect - wh.first.toDouble() / wh.second) }?.first
 }
 
+/** 26dp pill for the tail-frame row: three of them plus the title must fit a 304dp card. */
+@Composable
+private fun H3MiniAction(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .height(26.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(
+                0.8.dp,
+                if (enabled) MaterialTheme.colorScheme.outlineVariant
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                RoundedCornerShape(6.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+        )
+    }
+}
+
 /**
  * One-line continuation control. The frame is kept out of the reference grid on purpose: it is
  * replaced on every segment, while the picked references stay put.
@@ -2742,59 +2955,218 @@ private fun H3ContinuationSlot(
     auto: Boolean,
     enabled: Boolean,
     hasResult: Boolean,
+    mode: Int,
+    autoName: Boolean,
+    sequenceName: String,
+    queuedCount: Int,
+    onMode: (Int) -> Unit,
+    onRelayHelp: () -> Unit,
+    onToggleAutoName: (Boolean) -> Unit,
+    onSequenceName: (String) -> Unit,
     onCapture: () -> Unit,
     onPickVideo: () -> Unit,
     onToggleAuto: (Boolean) -> Unit,
     onClear: () -> Unit
 ) {
-    // Two rows on purpose: label + switch own the first line, the actions own the second. One
-    // long row overflowed the card at 360dp once the switch was added.
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+    val attached = file.isNotBlank()
+    // One 10sp tier for the explanation: at labelSmall(11sp) the first line alone overran the
+    // 168dp column, and these four short lines are what keep the block the same height as the
+    // two switch rows beside it, so no empty patch is left at the bottom of the card.
+    val noteStyle = MaterialTheme.typography.labelSmall
+        .copy(fontSize = 10.sp, lineHeight = 16.sp)
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
+    Column(Modifier.fillMaxWidth()) {
+        // Title and actions share one line: 取帧 / 上传 answer "where did this frame come from",
+        // which belongs next to the state rather than in a second row further down.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (file.isBlank()) "尾帧衔接" else "尾帧衔接 · 已挂",
-                modifier = Modifier.weight(1f),
+                "尾帧衔接",
                 style = MaterialTheme.typography.labelMedium,
-                color = if (file.isBlank()) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.primary
+                color = if (attached) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                "连拍",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (auto) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant
+            // Shown only when something is attached: colour already says "empty", and a
+            // permanent「未挂」badge read like part of the section name.
+            if (attached) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "已挂",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            H3MiniAction(
+                label = when {
+                    attached -> "重取尾帧"
+                    hasResult -> "用尾帧继续"
+                    else -> "暂无上一段"
+                },
+                enabled = enabled && hasResult,
+                onClick = onCapture
             )
             Spacer(Modifier.width(4.dp))
-            Switch(checked = auto, enabled = enabled, onCheckedChange = onToggleAuto)
+            H3MiniAction(label = "上传视频", enabled = enabled, onClick = onPickVideo)
+            if (attached) {
+                Spacer(Modifier.width(2.dp))
+                Text(
+                    "清除",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable(enabled = enabled, onClick = onClear)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
+            }
         }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            AssistChip(
-                onClick = onCapture,
-                enabled = enabled && hasResult,
-                label = {
+
+        H3Divider()
+
+        // Two switch rows on the left, the explanation on the right. The paragraph fills the
+        // same two rows, so the card has no empty block beside the prefix field.
+        Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.width(128.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        when {
-                            file.isNotBlank() -> "重取尾帧"
-                            hasResult -> "用尾帧继续"
-                            else -> "暂无上一段"
-                        },
-                        style = MaterialTheme.typography.labelSmall
+                        "完整连拍",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Switch(
+                        checked = auto,
+                        enabled = enabled,
+                        onCheckedChange = onToggleAuto,
+                        modifier = Modifier.scale(0.8f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Box(
+                        Modifier
+                            .size(18.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .border(
+                                0.8.dp,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                                RoundedCornerShape(9.dp)
+                            )
+                            .clickable { onRelayHelp() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "?",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "自动编号",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Switch(
+                        checked = autoName,
+                        enabled = enabled,
+                        onCheckedChange = onToggleAutoName,
+                        modifier = Modifier.scale(0.8f)
                     )
                 }
-            )
-            AssistChip(
-                onClick = onPickVideo,
-                enabled = enabled,
-                label = { Text("上传视频", style = MaterialTheme.typography.labelSmall) }
-            )
-            if (file.isNotBlank()) {
-                TextButton(onClick = onClear, enabled = enabled) {
-                    Text("清除", style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                listOf(
+                    "每段跑完自动取尾帧，当下段起点",
+                    "连续拼成一条长视频",
+                    "某段失败会停下等你，不跳过",
+                    "关掉也能手动重取尾帧接着跑"
+                ).forEach { line ->
+                    Text(
+                        line,
+                        style = noteStyle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
+        }
+
+        if (auto && queuedCount > 0) Text(
+            "已排 $queuedCount 段，跑完当前这段自动接上",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        Spacer(Modifier.height(6.dp))
+
+        // 前缀 → 文件名 on one line: the arrow makes "this is the name you will get" explicit,
+        // and the field greys out instead of vanishing when auto-numbering is off.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "前缀",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .width(100.dp)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (autoName) MaterialTheme.colorScheme.surface
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                    .border(
+                        0.8.dp,
+                        if (autoName) MaterialTheme.colorScheme.outlineVariant
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                BasicTextField(
+                    value = sequenceName,
+                    onValueChange = onSequenceName,
+                    singleLine = true,
+                    enabled = enabled && autoName,
+                    textStyle = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        color = if (autoName) MaterialTheme.colorScheme.onSurface else faint
+                    ),
+                    decorationBox = { inner ->
+                        if (sequenceName.isBlank()) Text(
+                            "留空 = h3_seq",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                color = faint
+                            )
+                        )
+                        inner()
+                    }
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "→ " + if (autoName) {
+                    H3Naming.prefixFor(H3Naming.chainName(sequenceName, true), 1, true) +
+                        "_00001.mp4 …"
+                } else {
+                    H3Naming.prefixFor(sequenceName, 1, false)
+                },
+                style = noteStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

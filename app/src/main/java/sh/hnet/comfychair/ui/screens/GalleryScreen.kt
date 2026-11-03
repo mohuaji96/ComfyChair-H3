@@ -83,6 +83,7 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.ui.components.AppMenuDropdown
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import sh.hnet.comfychair.cache.ActiveView
@@ -128,7 +129,10 @@ fun GalleryScreen(
 
     // Everything downstream -- grid, viewer, prefetch, selection -- works on the filtered list, so
     // a swipe in the viewer can never land on an item the current filter hides.
-    val visibleItems = remember(uiState.items, categoryName, favorites) {
+    val sequenceIds by galleryViewModel.sequenceIds.collectAsState()
+    LaunchedEffect(Unit) { galleryViewModel.reloadSequences(context) }
+
+    val visibleItems = remember(uiState.items, categoryName, favorites, sequenceIds) {
         when (category) {
             GalleryCategory.ALL -> uiState.items
             GalleryCategory.IMAGE -> uiState.items.filter { !it.isVideo }
@@ -136,6 +140,7 @@ fun GalleryScreen(
             GalleryCategory.FAVORITE -> uiState.items.filter {
                 it.toCacheKey().keyString in favorites
             }
+            GalleryCategory.SEQUENCE -> uiState.items.filter { it.promptId in sequenceIds }
         }
     }
 
@@ -161,7 +166,7 @@ fun GalleryScreen(
 
     // Initialize ViewModel
     LaunchedEffect(Unit) {
-        galleryViewModel.initialize()
+        galleryViewModel.initialize(context)
     }
 
     // Load gallery when connected
@@ -308,6 +313,7 @@ fun GalleryScreen(
                 }
             },
             actions = {
+                ServerStatusLamp()
                 if (uiState.isSelectionMode) {
                     // Selection mode actions: Delete, Save, and Share
                     IconButton(onClick = { galleryViewModel.deleteSelected() }) {
@@ -417,6 +423,7 @@ fun GalleryScreen(
                                         when (category) {
                                             GalleryCategory.VIDEO -> R.string.msg_gallery_empty_video
                                             GalleryCategory.FAVORITE -> R.string.msg_gallery_empty_favorite
+                                            GalleryCategory.SEQUENCE -> R.string.msg_gallery_empty_sequence
                                             else -> R.string.msg_gallery_empty
                                         }
                                     ),
@@ -767,5 +774,7 @@ private enum class GalleryCategory(@StringRes val labelRes: Int) {
     ALL(R.string.gallery_filter_all),
     IMAGE(R.string.gallery_filter_image),
     VIDEO(R.string.gallery_filter_video),
-    FAVORITE(R.string.gallery_filter_favorite)
+    FAVORITE(R.string.gallery_filter_favorite),
+    /** Segments submitted while 连拍 was on; recognised by the phone's own record. */
+    SEQUENCE(R.string.gallery_filter_sequence)
 }

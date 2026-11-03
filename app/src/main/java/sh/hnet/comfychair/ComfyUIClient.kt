@@ -12,6 +12,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.connection.ConnectionFailure
 import sh.hnet.comfychair.model.AuthCredentials
@@ -102,6 +103,17 @@ class ComfyUIClient(
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.SECONDS)      // Disabled - stall detection handles this
             .writeTimeout(0, TimeUnit.SECONDS)     // Disabled - stall detection handles this
+    ).build()
+
+    // Small, bounded reads (a PNG header, an MP4 footer). Unlike transferClient these must fail
+    // fast: a metadata probe has nothing to show while it waits, and a silent socket used to leave
+    // the parameter sheet spinning forever.
+    private val probeClient = SelfSignedCertHelper.configureToAcceptSelfSigned(
+        OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
     ).build()
 
     // Store which protocol worked (http or https)
@@ -1239,6 +1251,53 @@ class ComfyUIClient(
     }
 
     /**
+     * Read a slice of the file instead of the whole thing.
+     *
+     * Embedded workflow data sits in a PNG's first chunks and in an MP4's trailing `moov` box, so
+     * a header or footer is enough to show the parameter sheet. A server that ignores the Range
+     * header answers 200 with the full body; that is still correct, just not cheaper.
+     *
+     * @param suffix when true the range is the last [length] bytes, otherwise the first [length]
+     */
+    fun fetchViewRange(
+        filename: String,
+        subfolder: String = "",
+        type: String = "output",
+        length: Int,
+        suffix: Boolean,
+        callback: (bytes: ByteArray?) -> Unit
+    ) {
+        val baseUrl = getBaseUrl() ?: run {
+            callback(null)
+            return
+        }
+        val url = "$baseUrl/view?filename=$filename&subfolder=$subfolder&type=$type"
+        val range = if (suffix) "bytes=-$length" else "bytes=0-${length - 1}"
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .header("Range", range)
+            .build()
+
+        probeClient.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) {
+                DebugLogger.w(TAG, "Range probe failed: ${e.javaClass.simpleName}")
+                callback(null)
+            }
+
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                val bytes = try {
+                    response.use { if (it.isSuccessful) it.body?.bytes() else null }
+                } catch (error: Exception) {
+                    DebugLogger.w(TAG, "Range probe read failed: ${error.javaClass.simpleName}")
+                    null
+                }
+                callback(bytes)
+            }
+        })
+    }
+
+    /**
      * Fetch a generated video from the ComfyUI server
      * Downloads the video as raw bytes
      *
@@ -1408,6 +1467,37 @@ class ComfyUIClient(
                 response.use {
                     callback(response.isSuccessful)
                 }
+            }
+        })
+    }
+
+    /**
+     * Remove specific queued prompts, leaving every other client's jobs alone.
+     *
+     * `clearQueue` posts `{"clear": true}` and wipes the whole server queue; on a shared machine
+     * that silently deletes somebody else's work.
+     */
+    fun deleteQueueItems(promptIds: Collection<String>, callback: (success: Boolean) -> Unit) {
+        if (promptIds.isEmpty()) {
+            callback(true)
+            return
+        }
+        val baseUrl = getBaseUrl() ?: run {
+            callback(false)
+            return
+        }
+        val ids = JSONArray()
+        promptIds.forEach { ids.put(it) }
+        val body = JSONObject().put("delete", ids)
+            .toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url("$baseUrl/queue").post(body).build()
+        httpClient.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) {
+                callback(false)
+            }
+
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                response.use { callback(it.isSuccessful) }
             }
         })
     }

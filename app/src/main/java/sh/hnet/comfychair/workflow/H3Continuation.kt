@@ -27,12 +27,14 @@ object H3Continuation {
         """(?m)^<Picture\s*(\d+)>\s*is\s+the\s+final\s+frame\s+of\s+the\s+previous\s+segment[^\n]*\n?""",
         RegexOption.IGNORE_CASE
     )
-    private val OUR_FREEFORM_ZH = Regex("""(?m)^承接上一段结尾的画面、人物姿势与光线，继续：\n?""")
+    private val OUR_FREEFORM_ZH = Regex(
+        """(?m)^<Picture \d+> 是上一段结尾的画面[^\n]*\n接着它继续[^\n]*\n?"""
+    )
     private val OUR_FREEFORM_EN = Regex(
-        """(?m)^Continue from the last frame of the previous segment[^\n]*\n?""",
+        """(?m)^<Picture \d+> is the last frame of the previous segment[^\n]*\nContinue from it[^\n]*\n?""",
         RegexOption.IGNORE_CASE
     )
-    private val SUMMARY_PREFIX = Regex("""(?m)^\[video continuation\] """)
+    private val SUMMARY_PREFIX = Regex("""(?m)^\[video continuation[^\]]*\] """)
     private val SECTION_AFTER_DEFINITIONS = Regex(
         """\n(?:summary|retention_analysis|detailed_description|overall_soundscape|non_diegetic_music):"""
     )
@@ -51,11 +53,12 @@ object H3Continuation {
         "<Picture $picture> is the final frame of the previous segment, " +
             "providing the starting composition, lighting, and pose."
 
-    fun freeformLine(chinese: Boolean): String = if (chinese) {
-        "承接上一段结尾的画面、人物姿势与光线，继续："
+    fun freeformLine(picture: Int, chinese: Boolean): String = if (chinese) {
+        "<Picture $picture> 是上一段结尾的画面，提供开头的构图、光线与姿势。\n" +
+            "接着它继续，保持构图、姿势与光线："
     } else {
-        "Continue from the last frame of the previous segment, " +
-            "keeping the same framing, pose and lighting."
+        declaration(picture) + "\n" +
+            "Continue from it, keeping the same framing, pose and lighting."
     }
 
     /** First final-frame claim in the prompt, whoever wrote it. */
@@ -73,10 +76,10 @@ object H3Continuation {
         if (declaredPicture(prompt) == picture) return Applied(prompt)
 
         if (!prompt.contains("subject_definitions:")) {
-            val already = prompt.contains("承接上一段结尾的画面、人物姿势与光线，继续：") ||
-                prompt.startsWith("Continue from the last frame", ignoreCase = true)
+            val already = OUR_FREEFORM_ZH.containsMatchIn(prompt) ||
+                OUR_FREEFORM_EN.containsMatchIn(prompt)
             if (already) return Applied(prompt)
-            return Applied(freeformLine(looksChinese(prompt)) + "\n\n" + prompt, picture)
+            return Applied(freeformLine(picture, looksChinese(prompt)) + "\n\n" + prompt, picture)
         }
 
         // Another picture already claimed the final frame: two claims cancel each other out, so a

@@ -41,6 +41,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+import sh.hnet.comfychair.queue.H3RelayService
+import sh.hnet.comfychair.storage.AppSettings
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
@@ -72,6 +78,29 @@ fun ApplicationSettingsScreen(
 ) {
     val context = LocalContext.current
     val isLivePreviewEnabled by viewModel.isLivePreviewEnabled.collectAsState()
+    var relayNotify by remember { mutableStateOf(AppSettings.isRelayNotifyEnabled(context)) }
+    fun enableRelayNotify() {
+        AppSettings.setRelayNotifyEnabled(context, true)
+        relayNotify = true
+    }
+    // Android 13+ hides notifications without this grant; the foreground service still keeps the
+    // process alive, so a refusal only costs the progress, not the keep-alive.
+    val notifyPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            enableRelayNotify()
+            H3RelayService.update(context)
+        } else {
+            relayNotify = false
+            AppSettings.setRelayNotifyEnabled(context, false)
+            Toast.makeText(
+                context,
+                "未授予通知权限：锁屏保活仍然有效，但看不到连拍进度",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     val isMemoryFirstCache by viewModel.isMemoryFirstCache.collectAsState()
     val isMediaCacheDisabled by viewModel.isMediaCacheDisabled.collectAsState()
     val isDebugLoggingEnabled by viewModel.isDebugLoggingEnabled.collectAsState()
@@ -381,6 +410,43 @@ fun ApplicationSettingsScreen(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // 完整连拍 progress notification (off by default: it is a persistent entry)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("连拍通知", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "连拍时在通知栏显示第几段，并可暂停；锁屏时也不容易被系统回收",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = relayNotify,
+                        onCheckedChange = { on ->
+                            if (!on) {
+                                relayNotify = false
+                                AppSettings.setRelayNotifyEnabled(context, false)
+                                H3RelayService.stop(context)
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                enableRelayNotify()
+                                H3RelayService.update(context)
+                            }
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Show live preview toggle
                 Row(

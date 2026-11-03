@@ -72,6 +72,7 @@ import sh.hnet.comfychair.WorkflowEditorActivity
 import sh.hnet.comfychair.model.ScreenType
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.ui.components.AppMenuDropdown
 import sh.hnet.comfychair.ui.theme.Dimensions
 import sh.hnet.comfychair.storage.AppSettings
@@ -255,6 +256,7 @@ fun TextToVideoScreen(
             title = { Text(stringResource(R.string.title_text_to_video)) },
             windowInsets = WindowInsets(0, 0, 0, 0),
             actions = {
+                ServerStatusLamp()
                 // Save to gallery button (only when video exists)
                 if (videoUri != null) {
                     IconButton(onClick = {

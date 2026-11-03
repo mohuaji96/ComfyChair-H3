@@ -82,6 +82,7 @@ fun MediaViewerScreen(
 
     val currentMetadata by viewModel.currentMetadata.collectAsState()
     val isLoadingMetadata by viewModel.isLoadingMetadata.collectAsState()
+    val metadataError by viewModel.metadataError.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Layout constants - 8dp because navigationBarsPadding() adds ~24dp, totaling ~32dp like Workflow Editor
@@ -336,7 +337,9 @@ fun MediaViewerScreen(
             MetadataBottomSheet(
                 metadata = currentMetadata,
                 isLoading = isLoadingMetadata,
-                onDismiss = { showMetadataSheet = false }
+                onDismiss = { showMetadataSheet = false },
+                errorMessage = metadataError,
+                onRetry = { viewModel.loadMetadata(force = true) }
             )
         }
     }

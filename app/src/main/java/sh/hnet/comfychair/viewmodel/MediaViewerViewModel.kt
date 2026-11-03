@@ -10,6 +10,7 @@ import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.R
@@ -26,13 +30,16 @@ import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.repository.GalleryRepository
+import sh.hnet.comfychair.storage.MetadataStore
 import sh.hnet.comfychair.util.GenerationMetadata
+import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.MetadataParser
 import sh.hnet.comfychair.util.Mp4MetadataExtractor
 import sh.hnet.comfychair.util.PngMetadataExtractor
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import java.io.File
+import kotlin.coroutines.resume
 
 /**
  * Viewer mode
@@ -149,13 +156,23 @@ class MediaViewerViewModel : ViewModel() {
     private val _events = MutableSharedFlow<MediaViewerEvent>()
     val events: SharedFlow<MediaViewerEvent> = _events.asSharedFlow()
 
-    // Metadata state
-    private val cachedMetadata = mutableMapOf<Int, GenerationMetadata?>()
+    // Metadata state. Only successful reads are remembered, so one miss cannot poison an item
+    // for the rest of the session.
+    private val cachedMetadata = mutableMapOf<Int, GenerationMetadata>()
+    private val metadataAttempts = mutableMapOf<Int, Int>()
+    private var metadataJob: Job? = null
     private val _currentMetadata = MutableStateFlow<GenerationMetadata?>(null)
     val currentMetadata: StateFlow<GenerationMetadata?> = _currentMetadata.asStateFlow()
 
     private val _isLoadingMetadata = MutableStateFlow(false)
     val isLoadingMetadata: StateFlow<Boolean> = _isLoadingMetadata.asStateFlow()
+
+    /** Why the last attempt produced nothing, shown under the spinner instead of a dead end. */
+    private val _metadataError = MutableStateFlow<String?>(null)
+    val metadataError: StateFlow<String?> = _metadataError.asStateFlow()
+
+    /** Storage scope for parameters: the server id when known, else host:port. */
+    private var storeScope: String = "local"
 
     // Track whether any items were deleted during this session
     private val _hasDeletedItems = MutableStateFlow(false)
@@ -172,6 +189,7 @@ class MediaViewerViewModel : ViewModel() {
         singleVideoUri: Uri? = null
     ) {
         applicationContext = context.applicationContext
+        storeScope = ConnectionManager.currentServerId ?: "$hostname:$port"
 
         _uiState.value = MediaViewerUiState(
             mode = mode,
@@ -368,24 +386,55 @@ class MediaViewerViewModel : ViewModel() {
 
     /**
      * Load metadata for the current item.
-     * Uses cached metadata if available from pre-loading, otherwise fetches on demand.
+     *
+     * Order matters: memory, then the copy on this phone (a stored record or the cached file
+     * itself), and only then the server. The old code went straight to the network and pulled the
+     * whole image or video down, which is why opening this sheet on a slow connection spun
+     * forever -- and why a ComfyUI restart made old items look like they had no parameters.
      */
-    fun loadMetadata() {
+    fun loadMetadata(force: Boolean = false) {
         val index = _uiState.value.currentIndex
+        val item = _uiState.value.items.getOrNull(index)
 
-        // Check cache first - metadata may have been pre-loaded
-        if (cachedMetadata.containsKey(index)) {
+        if (!force && cachedMetadata.containsKey(index)) {
             _currentMetadata.value = cachedMetadata[index]
+            _isLoadingMetadata.value = false
+            _metadataError.value = null
+            return
+        }
+        // A file with nothing to give is not retried on every open; the button in the sheet is the
+        // deliberate way back in.
+        if (!force && (metadataAttempts[index] ?: 0) >= MAX_AUTO_ATTEMPTS) {
+            _currentMetadata.value = null
+            _isLoadingMetadata.value = false
+            _metadataError.value = "上次没有读到参数，点重试再试一次"
             return
         }
 
-        // Not cached - load now (fallback for edge cases like rapid swiping)
+        metadataJob?.cancel()
         _isLoadingMetadata.value = true
-
-        viewModelScope.launch {
-            val metadata = fetchMetadataForIndex(index)
-            cachedMetadata[index] = metadata
-            _currentMetadata.value = metadata
+        _metadataError.value = null
+        metadataJob = viewModelScope.launch {
+            var failure: String? = null
+            val metadata = try {
+                withTimeoutOrNull(METADATA_TIMEOUT_MS) { resolveMetadata(item) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                failure = "读取失败：${error.javaClass.simpleName}"
+                null
+            }
+            if (metadata == null && failure == null) failure = "这个文件里没有生成参数"
+            if (metadata != null) {
+                cachedMetadata[index] = metadata
+                metadataAttempts.remove(index)
+                _currentMetadata.value = metadata
+            } else {
+                metadataAttempts[index] = (metadataAttempts[index] ?: 0) + 1
+                _currentMetadata.value = null
+                _metadataError.value = failure
+            }
+            // Always cleared: an exception or a timeout used to leave the sheet spinning forever.
             _isLoadingMetadata.value = false
         }
     }
@@ -395,54 +444,95 @@ class MediaViewerViewModel : ViewModel() {
      */
     private fun clearCurrentMetadata() {
         _currentMetadata.value = null
+        _metadataError.value = null
+        _isLoadingMetadata.value = false
     }
 
-    /**
-     * Fetches metadata for a specific item by index.
-     * Handles both images (PNG) and videos (MP4).
-     * Returns null if metadata cannot be extracted.
-     */
-    private suspend fun fetchMetadataForIndex(index: Int): GenerationMetadata? {
-        val state = _uiState.value
-        val item = state.items.getOrNull(index) ?: return null
+    /** memory -> stored record -> file on this phone -> server. */
+    private suspend fun resolveMetadata(item: MediaViewerItem?): GenerationMetadata? {
+        if (item == null) return null
         val context = applicationContext ?: return null
 
-        return withContext(Dispatchers.IO) {
-            val bytes: ByteArray? = when {
-                // For SINGLE mode videos, try to read from local file first
-                state.mode == ViewerMode.SINGLE && item.isVideo && state.currentVideoUri != null -> {
-                    try {
-                        context.contentResolver.openInputStream(state.currentVideoUri)?.use {
-                            it.readBytes()
-                        }
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-                // For items with server file info and a client, fetch from server
-                item.filename.isNotEmpty() && ConnectionManager.clientOrNull != null -> {
-                    kotlin.coroutines.suspendCoroutine { continuation ->
-                        ConnectionManager.clientOrNull!!.fetchRawBytes(item.filename, item.subfolder, item.type) { rawBytes, _ ->
-                            continuation.resumeWith(Result.success(rawBytes))
-                        }
-                    }
-                }
-                // No source available
-                else -> null
-            }
+        MetadataStore.get(context, storeScope, item.promptId, item.filename)?.let { return it }
 
-            if (bytes == null) return@withContext null
-
-            // Extract metadata based on file type
-            val jsonString = if (item.isVideo) {
-                Mp4MetadataExtractor.extractPromptMetadata(bytes)
-            } else {
-                PngMetadataExtractor.extractPromptMetadata(bytes)
-            }
-
-            // Parse the workflow JSON
-            jsonString?.let { MetadataParser.parseWorkflowJson(it) }
+        val local = withContext(Dispatchers.IO) {
+            MediaCache.localFile(context, item.toCacheKey(), item.isVideo)
+                ?.let { parseLocalFile(it, item.isVideo) }
         }
+        if (local != null) {
+            MetadataStore.put(context, storeScope, item.promptId, item.filename, local)
+            return local
+        }
+
+        val remote = fetchRemoteMetadata(item) ?: return null
+        MetadataStore.put(context, storeScope, item.promptId, item.filename, remote)
+        return remote
+    }
+
+    /** Reads only the part of the file that can hold parameters, whole file only as a last resort. */
+    private fun parseLocalFile(file: File, isVideo: Boolean): GenerationMetadata? = try {
+        val slice = if (isVideo) tailBytes(file, TAIL_BYTES) else headBytes(file, HEAD_BYTES)
+        parseBytes(slice, isVideo) ?: run {
+            // Small files are cheap to read whole; a large video is not worth it here.
+            if (!isVideo || file.length() <= FULL_READ_LIMIT) parseBytes(file.readBytes(), isVideo) else null
+        }
+    } catch (error: Exception) {
+        DebugLogger.w(TAG, "Local metadata failed: ${error.javaClass.simpleName}")
+        null
+    }
+
+    private fun headBytes(file: File, count: Int): ByteArray = file.inputStream().use { stream ->
+        val buffer = ByteArray(count)
+        var read = 0
+        while (read < count) {
+            val n = stream.read(buffer, read, count - read)
+            if (n <= 0) break
+            read += n
+        }
+        if (read == count) buffer else buffer.copyOf(read)
+    }
+
+    private fun tailBytes(file: File, count: Int): ByteArray = java.io.RandomAccessFile(file, "r").use { raf ->
+        val size = raf.length()
+        val length = minOf(size, count.toLong()).toInt()
+        if (length <= 0) return ByteArray(0)
+        val buffer = ByteArray(length)
+        raf.seek(size - length)
+        raf.readFully(buffer)
+        buffer
+    }
+
+    private fun parseBytes(bytes: ByteArray?, isVideo: Boolean): GenerationMetadata? {
+        if (bytes == null || bytes.isEmpty()) return null
+        val json = if (isVideo) {
+            Mp4MetadataExtractor.extractPromptMetadataFromTail(bytes)
+        } else {
+            PngMetadataExtractor.extractPromptMetadata(bytes)
+        }
+        return json?.let { MetadataParser.parseWorkflowJson(it) }
+    }
+
+    private suspend fun fetchRemoteMetadata(item: MediaViewerItem): GenerationMetadata? {
+        if (item.filename.isEmpty()) return null
+        val client = ConnectionManager.clientOrNull ?: return null
+
+        // The parameters live in the PNG's first chunks and in the MP4's trailing moov box, so
+        // half a megabyte is normally enough -- a 40 MB clip never has to cross the network.
+        val slice = suspendCancellableCoroutine<ByteArray?> { continuation ->
+            client.fetchViewRange(
+                item.filename, item.subfolder, item.type,
+                length = if (item.isVideo) TAIL_BYTES else HEAD_BYTES,
+                suffix = item.isVideo
+            ) { bytes -> if (continuation.isActive) continuation.resume(bytes) }
+        }
+        parseBytes(slice, item.isVideo)?.let { return it }
+
+        val full = suspendCancellableCoroutine<ByteArray?> { continuation ->
+            client.fetchRawBytes(item.filename, item.subfolder, item.type) { bytes, _ ->
+                if (continuation.isActive) continuation.resume(bytes)
+            }
+        }
+        return parseBytes(full, item.isVideo)
     }
 
     /**
@@ -470,9 +560,14 @@ class MediaViewerViewModel : ViewModel() {
         indicesToPreload.forEach { idx ->
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    val metadata = fetchMetadataForIndex(idx)
+                    val metadata = withTimeoutOrNull(METADATA_TIMEOUT_MS) {
+                        resolveMetadata(_uiState.value.items.getOrNull(idx))
+                    } ?: return@launch
+                    // Only a real answer is remembered; a miss stays open for the next attempt.
                     cachedMetadata[idx] = metadata
-                } catch (e: Exception) {
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
                     // Silently fail - metadata will load on-demand if needed
                 }
             }
@@ -861,3 +956,13 @@ class MediaViewerViewModel : ViewModel() {
         }
     }
 }
+
+private const val METADATA_TIMEOUT_MS = 12_000L
+private const val MAX_AUTO_ATTEMPTS = 2
+private const val HEAD_BYTES = 512 * 1024
+private const val TAIL_BYTES = 512 * 1024
+
+/** Above this a local video is read from its ends only: the whole file would not fit comfortably. */
+private const val FULL_READ_LIMIT = 8L * 1024 * 1024
+
+private const val TAG = "MediaViewer"

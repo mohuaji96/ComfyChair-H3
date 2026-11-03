@@ -25,6 +25,7 @@ import sh.hnet.comfychair.cache.LocalCachePolicy
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.repository.GalleryRepository
+import sh.hnet.comfychair.storage.SequenceStore
 import sh.hnet.comfychair.util.DebugLogger
 import java.io.File
 
@@ -144,9 +145,22 @@ class GalleryViewModel : ViewModel() {
         }
     }
 
-    fun initialize() {
-        // MediaCache is used for all fetch operations
-        // Repository is already initialized by GenerationViewModel
+    fun initialize(context: Context) {
+        repository.initialize(context)
+        // Local records first: the gallery must not be a blank page while /history is on its way.
+        repository.primeFromCache()
+        _sequenceIds.value = SequenceStore.ids(context)
+    }
+
+    /**
+     * Prompt ids that belong to a 连拍 chain. Kept beside the main list so switching to the
+     * 连拍视频 filter does not need a second round trip.
+     */
+    private val _sequenceIds = MutableStateFlow<Set<String>>(emptySet())
+    val sequenceIds: StateFlow<Set<String>> = _sequenceIds.asStateFlow()
+
+    fun reloadSequences(context: Context) {
+        _sequenceIds.value = SequenceStore.ids(context)
     }
 
     /**

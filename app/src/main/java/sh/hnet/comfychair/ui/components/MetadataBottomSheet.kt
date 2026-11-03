@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,7 +55,9 @@ import sh.hnet.comfychair.util.GenerationMetadata
 fun MetadataBottomSheet(
     metadata: GenerationMetadata?,
     isLoading: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -107,18 +110,25 @@ fun MetadataBottomSheet(
                         }
                     }
                     metadata == null -> {
-                        // No metadata available
-                        Box(
+                        // No metadata available. The reason matters: "server not reachable" and
+                        // "this file carries no parameters" look identical without it.
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(100.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = stringResource(R.string.metadata_not_available),
+                                text = errorMessage ?: stringResource(R.string.metadata_not_available),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            if (onRetry != null) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                TextButton(onClick = onRetry) {
+                                    Text(stringResource(R.string.metadata_retry))
+                                }
+                            }
                         }
                     }
                     else -> {

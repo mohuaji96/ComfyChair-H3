@@ -18,6 +18,7 @@ object AppSettings {
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
+    private const val KEY_RELAY_NOTIFY = "relay_notify"
 
     /**
      * Check if live preview is enabled.
@@ -210,4 +211,14 @@ object AppSettings {
             .apply()
     }
 
+    /** 完整连拍 progress notification + background keep-alive. Off by default. */
+    fun isRelayNotifyEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_RELAY_NOTIFY, false)
+    }
+
+    fun setRelayNotifyEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_RELAY_NOTIFY, enabled).apply()
+    }
 }

@@ -134,6 +134,26 @@ class GalleryRepository private constructor() {
     }
 
     /**
+     * Show what this phone already knows, before any request goes out.
+     *
+     * ComfyUI's /history is in memory and the network may take seconds; without this the gallery
+     * is an empty page on every launch even though every file and its record are still on disk.
+     * A later server refresh replaces the list, so this only fills the gap.
+     */
+    fun primeFromCache() {
+        val context = applicationContext ?: return
+        if (_galleryItems.value.isNotEmpty()) return
+        val serverId = ConnectionManager.currentServerId
+            ?: GalleryMetadataCache.lastServer(context) ?: return
+        val cached = GalleryMetadataCache.loadMetadata(context, serverId) ?: return
+        if (cached.isEmpty()) return
+        _galleryItems.value = cached
+        _lastRefreshTime.value = GalleryMetadataCache.getCacheTimestamp(context, serverId)
+        hasLoadedOnce = true
+        DebugLogger.d(TAG, "Cold start: ${cached.size} items from the local record")
+    }
+
+    /**
      * Start background preloading of gallery data.
      * Called after WebSocket connection is established, or when entering offline mode.
      */

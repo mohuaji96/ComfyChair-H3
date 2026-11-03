@@ -671,4 +671,7 @@
     <string name="cache_cleared">Cache cleared</string>
     <string name="favorite_add">Add to favourites</string>
     <string name="favorite_remove">Remove from favourites</string>
+    <string name="metadata_retry">Try again</string>
+    <string name="gallery_filter_sequence">Chain</string>
+    <string name="msg_gallery_empty_sequence">No chained videos yet</string>
 </resources>

@@ -69,6 +69,7 @@ import sh.hnet.comfychair.WorkflowEditorActivity
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.ScreenType
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.ui.components.AppMenuDropdown
 import sh.hnet.comfychair.ui.components.PromptLibraryDialog
 import sh.hnet.comfychair.ui.components.PromptPresetDialog
@@ -233,6 +234,7 @@ fun TextToImageScreen(
             title = { Text(stringResource(R.string.nav_text_to_image)) },
             windowInsets = WindowInsets(0, 0, 0, 0),
             actions = {
+                ServerStatusLamp()
                 // Save to gallery button (only when image exists)
                 if (uiState.previewBitmap != null) {
                     IconButton(onClick = {

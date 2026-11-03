@@ -23,6 +23,15 @@ object Mp4MetadataExtractor {
     }
 
     /**
+     * Same search, for a buffer that holds only the tail of the file.
+     *
+     * The box walker needs absolute offsets from byte 0, so it is skipped here; the plain scan
+     * still finds the workflow as long as the slice contains the whole JSON, which a trailing
+     * half-megabyte normally does.
+     */
+    fun extractPromptMetadataFromTail(bytes: ByteArray): String? = searchForPromptJson(bytes)
+
+    /**
      * Extract metadata by parsing MP4 box structure.
      * Looks for moov -> udta -> meta -> ilst or similar structures.
      */

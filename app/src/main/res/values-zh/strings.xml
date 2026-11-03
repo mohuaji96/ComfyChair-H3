@@ -642,4 +642,7 @@
     <string name="cache_cleared">已清空缓存</string>
     <string name="favorite_add">收藏</string>
     <string name="favorite_remove">取消收藏</string>
+    <string name="metadata_retry">重试</string>
+    <string name="gallery_filter_sequence">连拍视频</string>
+    <string name="msg_gallery_empty_sequence">还没有连拍视频</string>
 </resources>
