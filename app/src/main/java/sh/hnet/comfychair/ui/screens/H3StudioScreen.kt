@@ -1111,7 +1111,7 @@ fun H3StudioContent(
                         // Standalone audio: one socket, closed by default, and nothing is submitted
                         // when it is empty — the loader is pruned with the stale sample it carried.
                         if (spec.supportsAudio) {
-                            Spacer(Modifier.height(8.dp))
+                            H3Divider()
                             H3AudioSection(
                                 files = draft.audios,
                                 seconds = draft.audioSeconds,
@@ -3036,7 +3036,10 @@ private fun H3ContinuationSlot(
         // other, which is what left an empty patch in every earlier arrangement.
         Row(Modifier.fillMaxWidth()) {
             Column(Modifier.width(126.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.height(36.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         "完整连拍",
                         style = MaterialTheme.typography.labelSmall,
@@ -3069,7 +3072,10 @@ private fun H3ContinuationSlot(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.height(36.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         "自动编号",
                         style = MaterialTheme.typography.labelSmall,
@@ -3085,6 +3091,9 @@ private fun H3ContinuationSlot(
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
+                // 10dp lands the first note line on the same centre as 完整连拍, whose
+                // row is 36dp tall; the 2dp below keeps 前缀 level with 自动编号.
+                Spacer(Modifier.height(10.dp))
                 Text(
                     "每段跑完自动取尾帧，接下一段",
                     style = noteStyle,
@@ -3095,7 +3104,7 @@ private fun H3ContinuationSlot(
                     style = noteStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("前缀", style = noteStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(6.dp))
