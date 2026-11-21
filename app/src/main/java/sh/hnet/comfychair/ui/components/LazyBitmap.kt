@@ -42,7 +42,12 @@ fun rememberLazyBitmap(
     subfolder: String,
     type: String,
     /** Long-edge cap for a tile, 0 to load the full bitmap. */
-    targetPx: Int = 0
+    targetPx: Int = 0,
+    /**
+     * A file this app wrote itself (an extracted frame): decoded from here, never fetched. Cleared
+     * when the file is gone, so the tile can report a miss instead of spinning.
+     */
+    localPath: String? = null
 ): LazyBitmapState {
     val keyString = cacheKey.keyString
 
@@ -58,7 +63,13 @@ fun rememberLazyBitmap(
     }
 
     // Load bitmap if not in cache
-    LaunchedEffect(keyString, targetPx) {
+    LaunchedEffect(keyString, targetPx, localPath) {
+        // A locally written file is the source of truth; it is never requested from the server
+        if (state.value.bitmap == null && localPath != null) {
+            val local = MediaCache.bitmapFromLocalFile(cacheKey, localPath, targetPx)
+            state.value = LazyBitmapState(local, false)
+            return@LaunchedEffect
+        }
         if (state.value.bitmap == null && targetPx > 0) {
             val thumb = MediaCache.thumbnail(cacheKey, isVideo, subfolder, type, targetPx)
             state.value = LazyBitmapState(thumb, false)
@@ -101,11 +112,17 @@ fun rememberRetainedBitmap(
     cacheKey: MediaCacheKey?,
     isVideo: Boolean,
     subfolder: String,
-    type: String
+    type: String,
+    /** A file this app wrote itself: decoded from here, never fetched. */
+    localPath: String? = null
 ): Bitmap? {
     var displayedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(cacheKey?.keyString) {
+    LaunchedEffect(cacheKey?.keyString, localPath) {
+        if (cacheKey != null && localPath != null) {
+            MediaCache.bitmapFromLocalFile(cacheKey, localPath)?.let { displayedBitmap = it }
+            return@LaunchedEffect
+        }
         if (cacheKey != null) {
             // Try cache first
             var newBitmap = MediaCache.getBitmap(cacheKey)

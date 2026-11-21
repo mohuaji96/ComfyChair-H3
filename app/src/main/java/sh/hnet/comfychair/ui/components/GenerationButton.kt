@@ -42,9 +42,11 @@ import sh.hnet.comfychair.R
  * Leading button: Always submits to queue ("Generate" or "Add to queue (X)")
  * Trailing button: Dropdown menu with queue management actions
  *
- * Button text priority: Connecting > Uploading > Fetching > Queue size > Generate
+ * Button text priority: Connecting > Uploading > Fetching > Generate
  *
- * @param queueSize Total number of jobs in the server queue (all clients)
+ * The queue count is not shown here: it lives on the queue chip, one per screen, and on
+ * the queue sheet. A number on the button only ever restated it.
+ *
  * @param isExecuting Whether any job is currently executing on the server
  * @param isEnabled Whether the button should be enabled (valid input to submit)
  * @param isOfflineMode Whether the app is in offline mode (disables all generation)
@@ -60,7 +62,6 @@ import sh.hnet.comfychair.R
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun GenerationButton(
-    queueSize: Int,
     isExecuting: Boolean,
     isEnabled: Boolean,
     isOfflineMode: Boolean = false,
@@ -80,15 +81,11 @@ fun GenerationButton(
     val containerColor = MaterialTheme.colorScheme.primary
     val contentColor = MaterialTheme.colorScheme.onPrimary
 
-    // Button text changes based on connection/upload/fetch state and queue size
+    // Button text follows the work in hand only; the queue count is the chip's job
     val buttonText = when {
-        isConnecting && queueSize > 0 -> stringResource(R.string.button_connecting_queue, queueSize)
         isConnecting -> stringResource(R.string.button_connecting)
-        isUploading && queueSize > 0 -> stringResource(R.string.button_uploading_queue, queueSize)
         isUploading -> stringResource(R.string.button_uploading)
-        isFetching && queueSize > 0 -> stringResource(R.string.button_fetching_queue, queueSize)
         isFetching -> stringResource(R.string.button_fetching)
-        queueSize > 0 -> stringResource(R.string.button_add_to_queue, queueSize)
         else -> stringResource(R.string.button_generate)
     }
 

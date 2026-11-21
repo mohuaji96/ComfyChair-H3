@@ -168,16 +168,16 @@ class H3P0RegressionTest {
         assertTrue("raw workflows missing", files.size >= 20)
         val ordinary = files.filterNot { it.name.contains("_h3_") }
         val builtInH3 = files.filter { it.name.contains("_h3_") }
-        // Two mobile templates ship in the APK, and the same files are published under workflows/
+        // Four mobile templates ship in the APK, and the same files are published under workflows/
         // so people can inspect them in ComfyUI before importing.
         assertEquals("built-in H3 templates must all be recognised",
-            2, builtInH3.count { H3WorkflowAdapter.inspectAny(it.readText()) != null })
+            builtInH3.size, builtInH3.count { H3WorkflowAdapter.inspectAny(it.readText()) != null })
         assertEquals("every H3 template must also resolve into a plan",
             builtInH3.size, builtInH3.count { H3Plan.resolve(it.readText()) != null })
         val samples = File("../workflows")
             .listFiles { file -> file.isFile && file.name.endsWith(".json") }
             ?.sorted().orEmpty()
-        assertEquals("published samples missing", 2, samples.size)
+        assertEquals("published samples missing", builtInH3.size, samples.size)
         assertEquals("published samples must parse like the built-in ones",
             builtInH3.map { it.name }.sorted(), samples.map { it.name }.sorted())
         assertEquals("published samples must resolve into plans",

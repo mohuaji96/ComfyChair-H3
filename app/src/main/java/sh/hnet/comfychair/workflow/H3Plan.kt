@@ -92,7 +92,7 @@ object H3Plan {
      * scheduler, sampler, denoise, seed, output fps and so on. Values are read from the file and
      * written back to the same cell, never merged into another sampling path.
      */
-    data class Extra(val nodeId: String, val input: String, val label: String, val value: Any, val combo: Boolean) {
+    data class Extra(val nodeId: String, val input: String, val label: String, val value: Any, val combo: Boolean, val hidden: Boolean = false) {
         val key: String get() = "$nodeId:$input"
     }
 
@@ -172,6 +172,8 @@ object H3Plan {
 
     private val CORES = setOf("MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo")
     private val REF_PREFIX = "ref_images.ref_image_"
+    /** The core that owns the reference sockets; a file may keep them while running first/last-frame. */
+    private const val REF_CORE = "MiniMaxH3ReferenceToVideo"
     private const val REF_RE = "^ref_images\\.ref_image_(\\d{1,2})$"
     private const val AUDIO_RE = "^ref_audios\\.ref_audio_(\\d{1,2})$"
 
@@ -188,17 +190,35 @@ object H3Plan {
 
     /** API JSON, or LiteGraph flattened through the existing converter. */
     private fun apiNodes(source: String): Pair<JSONObject, String>? {
-        val doc = runCatching { JSONObject(source) }.getOrNull() ?: return null
-        if (doc.optJSONObject("nodes") != null) return nodes(doc) to "api"
-        if (doc.optJSONArray("nodes") != null) {
+        var doc = runCatching { JSONObject(source) }.getOrNull() ?: return null
+        while (doc.optJSONObject("nodes") != null && doc.length() == 1) {
+            val inner = doc.getJSONObject("nodes")
+            if (inner.has("nodes") || inner.has("links") || inner.has("last_node_id")) {
+                doc = inner
+            } else {
+                break
+            }
+        }
+        if (doc.optJSONArray("nodes") != null || doc.has("links") || doc.has("last_node_id")) {
             val api = runCatching { H3LiteGraphAdapter.convert(doc) }.getOrNull() ?: return null
             return nodes(api) to "litegraph"
         }
+        if (doc.optJSONObject("nodes") != null) return nodes(doc) to "api"
         // A bare API map also has no `nodes` array; accept it only when it holds an H3 core.
         return doc to "api"
     }
 
     fun resolve(source: String): Spec? {
+        val rawDoc = runCatching { JSONObject(source) }.getOrNull()
+        var rawCursor = rawDoc
+        while (rawCursor != null && !rawCursor.has("modes") && rawCursor.optJSONObject("nodes") != null) {
+            rawCursor = rawCursor.optJSONObject("nodes")
+        }
+        val declaredModes = rawCursor?.optJSONArray("modes")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                runCatching { Mode.valueOf(arr.getString(i)) }.getOrNull()
+            }
+        }?.takeIf { it.isNotEmpty() }
         val (n, format) = apiNodes(source) ?: return null
         val coreId = n.keys().asSequence().firstOrNull { n.optJSONObject(it)?.optString("class_type") in CORES }
             ?: return null
@@ -324,6 +344,11 @@ object H3Plan {
 
         // ---- steps: the BasicScheduler feeding the sampler that consumes this core
         val steps = run {
+            // 在包含两阶段调度器（#24 一采 + #102 二采）的 Turbo 工作流中，主界面基础步数精准绑定 #24（一采）
+            if (n.has("24") && n.optJSONObject("24")?.optString("class_type") == "BasicScheduler") {
+                val v = (n.getJSONObject("24").optJSONObject("inputs")?.opt("steps") as? Number)?.toInt()
+                if (v != null) return@run StepsTarget("24", "steps", v)
+            }
             val samplers = n.keys().asSequence().filter { n.optJSONObject(it)?.optString("class_type") == "SamplerCustomAdvanced" }.toList()
                 .filter { s ->
                     val guider = link(s, "guider") ?: return@filter false
@@ -332,17 +357,21 @@ object H3Plan {
             val scheds = samplers.mapNotNull { s ->
                 upTargets(s, "sigmas", setOf("BasicScheduler")).singleOrNull()
             }.distinct()
-            val id = scheds.singleOrNull()
-            val node = id?.let { n.optJSONObject(it) }
+            val primarySchedId = scheds.singleOrNull() ?: scheds.firstOrNull { sid ->
+                val title = n.optJSONObject(sid)?.optString("_meta_title")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: n.optJSONObject(sid)?.optString("title").orEmpty()
+                title.contains("First Pass", ignoreCase = true) || title.contains("一采")
+            } ?: scheds.firstOrNull()
+            val node = primarySchedId?.let { n.optJSONObject(it) }
             val v = (node?.optJSONObject("inputs")?.opt("steps") as? Number)?.toInt()
-            if (id != null && v != null) StepsTarget(id, "steps", v) else {
+            if (primarySchedId != null && v != null) StepsTarget(primarySchedId, "steps", v) else {
                 // Legacy templates expose steps through a switch; read the branch that is live.
                 val route = H3StepsRouting.routes(source).firstOrNull { it.switchValue != null && it.activeNodeId != null }
                 if (route?.activeNodeId != null && route.activeSteps != null)
                     StepsTarget(route.activeNodeId, "value", route.activeSteps.toInt())
                 else {
-                    if (scheds.size > 1) warnings.add("存在 ${scheds.size} 条采样调度路径，Steps 需要在高级设置中指定")
-                    else warnings.add("未找到唯一的采样步数节点，Steps 不可编辑")
+                    warnings.add("未找到可编辑的采样步数节点，Steps 不可编辑")
                     null
                 }
             }
@@ -409,7 +438,8 @@ object H3Plan {
         if (unet == null) warnings.add("未找到基础模型（UNETLoader）")
 
         // ---- images
-        val isR2V = coreClass == "MiniMaxH3ReferenceToVideo"
+        val hasAddGuide = n.keys().asSequence().any { n.optJSONObject(it)?.optString("class_type") == "MiniMaxH3AddGuide" }
+        val isR2V = coreClass == "MiniMaxH3ReferenceToVideo" && !hasAddGuide
         val refIndices = ci.keys().asSequence().mapNotNull { key ->
             Regex(REF_RE).find(key)?.groupValues?.get(1)?.toIntOrNull()
         }.sorted().toList()
@@ -428,7 +458,9 @@ object H3Plan {
                 AudioRef(key, nodeId, cls, fileInput, link.optInt(1, 0))
             }
             .toList()
-        val modes = if (isR2V) listOf(Mode.R2V) else listOf(Mode.T2V, Mode.I2V, Mode.FL2V)
+        val modes = declaredModes
+            ?: if (isR2V) listOf(Mode.R2V)
+            else listOf(Mode.T2V, Mode.I2V, Mode.FL2V)
         val fpsNode = n.keys().asSequence().firstOrNull { n.optJSONObject(it)?.optString("class_type") == "VHS_VideoCombine" }
         val fps = (fpsNode?.let { n.getJSONObject(it).optJSONObject("inputs")?.opt("frame_rate") as? Number }?.toInt())
             ?: 24
@@ -436,7 +468,10 @@ object H3Plan {
             n.optJSONObject(it)?.optString("class_type") in setOf("VHS_VideoCombine", "SaveVideo", "SaveAnimatedWEBP", "SaveAnimatedPNG")
         }
         if (outputNodeId == null) warnings.add("未找到视频输出节点，结果可能不会出现在视频列表")
-        if (refIndices.isNotEmpty() && !isR2V) warnings.add("该工作流带有参考图接口但与核心节点不匹配")
+        // The reference sockets are only unusable when the core cannot take them at all. A
+        // first/last-frame template keeps them in its file and drives the same core, so warning
+        // there was a false alarm on every Turbo template.
+        if (refIndices.isNotEmpty() && coreClass != REF_CORE) warnings.add("该工作流带有参考图接口但与核心节点不匹配")
 
         // ---- parameters that are real but not on the everyday page
         val taken = buildSet {
@@ -449,26 +484,69 @@ object H3Plan {
         }
         val extras = mutableListOf<Extra>()
         val extraMap = mapOf(
-            "BasicScheduler" to listOf("scheduler" to "采样调度 Scheduler", "denoise" to "降噪强度 Denoise"),
+            "BasicScheduler" to listOf("scheduler" to "采样调度 Scheduler", "steps" to "采样步数 Steps", "denoise" to "降噪强度 Denoise"),
             "KSamplerSelect" to listOf("sampler_name" to "采样器 Sampler"),
             "SamplerCustomAdvanced" to listOf(),
             "ResolutionSelector" to listOf("multiple" to "分辨率对齐倍数"),
             "VHS_VideoCombine" to listOf("frame_rate" to "输出帧率", "crf" to "视频质量 CRF", "format" to "视频格式"),
             "ModelPreviewOverrideKJ" to listOf("preview_fps" to "预览帧率"),
             "easy seed" to listOf("seed" to "随机种子 Seed"),
-            "RandomNoise" to listOf("noise_seed" to "随机种子 Seed")
+            "RandomNoise" to listOf("noise_seed" to "随机种子 Seed"),
+            "PrimitiveBoolean" to listOf("value" to "开关状态"),
+            "PrimitiveFloat" to listOf("value" to "浮点数值"),
+            "INTConstant" to listOf("value" to "整型常量"),
+            "RTXVideoSuperResolution" to listOf("resize_type.scale" to "RTX超分倍率")
         )
         nodeLoop@ for (id in n.keys()) {
             val node = n.optJSONObject(id) ?: continue@nodeLoop
-            val fields = extraMap[node.optString("class_type")] ?: continue@nodeLoop
+            val cls = node.optString("class_type")
+            val fields = extraMap[cls] ?: continue@nodeLoop
             val ins = node.optJSONObject("inputs") ?: continue@nodeLoop
-            val combo = node.optString("class_type") in setOf("BasicScheduler", "KSamplerSelect", "VHS_VideoCombine")
-            for ((input, label) in fields) {
+            val combo = cls in setOf("BasicScheduler", "KSamplerSelect", "VHS_VideoCombine")
+            val nodeTitle = node.optString("_meta_title")
+                .takeIf { it.isNotBlank() }
+                ?: node.optString("title").orEmpty()
+            val isFirstPass = id == "24" || nodeTitle.contains("First", ignoreCase = true) || nodeTitle.contains("一采")
+            val isSecondPass = id == "102" || nodeTitle.contains("Second", ignoreCase = true) || nodeTitle.contains("二采")
+            val isGrain = id == "174" || nodeTitle.contains("grain", ignoreCase = true)
+
+            for ((input, defaultLabel) in fields) {
                 val key = "$id:$input"
                 if (key in taken) continue
                 val value = ins.opt(input)
-                if (value != null && value !== JSONObject.NULL && value !is JSONArray && value !is JSONObject)
-                    extras.add(Extra(id, input, label, value, combo))
+                if (value != null && value !== JSONObject.NULL && value !is JSONArray && value !is JSONObject) {
+                    val label = when {
+                        cls == "BasicScheduler" && isFirstPass -> when (input) {
+                            "scheduler" -> "一采采样调度 Scheduler"
+                            "denoise" -> "一采降噪强度 Denoise"
+                            "steps" -> "一采采样步数 Steps"
+                            else -> defaultLabel
+                        }
+                        cls == "BasicScheduler" && isSecondPass -> when (input) {
+                            "scheduler" -> "二采采样调度 Scheduler"
+                            "denoise" -> "二采降噪强度 Denoise"
+                            "steps" -> "二采采样步数 Steps"
+                            else -> defaultLabel
+                        }
+                        isGrain -> "胶片颗粒强度 (0=关闭)"
+                        id == "23" -> "二采目标像素"
+                        id == "94" -> "二采跳过开关"
+                        id == "173" -> "插帧倍数"
+                        id == "39" -> "RTX 视频超分倍率"
+                        else -> defaultLabel
+                    }
+                    val hidden = when {
+                        // 胶片颗粒强度开放给用户手动在高级设置调整
+                        isGrain -> false
+                        // 步数由基础参数和二采卡片接管，不在高级设置列表重复出现
+                        cls == "BasicScheduler" && input == "steps" -> true
+                        // 专属于二采卡片的内部控制节点，不在高级设置列表展示
+                        cls in setOf("PrimitiveBoolean", "INTConstant", "RTXVideoSuperResolution") -> true
+                        cls == "PrimitiveFloat" && (id == "23" || isSecondPass) -> true
+                        else -> false
+                    }
+                    extras.add(Extra(id, input, label, value, combo, hidden))
+                }
             }
         }
 
@@ -512,8 +590,12 @@ object H3Plan {
      * been read — the interfaces the workflow itself already defines. Never more than the server
      * allows, never fewer than the file needs.
      */
-    private fun ceiling(spec: Spec): Int =
-        if (spec.maxRefSlots > 0) spec.maxRefSlots else spec.refIndices.size.coerceAtLeast(1)
+    private fun ceiling(spec: Spec): Int {
+        // 节点声明 max 9，可工作流只连了 6 个 ref_image 槽（turbo 版就是从 1 到 6）。
+        // 只认声明的 9 会让第七张图回落到槽 6，把第六张覆盖掉。
+        val defined = spec.refIndices.size.coerceAtLeast(1)
+        return if (spec.maxRefSlots > 0) minOf(spec.maxRefSlots, defined) else defined
+    }
 
     // ---------------------------------------------------------------- submission copy
 
@@ -522,9 +604,8 @@ object H3Plan {
      * mutated: it is serialised back out, so the stored workflow keeps every branch and image.
      */
     fun build(source: String, spec: Spec, request: Request, aspectOptions: List<String> = emptyList()): Result {
-        val doc = runCatching { JSONObject(source) }.getOrNull()
-            ?: return Result(source, emptyList(), listOf("工作流不是合法 JSON"))
-        val n = nodes(doc)
+        val (n, _) = apiNodes(source)
+            ?: return Result(source, emptyList(), listOf("工作流不是合法 JSON 或无法解析"))
         val core = n.optJSONObject(spec.coreId) ?: return Result(source, emptyList(), listOf("核心节点已不存在"))
         val ci = core.getJSONObject("inputs")
         val notes = mutableListOf<String>()
@@ -543,9 +624,22 @@ object H3Plan {
                 notes.add("I2V：只提交首帧")
             }
             Mode.FL2V -> {
-                if (request.firstFrame == null && ci.opt("first_frame") !is JSONArray) errors.add("FL2V 需要首帧图片")
-                if (request.lastFrame == null && ci.opt("last_frame") !is JSONArray) errors.add("FL2V 需要尾帧图片")
-                notes.add("FL2V：首帧与尾帧同时提交")
+                // Both keyframes are optional inputs of MiniMaxH3ImageToVideo, so "end on this
+                // picture" is a real request: only the last frame is submitted. A frame the UI
+                // cleared must also be cut from the copy, or the template's sample image rides
+                // along and pins the opening shot.
+                if (request.clearFirstFrame) ci.remove("first_frame")
+                if (request.clearLastFrame) ci.remove("last_frame")
+                val hasFirst = request.firstFrame != null || ci.opt("first_frame") is JSONArray
+                val hasLast = request.lastFrame != null || ci.opt("last_frame") is JSONArray
+                if (!hasFirst && !hasLast) errors.add("首尾帧视频至少要选一张图片")
+                notes.add(
+                    when {
+                        hasFirst && hasLast -> "FL2V：首帧与尾帧同时提交"
+                        hasLast -> "尾帧模式：只提交尾帧，画面朝这张收尾"
+                        else -> "FL2V：只提交首帧"
+                    }
+                )
             }
             Mode.R2V -> {
                 if (request.references.none { it != null }) errors.add("R2V 至少需要一张参考图")
@@ -566,27 +660,57 @@ object H3Plan {
         // ---- images
         when (request.mode) {
             Mode.I2V, Mode.FL2V -> {
-                val first = request.firstFrame
-                if (first != null) attach(n, spec.coreId, "first_frame", first)
-                val last = request.lastFrame
-                if (last != null) attach(n, spec.coreId, "last_frame", last)
+                // 首尾帧输入只有 MiniMaxH3ImageToVideo 收。参考生视频核心（ReferenceToVideo）
+                // 的 execute 签名里没有 first_frame，硬挂上去服务端直接
+                // TypeError: unexpected keyword argument 'first_frame'。
+                // 这类 Turbo 工作流是靠 MiniMaxH3AddGuide 串联引导图的，图交给 wireTurboGuides 写。
+                val coreType = core.optString("class_type")
+                val hasGuides = n.keys().asSequence().any {
+                    n.optJSONObject(it)?.optString("class_type") == "MiniMaxH3AddGuide"
+                }
+                if (coreType == "MiniMaxH3ImageToVideo") {
+                    val first = request.firstFrame
+                    if (first != null) attach(n, spec.coreId, "first_frame", first)
+                    val last = request.lastFrame
+                    if (last != null) attach(n, spec.coreId, "last_frame", last)
+                } else if (hasGuides) {
+                    notes.add("该工作流用引导节点挂首尾帧，不写核心节点输入")
+                } else {
+                    errors.add("当前工作流的核心节点不接受首尾帧，请换一个首尾帧工作流")
+                }
             }
             Mode.R2V -> {
                 val wanted = request.references.filterNotNull()
                 val slots = spec.refIndices.ifEmpty { listOf(0, 1, 2) }
                 val limit = request.maxReferences?.takeIf { it > 0 } ?: ceiling(spec)
+                val activeSlots = mutableSetOf<Int>()
                 wanted.forEachIndexed { i, file ->
-                    if (i >= limit) errors.add("服务器只接受 $limit 张参考图")
-                    else attach(n, spec.coreId, "$REF_PREFIX$i", file)
+                    // 槽位用完就停，不能再回落到 i：那会撞上已经用掉的槽，后一张图把前一张覆盖掉。
+                    val slot = slots.getOrNull(i)
+                    when {
+                        i >= limit -> errors.add("服务器只接受 $limit 张参考图")
+                        slot == null -> errors.add("该工作流只有 ${slots.size} 个参考图接口，第 ${i + 1} 张放不进去")
+                        else -> {
+                            activeSlots.add(slot)
+                            attach(n, spec.coreId, "$REF_PREFIX$slot", file)
+                        }
+                    }
                 }
                 // Interfaces beyond the uploaded count are dropped only from this copy, so a
                 // shorter set never sends a stale third image.
-                slots.forEachIndexed { i, slot ->
-                    if (i >= wanted.size) ci.remove("$REF_PREFIX$slot")
+                val allRefKeys = ci.keys().asSequence().filter { it.startsWith(REF_PREFIX) }.toList()
+                allRefKeys.forEach { key ->
+                    val slotNum = Regex(REF_RE).find(key)?.groupValues?.get(1)?.toIntOrNull()
+                    if (slotNum == null || slotNum !in activeSlots) {
+                        ci.remove(key)
+                    }
                 }
             }
             else -> Unit
         }
+
+        // Turbo 引导节点连线与旁路自适应（支持纯文生T2V / 单首帧I2V / 首尾帧FL2V）
+        wireTurboGuides(n, spec.coreId, request.firstFrame, request.lastFrame, notes)
 
         // ---- standalone reference audio: the file's own sockets, only what was picked.
         // Every socket that gets nothing is cut, so the author's sample never rides along and the
@@ -849,11 +973,104 @@ object H3Plan {
         core.put(input, JSONArray().put(id).put(0))
     }
 
+    /**
+     * For H3 Turbo Guide workflows (where guides are chained via MiniMaxH3AddGuide rather than
+     * first_frame/last_frame sockets on the core node):
+     * - T2V (neither frame): bypass both guides so guiders connect directly to core ["151:11", 0].
+     * - I2V (first only): set node 9's image, bypass tail guide so guiders connect to 181/182.
+     * - FL2V (both): set node 9 and node 190, keep full chain.
+     * - Tail only: set node 190, bypass head guide so 192/193 connect to ["151:11", 0].
+     */
+    private fun wireTurboGuides(n: JSONObject, coreId: String, first: String?, last: String?, notes: MutableList<String>) {
+        val guideIds = n.keys().asSequence().filter { n.optJSONObject(it)?.optString("class_type") == "MiniMaxH3AddGuide" }.toList()
+        if (guideIds.isEmpty()) return
+
+        val core = n.optJSONObject(coreId)?.optJSONObject("inputs")
+
+        /** ref_images 那条连线指向的 LoadImage。不写死节点号：换一版模板就失效，且是静默失效。 */
+        fun loaderOf(input: String): String? =
+            (core?.opt(input) as? JSONArray)?.optString(0)
+                ?.takeIf { n.optJSONObject(it)?.optString("class_type") == "LoadImage" }
+
+        // Identify head guides (frame_idx == 0) and tail guides (frame_idx == -1)
+        val headGuides = guideIds.filter { n.optJSONObject(it)?.optJSONObject("inputs")?.optInt("frame_idx", 999) == 0 }
+        val tailGuides = guideIds.filter { n.optJSONObject(it)?.optJSONObject("inputs")?.optInt("frame_idx", 999) == -1 }
+
+        // Find guiders (e.g. BasicGuider) that consume from tail guides or head guides
+        val guiders = n.keys().asSequence().filter { id ->
+            val cond = (n.optJSONObject(id)?.optJSONObject("inputs")?.opt("conditioning") as? JSONArray)?.optString(0)
+            cond != null && (cond in tailGuides || cond in headGuides)
+        }.toList()
+
+        when {
+            // 1. Pure T2V: neither frame provided
+            first == null && last == null -> {
+                guiders.forEach { gId ->
+                    n.optJSONObject(gId)?.optJSONObject("inputs")?.put("conditioning", JSONArray().put(coreId).put(0))
+                }
+                core?.remove("ref_images.ref_image_0")
+                core?.remove("ref_images.ref_image_1")
+                notes.add("Turbo：首尾帧引导全部旁路，直连纯文生链路")
+            }
+            // 2. Head only: first frame provided, no tail frame
+            first != null && last == null -> {
+                headGuides.forEach { hId ->
+                    val imgLoader = (n.optJSONObject(hId)?.optJSONObject("inputs")?.opt("image") as? JSONArray)?.optString(0)
+                    imgLoader?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", first) }
+                }
+                loaderOf("ref_images.ref_image_0")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", first) }
+
+                // Bypass tail guides: connect guiders to head guides (181 for 151:29, 182 for 151:32)
+                guiders.forEach { gId ->
+                    val condArr = n.optJSONObject(gId)?.optJSONObject("inputs")?.optJSONArray("conditioning")
+                    val currentTail = condArr?.optString(0)
+                    val parentHead = if (currentTail != null) {
+                        (n.optJSONObject(currentTail)?.optJSONObject("inputs")?.opt("positive") as? JSONArray)?.optString(0)
+                    } else null
+                    if (parentHead != null && parentHead in headGuides) {
+                        n.optJSONObject(gId)?.optJSONObject("inputs")?.put("conditioning", JSONArray().put(parentHead).put(0))
+                    } else if (headGuides.isNotEmpty()) {
+                        n.optJSONObject(gId)?.optJSONObject("inputs")?.put("conditioning", JSONArray().put(headGuides.first()).put(0))
+                    }
+                }
+                core?.remove("ref_images.ref_image_1")
+                notes.add("Turbo：生效首帧引导，尾帧引导旁路")
+            }
+            // 3. Both frames provided
+            first != null && last != null -> {
+                headGuides.forEach { hId ->
+                    val imgLoader = (n.optJSONObject(hId)?.optJSONObject("inputs")?.opt("image") as? JSONArray)?.optString(0)
+                    imgLoader?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", first) }
+                }
+                loaderOf("ref_images.ref_image_0")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", first) }
+
+                tailGuides.forEach { tId ->
+                    val imgLoader = (n.optJSONObject(tId)?.optJSONObject("inputs")?.opt("image") as? JSONArray)?.optString(0)
+                    imgLoader?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
+                }
+                loaderOf("ref_images.ref_image_1")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
+                notes.add("Turbo：首尾两道引导全部挂载")
+            }
+            // 4. Tail only: no first frame, only tail frame
+            first == null && last != null -> {
+                tailGuides.forEach { tId ->
+                    val imgLoader = (n.optJSONObject(tId)?.optJSONObject("inputs")?.opt("image") as? JSONArray)?.optString(0)
+                    imgLoader?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
+                    // Bypass head guide: connect tail guide directly to core
+                    n.optJSONObject(tId)?.optJSONObject("inputs")?.put("positive", JSONArray().put(coreId).put(0))
+                }
+                loaderOf("ref_images.ref_image_1")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
+                core?.remove("ref_images.ref_image_0")
+                notes.add("Turbo：生效尾帧引导，首帧引导旁路")
+            }
+        }
+    }
+
     /** Status text for one mode, used by the mode selector and the acceptance report. */
     fun modeHint(spec: Spec, mode: Mode): String = when (mode) {
         Mode.T2V -> "不提交首帧/尾帧"
         Mode.I2V -> "只提交首帧"
-        Mode.FL2V -> "首帧 + 尾帧"
+        Mode.FL2V -> "首帧 + 尾帧；只给尾帧也能生成"
         Mode.R2V -> "3 张参考图，可加到 ${spec.maxRefSlots.coerceAtLeast(3)} 张"
     }
 }

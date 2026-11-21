@@ -48,6 +48,8 @@ object H3WorkflowAdapter {
         if (ids.size > 1) return Analysis(Mode.AMBIGUOUS, "", emptyList(), emptyMap(),
             listOf("检测到 ${ids.size} 个 H3 核心节点（${ids.joinToString { "#$it" }}）；无法确定执行分支，请在专业编辑器中确认"), "")
         val core = ids.single(); val ci = n.getJSONObject(core).getJSONObject("inputs")
+        // 快捷面板只认 6 个槽（0..5）；ref_image_6 以上原样保留并单独提示，
+        // 这是 P0 的既有契约，放宽会让「超出范围」的提示消失。
         val refs = ci.keys().asSequence().mapNotNull { key ->
             Regex("ref_images\\.ref_image_([0-5])").matchEntire(key)?.groupValues?.get(1)?.toInt()?.let { it to key }
         }.toMap()

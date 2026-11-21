@@ -168,8 +168,9 @@
     <string name="desc_prompt_spell_check">Enable spell checking and autocorrect in prompt fields. May flag AI-specific terms as errors.</string>
     <string name="label_prompt_expand">Expand prompt field when typing</string>
     <string name="desc_prompt_expand">When focused, the prompt field fills the screen above the keyboard. The preview is hidden until the keyboard is dismissed.</string>
-    <string name="button_reset_prompts_and_library">Reset Prompts and Library</string>
-    <string name="msg_reset_prompts_and_library_success">Prompts and library reset</string>
+    <string name="button_reset_prompts_and_library">Clear Prompts and Presets</string>
+    <string name="msg_confirm_reset_prompts">Clears the positive prompt saved on the four generation screens for the current server, that server negative prompt, and all prompt presets. Word libraries and optimize history are not affected.</string>
+    <string name="msg_reset_prompts_and_library_success">Prompts and presets cleared</string>
     <string name="button_clear_cache">Clear Cache</string>
     <string name="button_restore_defaults">Restore Defaults</string>
 
@@ -202,6 +203,7 @@
     <string name="title_image_to_video">Image to Video</string>
     <string name="nav_image_to_video">Image to Video</string>
     <string name="nav_h3_workspace">H3 Workspace</string>
+    <string name="nav_tag_composer">Tag Combo</string>
     <string name="placeholder_video">Generated video will appear here</string>
 
     <!-- Image-to-image fragment strings -->
@@ -240,6 +242,7 @@
     <string name="error_invalid_server_response">Invalid server response</string>
     <string name="error_failed_load_workflow">Failed to load workflow</string>
     <string name="error_generation_failed">Generation failed</string>
+    <string name="msg_result_fetch_failed">Generation finished, but the result could not be loaded. It is still in the gallery.</string>
     <string name="msg_connection_lost_generation_may_continue">Connection lost. Will check for completion when reconnected.</string>
     <string name="error_no_connection">No connection to server</string>
     <string name="error_workflow_not_found">Workflow not found</string>
@@ -493,8 +496,10 @@
     <string name="gallery_filter_all">All</string>
     <string name="gallery_filter_image">Images</string>
     <string name="gallery_filter_video">Videos</string>
+    <string name="gallery_filter_frame">Frames</string>
     <string name="gallery_filter_favorite">Favourites</string>
     <string name="msg_gallery_empty_video">No videos yet</string>
+    <string name="msg_gallery_empty_frame">No extracted frames yet \u00b7 tap the frame icon while viewing a video</string>
     <string name="msg_gallery_empty_favorite">Nothing saved yet \u00b7 tap the heart to keep one</string>
     <string name="gallery_badge_cached">Cached</string>
 
@@ -504,6 +509,8 @@
     <!-- Media viewer action buttons -->
     <string name="media_viewer_delete">Delete</string>
     <string name="media_viewer_save">Save</string>
+    <string name="media_viewer_extract_frame">Save frame</string>
+    <string name="msg_frame_saved">Frame saved to gallery</string>
     <string name="media_viewer_share">Share</string>
     <string name="media_viewer_previous">Previous</string>
     <string name="media_viewer_next">Next</string>
@@ -674,4 +681,74 @@
     <string name="metadata_retry">Try again</string>
     <string name="gallery_filter_sequence">Chain</string>
     <string name="msg_gallery_empty_sequence">No chained videos yet</string>
+    <string name="section_connection_generation">Connection and generation</string>
+    <string name="section_data">Data</string>
+    <string name="msg_confirm_irreversible">This cannot be undone.</string>
+    <string name="label_library_version">Word library</string>
+    <string name="label_version_number">Version number</string>
+    <string name="section_version">Version</string>
+    <string name="section_links">Links</string>
+    <string name="gallery_select_all">Select all</string>
+    <string name="gallery_deselect_all">Deselect all</string>
+    <string name="gallery_select_day">Select this day</string>
+    <string name="gallery_deselect_day">Clear this day</string>
+    <string name="gallery_delete_confirm_title">Delete %1$d items?</string>
+    <string name="gallery_delete_confirm_text">Every output of the same generation goes with them. This cannot be undone.</string>
+    <string name="gallery_delete_confirm_action">Delete</string>
+    <string name="msg_confirm_clear_cache">清除预览图、临时视频和上传的临时文件。已生成的图片和收藏不受影响，日期与提示词记录保留。</string>
+    <string name="video_time_display" translatable="false">%1$s / %2$s</string>
+    <string name="video_previous_frame">Previous frame</string>
+    <string name="video_next_frame">Next frame</string>
+    <string name="video_loop">Loop</string>
+    <string name="video_loop_on">On</string>
+    <string name="video_loop_off">Off</string>
+    <string name="video_position">Position</string>
+    <string name="video_back_5s">Back 5 seconds</string>
+    <string name="video_forward_5s">Forward 5 seconds</string>
+    <string name="video_sound">Sound</string>
+    <string name="video_sound_on">On</string>
+    <string name="video_sound_off">Off</string>
+    <string name="video_no_sound">No sound</string>
+    <string name="video_loading">Loading video</string>
+    <string name="content_description_play_video">Play video</string>
+    <string name="content_description_pause_video">Pause video</string>
+    <string name="content_description_video_position">%1$s of %2$s</string>
+    <string name="button_workflow_from_file">From file</string>
+    <string name="button_workflow_from_server">From server</string>
+    <string name="title_server_import">Import from server</string>
+    <string name="msg_server_import_no_match">No workflows match “%1$s”</string>
+    <string name="label_server_workflow_too_large">too large to import (%1$s)</string>
+    <string name="label_server_workflow_imported">Imported</string>
+    <string name="content_description_downloading">Downloading</string>
+    <string name="title_server_import_empty">No workflows on this server</string>
+    <string name="desc_server_import_empty">Save a workflow in ComfyUI (Workflow › Save) and it will show up here.</string>
+    <string name="button_refresh">Refresh</string>
+    <string name="button_retry">Retry</string>
+    <string name="title_server_import_failed">Couldn’t load workflows</string>
+    <string name="desc_server_import_failed">The server didn’t answer. Check that it’s running and try again.</string>
+    <string name="title_server_import_multiuser">This server has user accounts</string>
+    <string name="desc_server_import_multiuser">Importing from multi-user servers isn’t supported yet. Export the workflow in ComfyUI and import the file instead.</string>
+    <string name="button_import_from_file">Import from file</string>
+    <string name="error_server_workflows_refresh">Couldn’t refresh the list</string>
+    <string name="error_server_workflow_too_large">%1$s is too large to import (limit %2$s)</string>
+    <string name="error_server_workflow_not_workflow">%1$s isn’t a ComfyUI workflow</string>
+    <string name="error_server_workflow_download">Couldn’t download %1$s</string>
+    <plurals name="hint_server_import_search">
+        <item quantity="one">Search %d workflow</item>
+        <item quantity="other">Search %d workflows</item>
+    </plurals>
+    <string name="label_server_import_count_of">Workflows: %1$d of %2$d</string>
+    <string name="label_check_update">Check for updates</string>
+    <string name="value_update_checking">Checking…</string>
+    <string name="value_update_available">New version %1$s</string>
+    <string name="value_update_uptodate">Up to date</string>
+    <string name="value_update_failed">Check failed, tap to retry</string>
+    <string name="value_update_idle">Tap to check</string>
+    <string name="label_update_auto">Check automatically</string>
+    <string name="desc_update_auto">Once a day, asks GitHub for the newest release</string>
+    <string name="title_update_available">Version %1$s is available</string>
+    <string name="label_update_current">Current %1$s</string>
+    <string name="desc_update_browser">Opens GitHub in your browser; download there and let the system installer take over.</string>
+    <string name="action_open_release">Open download page</string>
+    <string name="action_skip_version">Skip this version</string>
 </resources>

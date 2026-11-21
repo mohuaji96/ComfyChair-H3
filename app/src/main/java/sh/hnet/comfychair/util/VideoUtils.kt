@@ -209,6 +209,7 @@ object VideoUtils {
     object FilePrefix {
         const val TEXT_TO_VIDEO = "last_generated_video_"
         const val IMAGE_TO_VIDEO = "image_to_video_last_generated_"
+        const val H3_WORKSPACE = "h3_workspace_last_generated_"
     }
 
     /**

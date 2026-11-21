@@ -18,6 +18,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaStateHolder
@@ -30,6 +33,7 @@ import sh.hnet.comfychair.storage.CredentialStorage
 import sh.hnet.comfychair.ui.components.ConnectionAlertDialog
 import sh.hnet.comfychair.ui.navigation.MainNavHost
 import sh.hnet.comfychair.ui.theme.ComfyChairTheme
+import sh.hnet.comfychair.update.UpdateCenter
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.ServerUrlUtils
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
@@ -120,6 +124,13 @@ class MainContainerActivity : ComponentActivity() {
         // Enable debug logging based on saved preference (must be early to capture init logs)
         DebugLogger.setEnabled(AppSettings.isDebugLoggingEnabled(this))
         DebugLogger.i("MainContainer", "onCreate - debug logging enabled")
+
+        // 更新检查：一天最多问一次，失败不打扰。等界面先画出来再说，别和首屏抢网络。
+        // 「关于」页里能关掉，也能手动点一次。
+        lifecycleScope.launch {
+            delay(3_000)
+            UpdateCenter.check(applicationContext)
+        }
 
         // Initialize the ViewModel (uses ConnectionManager internally)
         generationViewModel.initialize(this)
@@ -277,10 +288,10 @@ class MainContainerActivity : ComponentActivity() {
         val isCacheDisabled = AppSettings.isMediaCacheDisabled(this)
         DebugLogger.d("MainContainer", "onStop - memoryFirst=$isMemoryFirst, cacheDisabled=$isCacheDisabled")
         if (isMemoryFirst && !isCacheDisabled) {
-            DebugLogger.d("MainContainer", "onStop - persisting media to disk")
-            runBlocking {
-                MediaStateHolder.persistToDisk(applicationContext)
-            }
+            DebugLogger.d("MainContainer", "onStop - persisting media to disk (background)")
+            // Off the main thread: this write grows with the library and used to stall the
+            // transition out of the app. The scope outlives the Activity so it still completes.
+            MediaStateHolder.persistInBackground(applicationContext)
         }
     }
 

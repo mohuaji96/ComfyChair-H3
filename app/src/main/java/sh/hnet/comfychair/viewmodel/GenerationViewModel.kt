@@ -28,6 +28,8 @@ import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
+import sh.hnet.comfychair.workflow.NodeTypeIndex
+import sh.hnet.comfychair.workflow.ProgressStage
 
 /**
  * Generation state data class
@@ -38,7 +40,11 @@ data class GenerationState(
     val progress: Int = 0,
     val maxProgress: Int = 100,
     val ownerId: String? = null,
-    val contentType: ContentType = ContentType.IMAGE
+    val contentType: ContentType = ContentType.IMAGE,
+    /** Which step of the pipeline the server is on, in plain words. */
+    val stage: ProgressStage = ProgressStage.UNKNOWN,
+    /** Wall clock when the server actually started running, for the elapsed clock. */
+    val startedAt: Long = 0L
 )
 
 /**
@@ -108,6 +114,17 @@ class GenerationViewModel : ViewModel() {
     private var activeEventHandlerOwnerId: String? = null  // Track who registered the handler
     private var generationOwnerId: String? = null
 
+    /**
+     * Who is submitting right now, until the server hands back a promptId.
+     *
+     * The owner used to live in a single pair of fields that every submission wrote, so starting
+     * a second job before the first came back re-labelled the first one: the video page then
+     * tracked an image job, and the image never showed up anywhere. These two belong to the
+     * request in flight and are cleared the moment its answer arrives.
+     */
+    private var pendingSubmitOwner: String? = null
+    private var pendingSubmitContentType: ContentType = ContentType.IMAGE
+
     // Per-owner buffered events (keyed by ownerId)
     // This prevents events from one owner overwriting another's when jobs overlap
     private val pendingCompletions = mutableMapOf<String, GenerationEvent>()  // ImageGenerated or VideoGenerated
@@ -129,6 +146,9 @@ class GenerationViewModel : ViewModel() {
         private const val PREF_OWNER_ID = "ownerId"
         private const val PREF_CONTENT_TYPE = "contentType"
         private const val COMPLETION_POLLING_INTERVAL_MS = 3000L
+
+        /** Stages shorter than this are not drawn; the pipeline has many millisecond nodes. */
+        private const val STAGE_MIN_DWELL_MS = 250L
     }
 
     /**
@@ -193,6 +213,11 @@ class GenerationViewModel : ViewModel() {
                 when (state) {
                     is WebSocketState.Connected -> {
                         _connectionStatus.value = ConnectionStatus.CONNECTED
+                        // Validate whatever restoreState() put back. On a cold start the queue
+                        // was never polled (initialize() runs before the socket exists), so a
+                        // job persisted from the previous session stays PENDING forever and the
+                        // generate button keeps reading "add to queue (1)".
+                        ConnectionManager.pollQueueStatus()
                         // Check for pending completion when reconnecting
                         if (_generationState.value.isGenerating) {
                             DebugLogger.d(TAG, "WebSocket reconnected, checking for completion")
@@ -204,10 +229,12 @@ class GenerationViewModel : ViewModel() {
                     }
                     is WebSocketState.Reconnecting -> {
                         _connectionStatus.value = ConnectionStatus.RECONNECTING
-                        // Notify user if generation is in progress
+                        // Persist the in-flight job, but stay quiet. A short drop is usually the
+                        // system suspending the socket while backgrounded, and the reconnect path
+                        // already re-checks for completion. Only a permanent failure is worth a
+                        // message, which the Failed branch below handles.
                         if (_generationState.value.isGenerating) {
                             applicationContext?.let { saveGenerationState(it) }
-                            dispatchEvent(GenerationEvent.ConnectionLostDuringGeneration)
                         }
                     }
                     is WebSocketState.Failed -> {
@@ -247,10 +274,14 @@ class GenerationViewModel : ViewModel() {
                 }
             }
             is WebSocketMessage.Progress -> {
-                if (currentState.isGenerating) {
+                // A step belongs to one job. Without this check the second job in a queue wrote
+                // its steps onto the first job's bar.
+                val forUs = message.promptId == null || message.promptId == currentState.promptId
+                if (currentState.isGenerating && forUs) {
                     _generationState.value = currentState.copy(
                         progress = message.value,
-                        maxProgress = message.max
+                        maxProgress = message.max,
+                        stage = ProgressStage.SAMPLE
                     )
                 }
             }
@@ -279,17 +310,21 @@ class GenerationViewModel : ViewModel() {
                     var owner = JobRegistry.findOwner(promptId)
                     var contentType = JobRegistry.findContentType(promptId)
 
-                    // Fallback: If not found in JobRegistry but we have a pending submission,
-                    // use the pending owner/contentType (execution_start arrived before registerJob completed)
-                    if (owner == null && generationOwnerId != null) {
-                        val pendingOwner = generationOwnerId!!
-                        val pendingContentType = generationContentType
+                    // Fallback: If not found in JobRegistry but a submission is in flight, use its
+                    // owner/contentType (execution_start arrived before registerJob completed).
+                    // Only an actual in-flight submission counts -- guessing from the last job
+                    // picked up other clients' work and stole their progress.
+                    val inFlightOwner = pendingSubmitOwner
+                    if (owner == null && inFlightOwner != null) {
+                        val pendingOwner = inFlightOwner
+                        val pendingContentType = pendingSubmitContentType
+                        pendingSubmitOwner = null
                         owner = pendingOwner
                         contentType = pendingContentType
                         DebugLogger.w(TAG, "ExecutionStart arrived before registerJob, using pending owner: $pendingOwner")
 
                         // Register the job now since we know the promptId
-                        JobRegistry.registerJob(promptId, pendingOwner, pendingContentType)
+                        JobRegistry.registerJob(promptId, pendingOwner, pendingContentType, sh.hnet.comfychair.queue.JobPrompts.known(promptId))
                         applicationContext?.let { ctx -> JobRegistry.saveState(ctx) }
                     }
 
@@ -305,13 +340,16 @@ class GenerationViewModel : ViewModel() {
 
                         generationOwnerId = owner
                         generationContentType = contentType
+                        lastStageChangeAt = 0L
                         _generationState.value = GenerationState(
                             isGenerating = true,
                             promptId = promptId,
                             progress = 0,
                             maxProgress = 100,
                             ownerId = owner,
-                            contentType = contentType
+                            contentType = contentType,
+                            stage = ProgressStage.PREPARE,
+                            startedAt = System.currentTimeMillis()
                         )
 
                         // If handler doesn't match new owner, clear it so correct screen can register
@@ -323,11 +361,37 @@ class GenerationViewModel : ViewModel() {
                     }
                 }
             }
-            is WebSocketMessage.Executing -> {}
+            is WebSocketMessage.Executing -> {
+                val forUs = message.promptId == null || message.promptId == currentState.promptId
+                if (currentState.isGenerating && forUs) {
+                    val classType = NodeTypeIndex.classOf(
+                        message.promptId ?: currentState.promptId, message.node
+                    )
+                    advanceStage(ProgressStage.of(classType))
+                }
+            }
             is WebSocketMessage.ExecutionCached -> {}
             is WebSocketMessage.Status -> {}
             is WebSocketMessage.Unknown -> {}
         }
+    }
+
+    private var lastStageChangeAt = 0L
+
+    /**
+     * A graph is mostly constants and switches that finish in milliseconds, so naming every node
+     * would turn the line into a slide show. Two rules keep it readable: a node we cannot name
+     * never overwrites a stage we know, and a stage that would replace another within a quarter
+     * second is dropped.
+     */
+    private fun advanceStage(next: ProgressStage) {
+        if (next == ProgressStage.UNKNOWN) return
+        val state = _generationState.value
+        if (!state.isGenerating || state.stage == next) return
+        val now = System.currentTimeMillis()
+        if (state.stage != ProgressStage.UNKNOWN && now - lastStageChangeAt < STAGE_MIN_DWELL_MS) return
+        lastStageChangeAt = now
+        _generationState.value = state.copy(stage = next)
     }
 
     /**
@@ -523,6 +587,9 @@ class GenerationViewModel : ViewModel() {
                 val filePrefix = when (ownerId) {
                     "TEXT_TO_VIDEO" -> VideoUtils.FilePrefix.TEXT_TO_VIDEO
                     "IMAGE_TO_VIDEO" -> VideoUtils.FilePrefix.IMAGE_TO_VIDEO
+                    // The H3 workspace names its own owner, so it fell into the else branch and
+                    // returned: those videos were never pulled down when they finished.
+                    "H3_WORKSPACE" -> VideoUtils.FilePrefix.H3_WORKSPACE
                     else -> {
                         DebugLogger.w(TAG, "Unknown video owner: $ownerId")
                         return
@@ -620,15 +687,17 @@ class GenerationViewModel : ViewModel() {
             return
         }
 
-        // Store the owner and content type before starting generation
-        generationOwnerId = ownerId
-        generationContentType = contentType
-
         // Ensure connection before starting - will try to reconnect if needed
         // Dialog is shown by ensureConnection if reconnection fails
         ConnectionManager.ensureConnection(context) { connected ->
             if (connected) {
-                submitWorkflow(workflowJson, front, onResult)
+                // Submitting is the moment progress starts to matter. If start-up could not open
+                // the socket, this is the last chance to get it back before the job runs blind.
+                ConnectionManager.ensureWebSocket()
+                // Owner travels with the request instead of through a shared field: a second
+                // submission used to overwrite the first one's label while it was still in
+                // flight, so each page ended up tracking the other one's job.
+                submitWorkflow(workflowJson, ownerId, contentType, front, onResult)
             } else {
                 // Connection failed - dialog already shown by ensureConnection
                 // Don't show Toast (no error message) to avoid duplicate notifications
@@ -642,6 +711,8 @@ class GenerationViewModel : ViewModel() {
      */
     private fun submitWorkflow(
         workflowJson: String,
+        ownerId: String,
+        contentType: ContentType,
         front: Boolean = false,
         onResult: (success: Boolean, promptId: String?, errorMessage: String?) -> Unit
     ) {
@@ -662,17 +733,26 @@ class GenerationViewModel : ViewModel() {
             DebugLogger.i(TAG, "Pre-submit normalised: " + preflight.rewrites.joinToString("；"))
 
         DebugLogger.d(TAG, "Submitting workflow to server")
+        // Read the prompt off what we are actually sending: our own jobs then show a prompt even
+        // when the server's queue listing carries none.
+        val jobPrompt = sh.hnet.comfychair.queue.JobPrompts.extract(
+            runCatching { org.json.JSONObject(workflowJson) }.getOrNull()
+        )
         val mainHandler = Handler(Looper.getMainLooper())
+        pendingSubmitOwner = ownerId
+        pendingSubmitContentType = contentType
         client.submitPrompt(preflight.prompt, front) { success, promptId, errorMessage, failureType ->
+            // Whatever happened, this submission is no longer in flight.
+            if (pendingSubmitOwner == ownerId) pendingSubmitOwner = null
             if (success && promptId != null) {
                 DebugLogger.i(TAG, "Workflow submitted successfully (promptId: ${Obfuscator.promptId(promptId)})")
 
                 // Register job with JobRegistry for queue tracking
-                generationOwnerId?.let { ownerId ->
-                    JobRegistry.registerJob(promptId, ownerId, generationContentType)
-                    // Save JobRegistry state for persistence
-                    applicationContext?.let { ctx -> JobRegistry.saveState(ctx) }
-                }
+                JobRegistry.registerJob(promptId, ownerId, contentType, jobPrompt)
+                // Save JobRegistry state for persistence
+                applicationContext?.let { ctx -> JobRegistry.saveState(ctx) }
+                generationOwnerId = ownerId
+                generationContentType = contentType
 
                 // Determine if we should set up GenerationState now
                 // There's a race condition: ExecutionStart might fire before we register the job.
@@ -684,13 +764,21 @@ class GenerationViewModel : ViewModel() {
                 val shouldSetState = isThisJobExecuting || !queueState.isExecuting
 
                 if (shouldSetState) {
+                    // ExecutionStart can land before this callback. Rebuilding the state from
+                    // scratch then wiped the stage back to 处理中 and the clock to zero, which is
+                    // exactly what the bar was supposed to stop doing.
+                    val existing = _generationState.value
+                    val carry = existing.isGenerating && existing.promptId == promptId
                     _generationState.value = GenerationState(
                         isGenerating = true,
                         promptId = promptId,
                         progress = 0,
                         maxProgress = 100,
-                        ownerId = generationOwnerId,
-                        contentType = generationContentType
+                        ownerId = ownerId,
+                        contentType = contentType,
+                        stage = if (carry) existing.stage else ProgressStage.PREPARE,
+                        startedAt = if (carry && existing.startedAt > 0L) existing.startedAt
+                        else System.currentTimeMillis()
                     )
                     // Save state immediately after starting
                     applicationContext?.let { saveGenerationState(it) }
@@ -724,15 +812,36 @@ class GenerationViewModel : ViewModel() {
         }
 
         val mainHandler = Handler(Looper.getMainLooper())
-        client.interruptExecution { success ->
-            if (success) {
-                DebugLogger.i(TAG, "Generation cancelled successfully")
-            } else {
-                DebugLogger.w(TAG, "Failed to cancel generation")
-            }
+        val promptId = _generationState.value.promptId
+
+        fun finish(success: Boolean) {
+            if (!success) DebugLogger.w(TAG, "Cancel did not reach the server")
+            promptId?.let { JobRegistry.removeJob(it) }
+            applicationContext?.let { ctx -> JobRegistry.saveState(ctx) }
             resetGenerationState()
             dispatchEvent(GenerationEvent.GenerationCancelled)
             mainHandler.post { onResult(success) }
+        }
+
+        if (promptId == null) {
+            // Nothing tracked: the only safe action is to stop whatever runs now, and the UI
+            // only offers this when the running job is ours.
+            client.interruptExecution { success -> finish(success) }
+            return
+        }
+
+        // Two different things can be true at once, and interrupt alone only handles one of them:
+        // a queued job kept starting minutes after the user "cancelled". Delete it from the queue
+        // first, then interrupt only if it is the one actually running -- interrupting blindly
+        // stops whatever the server is doing, including another device's job.
+        client.deleteQueueItems(listOf(promptId)) { deleted ->
+            DebugLogger.d(TAG, "Queue delete for ${Obfuscator.promptId(promptId)}: $deleted")
+            val runningOurs = JobRegistry.queueState.value.executingPromptId == promptId
+            if (runningOurs) {
+                client.interruptExecution { interrupted -> finish(deleted || interrupted) }
+            } else {
+                finish(deleted)
+            }
         }
     }
 

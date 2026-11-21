@@ -1,17 +1,31 @@
 package sh.hnet.comfychair.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.WorkflowManager
+import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import sh.hnet.comfychair.workflow.H3Plan
+import sh.hnet.comfychair.ui.components.GenerationProgressBar
 import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.workflow.H3WorkflowAdapter
 
@@ -44,24 +58,42 @@ fun H3WorkspaceScreen(
 ) {
     val version by WorkflowManager.workflowsVersion.collectAsState()
     var tabIndex by rememberSaveable { mutableStateOf(0) }
-    var choices by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var pickerFor by remember { mutableStateOf<H3Plan.Area?>(null) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val pendingStore = remember { sh.hnet.comfychair.workflow.PendingJobStore(context) }
 
     val tabs = H3Plan.Area.entries
+    var choices by remember { mutableStateOf(H3ChoicesStore.load(context)) }
 
-    // A card tapped in 工作流管理 hands over the workflow (and one mode it supports) once.
-    LaunchedEffect(Unit) {
+    // A card tapped in 工作流管理 hands over the workflow (and one mode it supports).
+    val consumePendingWorkflow: () -> Unit = {
         val prefs = context.getSharedPreferences("h3_pending", android.content.Context.MODE_PRIVATE)
-        val workflowId = prefs.getString("workflowId", null) ?: return@LaunchedEffect
-        val modeName = prefs.getString("mode", "").orEmpty()
-        prefs.edit().clear().apply()
-        val mode = H3Plan.Mode.entries.firstOrNull { it.name == modeName } ?: H3Plan.Mode.T2V
-        val area = mode.area
-        tabIndex = tabs.indexOf(area).coerceAtLeast(0)
-        choices = choices + (area.name to workflowId)
+        val workflowId = prefs.getString("workflowId", null)
+        if (workflowId != null) {
+            val modeName = prefs.getString("mode", "").orEmpty()
+            prefs.edit().clear().apply()
+            val mode = H3Plan.Mode.entries.firstOrNull { it.name == modeName } ?: H3Plan.Mode.T2V
+            val area = mode.area
+            tabIndex = tabs.indexOf(area).coerceAtLeast(0)
+            choices = choices + (area.name to workflowId)
+            H3ChoicesStore.save(context, area.name, workflowId)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        consumePendingWorkflow()
+    }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                consumePendingWorkflow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     // Recovery: jobs persisted before a restart or a dropped socket are re-queried by prompt id.
     LaunchedEffect(Unit) {
@@ -80,7 +112,9 @@ fun H3WorkspaceScreen(
     var overrides by remember { mutableStateOf(ModeOverrideStore.load(context)) }
 
     val recognised = remember(version) {
-        WorkflowManager.getAllWorkflows(WorkflowManager.WorkflowSpace.H3).mapNotNull { workflow ->
+        WorkflowManager.getAllWorkflows(WorkflowManager.WorkflowSpace.H3)
+            .filter { WorkflowManager.isWorkflowEnabled(it.id) }
+            .mapNotNull { workflow ->
             val plan = runCatching { H3Plan.resolve(workflow.jsonContent) }.getOrNull()
             if (plan != null) Triple(workflow, plan.modes, plan.format)
             else {
@@ -126,12 +160,43 @@ fun H3WorkspaceScreen(
 
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("H3 视频工作区", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text("H3 视频工作区", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            sh.hnet.comfychair.ui.components.QueueIndicatorPill()
+            Spacer(Modifier.width(8.dp))
             ServerStatusLamp()
             TextButton(onClick = onOpenWorkflowSettings) { Text("工作流管理") }
+        }
+
+        // Under the title, above the tabs -- the same slot the four ordinary pages use. It sits
+        // outside the tab switch on purpose: a long reference-video run should stay visible while
+        // the user edits parameters on the other tab.
+        val genState = generationViewModel?.generationState?.collectAsState()?.value
+        val jobQueue by JobRegistry.queueState.collectAsState()
+        val runningHere = jobQueue.executingOwnerId == H3_OWNER_ID &&
+            genState != null && genState.isGenerating
+        // The fade-out outlives the job: the state resets to UNKNOWN the moment work ends, so the
+        // bar would read "处理中" on its way out. Hold the last real reading for that 120ms.
+        var frozen by remember { mutableStateOf(genState) }
+        SideEffect {
+            if (genState != null && genState.isGenerating) frozen = genState
+        }
+        AnimatedVisibility(
+            visible = runningHere,
+            // A bar that appears out of nothing makes the tabs jump; 150ms reads as "pushed down".
+            enter = expandVertically(tween(150)) + fadeIn(tween(150)),
+            exit = shrinkVertically(tween(150)) + fadeOut(tween(120))
+        ) {
+            (frozen ?: genState)?.let { state ->
+                GenerationProgressBar(
+                    stage = state.stage,
+                    progress = state.progress,
+                    maxProgress = state.maxProgress,
+                    startedAt = state.startedAt
+                )
+            }
         }
 
         if (undecided.isNotEmpty()) {
@@ -154,8 +219,12 @@ fun H3WorkspaceScreen(
 
         TabRow(selectedTabIndex = tabIndex) {
             tabs.forEachIndexed { index, item ->
-                Tab(selected = index == tabIndex, onClick = { tabIndex = index },
-                    text = { Text(item.label, style = MaterialTheme.typography.labelLarge) })
+                Tab(
+                    selected = index == tabIndex,
+                    onClick = { tabIndex = index },
+                    modifier = Modifier.heightIn(min = 40.dp),
+                    text = { Text(item.label, style = MaterialTheme.typography.labelLarge) }
+                )
             }
         }
 
@@ -190,14 +259,33 @@ fun H3WorkspaceScreen(
                     items(list, key = { it.id }) { entry ->
                         TextButton(onClick = {
                             choices = choices + (picking.name to entry.id)
+                            H3ChoicesStore.save(context, picking.name, entry.id)
                             pickerFor = null
                         }) {
-                            Column {
-                                Text(entry.name)
+                            Column(Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        entry.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (entry.id == selected?.id) {
+                                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                val subtitle = when {
+                                    entry.builtIn -> if (entry.name.contains("Turbo", ignoreCase = true)) "内置 · 二采Turbo加速模板" else "内置 · 经典加速模板"
+                                    else -> "用户导入"
+                                }
                                 Text(
-                                    (if (entry.builtIn) "内置" else "用户导入") +
-                                        " · " + if (entry.format == "litegraph") "LiteGraph" else "API",
-                                    style = MaterialTheme.typography.labelSmall
+                                    subtitle,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -207,6 +295,8 @@ fun H3WorkspaceScreen(
             confirmButton = { TextButton(onClick = { pickerFor = null }) { Text("关闭") } }
         )
     }
+
+    // The queue sheet is hosted once by MainNavHost, for every screen
 }
 
 @Composable
@@ -216,18 +306,67 @@ private fun BoundWorkflowRow(
     onSwitch: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .clickable(onClick = onSwitch),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        Column(Modifier.weight(1f)) {
-            // The name moved to the fixed bottom bar, where it stays visible while scrolling;
-            // repeating it here was the redundancy. Provenance is the only fact unique to this row.
-            Text(
-                (if (entry.builtIn) "内置工作流" else "用户导入") +
-                    " · " + (if (entry.format == "litegraph") "LiteGraph" else "API JSON"),
-                style = MaterialTheme.typography.labelSmall
-            )
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(7.dp)
+                            .background(Color(0xFF2E7D32), CircleShape)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        "当前激活工作流",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    entry.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "切换",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        "▾",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }
@@ -273,5 +412,24 @@ private object ModeOverrideStore {
     fun save(context: android.content.Context, workflowId: String, mode: H3Plan.Mode) {
         context.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit().putString(workflowId, mode.name).apply()
+    }
+}
+
+/** Remembers the user's selected workflow per area so choices survive a restart or navigation away. */
+private object H3ChoicesStore {
+    private const val PREFS = "h3_choices"
+
+    fun load(context: android.content.Context): Map<String, String> {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val out = mutableMapOf<String, String>()
+        prefs.all.forEach { (key, value) ->
+            (value as? String)?.let { out[key] = it }
+        }
+        return out
+    }
+
+    fun save(context: android.content.Context, areaName: String, workflowId: String) {
+        context.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putString(areaName, workflowId).apply()
     }
 }

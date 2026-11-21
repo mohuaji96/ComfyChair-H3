@@ -59,3 +59,9 @@ h3_payloads/
 
 # Local audit scripts (absolute paths from a private machine)
 app/audit/
+
+# The tag combiner and its word library ship with the app from 0.9.8.8382.571 on.
+
+# Python cache
+__pycache__/
+*.pyc

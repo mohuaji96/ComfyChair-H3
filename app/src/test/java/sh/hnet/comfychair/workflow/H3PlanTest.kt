@@ -563,4 +563,146 @@ class H3PlanTest {
         assertFalse(outCore.has("ref_videos.ref_video_0"))
         assertFalse(outCore.has("ref_video_audios.ref_video_audio_0"))
     }
+
+    @Test
+    fun turboWorkflowsResolveSuccessfully() {
+        val r2vTurbo = raw("itv_h3_mobile_r2v_turbo.json")
+        val guideTurbo = raw("itv_h3_mobile_guide_turbo.json")
+
+        val r2vSpec = H3Plan.resolve(r2vTurbo)
+        assertNotNull("R2V Turbo 必须能够解析", r2vSpec)
+        assertEquals(listOf(H3Plan.Mode.R2V), r2vSpec!!.modes)
+        val r2vKeys = r2vSpec.extras.map { it.key }.toSet()
+        assertTrue("必须包含二采开关 #94:value", "94:value" in r2vKeys)
+        assertTrue("必须包含二采目标像素 #23:value", "23:value" in r2vKeys)
+        assertTrue("必须包含二采步数 #102:steps", "102:steps" in r2vKeys)
+        assertTrue("必须包含RTX超分倍率 #39:resize_type.scale", "39:resize_type.scale" in r2vKeys)
+        assertTrue("必须包含插帧倍数 #173:value", "173:value" in r2vKeys)
+
+        val guideSpec = H3Plan.resolve(guideTurbo)
+        assertNotNull("Guide Turbo 必须能够解析", guideSpec)
+        assertEquals(listOf(H3Plan.Mode.T2V, H3Plan.Mode.I2V, H3Plan.Mode.FL2V), guideSpec!!.modes)
+        val guideKeys = guideSpec.extras.map { it.key }.toSet()
+        assertTrue("必须包含二采开关 #94:value", "94:value" in guideKeys)
+        assertTrue("必须包含二采目标像素 #23:value", "23:value" in guideKeys)
+        assertTrue("必须包含二采步数 #102:steps", "102:steps" in guideKeys)
+        assertTrue("必须包含RTX超分倍率 #39:resize_type.scale", "39:resize_type.scale" in guideKeys)
+
+        // 验证步骤解析成功锁定节点 24（一采 8 步）
+        assertNotNull("Guide Turbo 的基础步数必须成功解析", guideSpec.steps)
+        assertEquals("24", guideSpec.steps!!.nodeId)
+        assertEquals(8, guideSpec.steps!!.steps)
+        assertTrue("不能有步数不可编辑警告", guideSpec.warnings.none { it.contains("Steps 不可编辑") })
+
+        assertNotNull("R2V Turbo 的基础步数必须成功解析", r2vSpec.steps)
+        assertEquals("24", r2vSpec.steps!!.nodeId)
+        assertEquals(8, r2vSpec.steps!!.steps)
+        assertTrue("不能有步数不可编辑警告", r2vSpec.warnings.none { it.contains("Steps 不可编辑") })
+
+        // 验证高级设置展示项（非 hidden）中的标签正名
+        val visibleLabels = guideSpec.extras.filter { !it.hidden }.map { it.label }
+        assertTrue("必须包含一采降噪强度", visibleLabels.contains("一采降噪强度 Denoise"))
+        assertTrue("必须包含二采降噪强度", visibleLabels.contains("二采降噪强度 Denoise"))
+        assertTrue("必须包含一采采样调度", visibleLabels.contains("一采采样调度 Scheduler"))
+        assertTrue("必须包含二采采样调度", visibleLabels.contains("二采采样调度 Scheduler"))
+        assertTrue("必须包含胶片颗粒强度", visibleLabels.contains("胶片颗粒强度 (0=关闭)"))
+    }
+
+    @Test
+    fun wrappedTurboWorkflowsResolveAndBuildSuccessfully() {
+        val r2vTurbo = raw("itv_h3_mobile_r2v_turbo.json")
+        val wrappedR2v = JSONObject().put("nodes", JSONObject(r2vTurbo)).toString()
+        val r2vSpec = H3Plan.resolve(wrappedR2v)
+        assertNotNull("被包裹单层 nodes 的 R2V Turbo 必须依然能成功解析", r2vSpec)
+        
+        val extraMap = r2vSpec!!.extras.associateBy { it.key }
+        assertEquals("二采目标像素", extraMap["23:value"]?.label)
+        assertEquals("二采跳过开关", extraMap["94:value"]?.label)
+        assertEquals("插帧倍数", extraMap["173:value"]?.label)
+        assertEquals("RTX 视频超分倍率", extraMap["39:resize_type.scale"]?.label)
+
+        val r2vBuild = H3Plan.build(wrappedR2v, r2vSpec, H3Plan.Request(
+            mode = H3Plan.Mode.R2V,
+            references = listOf("p1.png", "p2.png", "p3.png"),
+            extras = mapOf(
+                "23:value" to 0.5,
+                "94:value" to false,
+                "102:steps" to 3,
+                "39:resize_type.scale" to 1.2,
+                "173:value" to 1,
+                "174:value" to 0.005
+            )
+        ))
+        assertTrue("构建必须成功无错误: " + r2vBuild.errors, r2vBuild.ok)
+        val r2vDoc = JSONObject(r2vBuild.json)
+        val coreInputs = r2vDoc.getJSONObject(r2vSpec.coreId).getJSONObject("inputs")
+        assertTrue("必须包含ref_image_1", coreInputs.has("ref_images.ref_image_1"))
+        assertTrue("必须包含ref_image_2", coreInputs.has("ref_images.ref_image_2"))
+        assertTrue("必须包含ref_image_3", coreInputs.has("ref_images.ref_image_3"))
+        assertFalse("绝不能包含多余的ref_image_0", coreInputs.has("ref_images.ref_image_0"))
+        assertFalse("绝不能留下未使用的ref_image_4", coreInputs.has("ref_images.ref_image_4"))
+        assertFalse("绝不能留下未使用的ref_image_5", coreInputs.has("ref_images.ref_image_5"))
+        assertFalse("绝不能留下未使用的ref_image_6", coreInputs.has("ref_images.ref_image_6"))
+
+        // 验证核心节点所有的输入连接所指向的节点在图中必须全部真实存在
+        for (key in coreInputs.keys()) {
+            val link = coreInputs.optJSONArray(key) ?: continue
+            val targetId = link.optString(0)
+            assertTrue("核心节点引用的节点 #$targetId 必须在图中真实存在，不能悬空", r2vDoc.has(targetId))
+        }
+
+        val guideTurbo = raw("itv_h3_mobile_guide_turbo.json")
+        val wrappedGuide = JSONObject().put("nodes", JSONObject(guideTurbo)).toString()
+        val guideSpec = H3Plan.resolve(wrappedGuide)
+        assertNotNull("被包裹单层 nodes 的 Guide Turbo 必须依然能成功解析", guideSpec)
+        assertTrue("即使丢掉顶层 modes，识别到 MiniMaxH3AddGuide 也能正确判定支持 T2V", guideSpec!!.modes.contains(H3Plan.Mode.T2V))
+        assertTrue("支持 I2V", guideSpec.modes.contains(H3Plan.Mode.I2V))
+        assertTrue("支持 FL2V", guideSpec.modes.contains(H3Plan.Mode.FL2V))
+
+        // 1. 测试纯文生模式（T2V）：未提供首尾帧图片
+        val t2vBuild = H3Plan.build(wrappedGuide, guideSpec, H3Plan.Request(
+            mode = H3Plan.Mode.T2V,
+            prompt = "测试纯文生",
+            extras = mapOf(
+                "23:value" to 1.5,
+                "94:value" to false,
+                "102:steps" to 4,
+                "174:value" to 0.01
+            )
+        ))
+        assertTrue("T2V 构建必须成功无错误: " + t2vBuild.errors, t2vBuild.ok)
+        val t2vDoc = JSONObject(t2vBuild.json)
+        assertEquals("151:11", t2vDoc.getJSONObject("151:29").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+        assertEquals("151:11", t2vDoc.getJSONObject("151:32").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+        val t2vCoreInputs = t2vDoc.getJSONObject("151:11").getJSONObject("inputs")
+        assertFalse("T2V 下不能有 ref_image_0", t2vCoreInputs.has("ref_images.ref_image_0"))
+        assertFalse("T2V 下不能有 ref_image_1", t2vCoreInputs.has("ref_images.ref_image_1"))
+
+        // 2. 测试单首帧模式（I2V）：只提供首帧图片
+        val i2vBuild = H3Plan.build(wrappedGuide, guideSpec, H3Plan.Request(
+            mode = H3Plan.Mode.I2V,
+            prompt = "测试单首帧",
+            firstFrame = "start_head.png"
+        ))
+        assertTrue("I2V 构建必须成功无错误: " + i2vBuild.errors, i2vBuild.ok)
+        val i2vDoc = JSONObject(i2vBuild.json)
+        assertEquals("start_head.png", i2vDoc.getJSONObject("9").getJSONObject("inputs").getString("image"))
+        assertEquals("181", i2vDoc.getJSONObject("151:29").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+        assertEquals("182", i2vDoc.getJSONObject("151:32").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+        assertFalse("I2V 下不能有 ref_image_1", i2vDoc.getJSONObject("151:11").getJSONObject("inputs").has("ref_images.ref_image_1"))
+
+        // 3. 测试首尾帧模式（FL2V）：同时提供首尾帧图片
+        val fl2vBuild = H3Plan.build(wrappedGuide, guideSpec, H3Plan.Request(
+            mode = H3Plan.Mode.FL2V,
+            prompt = "测试首尾帧",
+            firstFrame = "start_head.png",
+            lastFrame = "end_tail.png"
+        ))
+        assertTrue("FL2V 构建必须成功无错误: " + fl2vBuild.errors, fl2vBuild.ok)
+        val fl2vDoc = JSONObject(fl2vBuild.json)
+        assertEquals("start_head.png", fl2vDoc.getJSONObject("9").getJSONObject("inputs").getString("image"))
+        assertEquals("end_tail.png", fl2vDoc.getJSONObject("190").getJSONObject("inputs").getString("image"))
+        assertEquals("192", fl2vDoc.getJSONObject("151:29").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+        assertEquals("193", fl2vDoc.getJSONObject("151:32").getJSONObject("inputs").getJSONArray("conditioning").getString(0))
+    }
 }

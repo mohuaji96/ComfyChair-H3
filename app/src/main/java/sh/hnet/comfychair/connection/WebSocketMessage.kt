@@ -10,7 +10,12 @@ sealed class WebSocketMessage {
     data class ExecutionStart(val promptId: String) : WebSocketMessage()
     data class Executing(val promptId: String?, val node: String?) : WebSocketMessage()
     data class ExecutionComplete(val promptId: String) : WebSocketMessage()
-    data class Progress(val value: Int, val max: Int) : WebSocketMessage()
+    /**
+     * [promptId] is filled in by ConnectionManager from the last `executing` event: the server's
+     * progress payload carries only value/max, so a second queued job used to land on the first
+     * one's bar.
+     */
+    data class Progress(val value: Int, val max: Int, val promptId: String? = null) : WebSocketMessage()
     data class ExecutionError(val promptId: String?, val message: String) : WebSocketMessage()
     data class ExecutionSuccess(val promptId: String) : WebSocketMessage()
     data class Status(val queueRemaining: Int?) : WebSocketMessage()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,10 +21,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -63,16 +75,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import sh.hnet.comfychair.ui.components.WorkflowThumbnail
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.components.SettingsFootnote
+import sh.hnet.comfychair.ui.components.SettingsGroupCard
 import sh.hnet.comfychair.ui.components.SettingsMenuDropdown
+import sh.hnet.comfychair.ui.components.SettingsRowDivider
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.WorkflowEditorActivity
 import sh.hnet.comfychair.WorkflowType
 import sh.hnet.comfychair.WorkflowTypeDisplay
 import sh.hnet.comfychair.viewmodel.ExportFormat
+import sh.hnet.comfychair.viewmodel.WorkflowFilter
 import sh.hnet.comfychair.viewmodel.WorkflowManagementEvent
 import sh.hnet.comfychair.viewmodel.WorkflowManagementViewModel
 
@@ -111,6 +127,9 @@ fun WorkflowsSettingsScreen(
             viewModel.cancelMapping()
         }
     }
+
+    var showServerImportSheet by remember { mutableStateOf(false) }
+    var fabExpanded by remember { mutableStateOf(false) }
 
     // Editor launcher for create new workflow mode
     val createEditorLauncher = rememberLauncherForActivityResult(
@@ -184,142 +203,210 @@ fun WorkflowsSettingsScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Top App Bar
-        TopAppBar(
-            title = { Text(stringResource(R.string.title_workflows_settings)) },
-            windowInsets = WindowInsets(0, 0, 0, 0),
-            actions = {
-                // New workflow button
-                IconButton(onClick = {
+    val allWorkflows = uiState.ttiWorkflows + uiState.itiInpaintingWorkflows + uiState.itiEditingWorkflows +
+        uiState.ttvWorkflows + uiState.itvWorkflows + uiState.h3Workflows
+    val enabledTotal = allWorkflows.count { it.id !in uiState.disabledWorkflowIds }
+    val filter = uiState.filter
+
+    val openWorkflow: (WorkflowManager.Workflow) -> Unit = { workflow ->
+        if (workflow.space == WorkflowManager.WorkflowSpace.H3) {
+            openH3Workspace(context, workflow, onNavigateToGeneration)
+        } else {
+            context.startActivity(WorkflowEditorActivity.createIntent(context, workflow.id))
+        }
+    }
+    val onEditStructure: (WorkflowManager.Workflow) -> Unit = {
+        editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id))
+    }
+    val onRename: (WorkflowManager.Workflow) -> Unit = { viewModel.onEditWorkflow(it) }
+    val onDuplicate: (WorkflowManager.Workflow) -> Unit = { viewModel.onDuplicateWorkflow(it) }
+    val onExport: (WorkflowManager.Workflow, ExportFormat) -> Unit = { workflow, format ->
+        viewModel.onExportWorkflow(workflow, format)
+    }
+    val onDelete: (WorkflowManager.Workflow) -> Unit = { viewModel.onDeleteWorkflow(it) }
+    val onEnabledChange: (WorkflowManager.Workflow, Boolean) -> Unit = { workflow, enabled ->
+        viewModel.onWorkflowEnabledChange(workflow, enabled)
+    }
+
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(stringResource(R.string.title_workflows_settings))
+                        Text(
+                            text = "已启用 $enabledTotal/${allWorkflows.size}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                actions = {
+                    SettingsMenuDropdown(
+                        onGeneration = onNavigateToGeneration,
+                        onLogout = onLogout
+                    )
+                }
+            )
+        },
+        floatingActionButton = {
+            AddWorkflowFabMenu(
+                expanded = fabExpanded,
+                onToggle = { fabExpanded = !fabExpanded },
+                onCreate = {
                     createEditorLauncher.launch(
                         WorkflowEditorActivity.createIntentForNewWorkflow(context)
                     )
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.button_new_workflow))
-                }
-                // Import button
-                IconButton(onClick = { jsonPickerLauncher.launch("application/json") }) {
-                    Icon(Icons.Default.UploadFile, contentDescription = stringResource(R.string.button_import))
-                }
-                // Menu button
-                SettingsMenuDropdown(
-                    onGeneration = onNavigateToGeneration,
-                    onLogout = onLogout
-                )
-            }
-        )
-
-        // Loading indicator
+                },
+                onImportFromFile = { jsonPickerLauncher.launch("application/json") },
+                onImportFromServer = { showServerImportSheet = true }
+            )
+        }
+    ) { paddingValues ->
         if (uiState.isLoading) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
             }
         } else {
-            // Workflow list organized by type
-            NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
+            NoOverscrollContainer(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(bottom = 96.dp)
                 ) {
-                // Text-to-Image
-                item {
-                    WorkflowSection(
-                        title = stringResource(R.string.workflow_section_tti),
-                        workflows = uiState.ttiWorkflows,
-                        onWorkflowClick = { context.startActivity(WorkflowEditorActivity.createIntent(context, it.id)) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) }
-                    )
-                }
+                    // Filter chips row
+                    item(key = "type_filter_chips") {
+                        WorkflowFilterChips(filter, viewModel::onFilterChange)
+                    }
 
-                // Image to Image: Inpainting
-                item {
-                    WorkflowSection(
-                        title = stringResource(R.string.workflow_section_iti_inpainting),
-                        workflows = uiState.itiInpaintingWorkflows,
-                        onWorkflowClick = { context.startActivity(WorkflowEditorActivity.createIntent(context, it.id)) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) }
-                    )
-                }
+                    // Text-to-Image
+                    if (WorkflowType.TTI in filter.types) {
+                        item(key = WorkflowType.TTI.name) {
+                            WorkflowSection(
+                                title = stringResource(R.string.workflow_section_tti),
+                                workflows = uiState.ttiWorkflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onSectionEnabledChange(WorkflowType.TTI, it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
 
-                // Image to Image: Editing
-                item {
-                    WorkflowSection(
-                        title = stringResource(R.string.workflow_section_iti_editing),
-                        workflows = uiState.itiEditingWorkflows,
-                        onWorkflowClick = { context.startActivity(WorkflowEditorActivity.createIntent(context, it.id)) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) }
-                    )
-                }
+                    // Image to Image: Editing
+                    if (WorkflowType.ITI_EDITING in filter.types) {
+                        item(key = WorkflowType.ITI_EDITING.name) {
+                            WorkflowSection(
+                                title = stringResource(R.string.workflow_section_iti_editing),
+                                workflows = uiState.itiEditingWorkflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onSectionEnabledChange(WorkflowType.ITI_EDITING, it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
 
-                // Text-to-Video
-                item {
-                    WorkflowSection(
-                        title = stringResource(R.string.workflow_section_ttv),
-                        workflows = uiState.ttvWorkflows,
-                        onWorkflowClick = { context.startActivity(WorkflowEditorActivity.createIntent(context, it.id)) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) }
-                    )
-                }
+                    // Image to Image: Inpainting
+                    if (WorkflowType.ITI_INPAINTING in filter.types) {
+                        item(key = WorkflowType.ITI_INPAINTING.name) {
+                            WorkflowSection(
+                                title = stringResource(R.string.workflow_section_iti_inpainting),
+                                workflows = uiState.itiInpaintingWorkflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onSectionEnabledChange(WorkflowType.ITI_INPAINTING, it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
 
-                // Image-to-Video
-                item {
-                    WorkflowSection(
-                        title = stringResource(R.string.workflow_section_itv),
-                        workflows = uiState.itvWorkflows,
-                        onWorkflowClick = { context.startActivity(WorkflowEditorActivity.createIntent(context, it.id)) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) }
-                    )
-                }
+                    // Text-to-Video
+                    if (WorkflowType.TTV in filter.types) {
+                        item(key = WorkflowType.TTV.name) {
+                            WorkflowSection(
+                                title = stringResource(R.string.workflow_section_ttv),
+                                workflows = uiState.ttvWorkflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onSectionEnabledChange(WorkflowType.TTV, it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
 
-                // H3 video workspace: its own library, opened in the H3 screen rather than the
-                // node editor; the editor stays reachable from the card menu.
-                item {
-                    WorkflowSection(
-                        title = "H3 视频工作区",
-                        workflows = uiState.h3Workflows,
-                        onWorkflowClick = { openH3Workspace(context, it, onNavigateToGeneration) },
-                        onEditStructure = { editExistingLauncher.launch(WorkflowEditorActivity.createIntentForEditingExisting(context, it.id)) },
-                        onRename = { viewModel.onEditWorkflow(it) },
-                        onDuplicate = { viewModel.onDuplicateWorkflow(it) },
-                        onExport = { workflow, format -> viewModel.onExportWorkflow(workflow, format) },
-                        onDelete = { viewModel.onDeleteWorkflow(it) },
-                        subtitle = { h3CapabilityLabel(it) }
-                    )
-                }
+                    // Image-to-Video
+                    if (WorkflowType.ITV in filter.types) {
+                        item(key = WorkflowType.ITV.name) {
+                            WorkflowSection(
+                                title = stringResource(R.string.workflow_section_itv),
+                                workflows = uiState.itvWorkflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onSectionEnabledChange(WorkflowType.ITV, it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
 
-                // Bottom padding
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                }
+                    // H3 video workspace
+                    if (filter.includeH3) {
+                        item(key = "h3") {
+                            WorkflowSection(
+                                title = "H3 视频工作区",
+                                workflows = uiState.h3Workflows,
+                                disabledWorkflowIds = uiState.disabledWorkflowIds,
+                                onOpen = openWorkflow,
+                                onEnabledChange = onEnabledChange,
+                                onSectionEnabledChange = { viewModel.onH3SectionEnabledChange(it) },
+                                onEditStructure = onEditStructure,
+                                onRename = onRename,
+                                onDuplicate = onDuplicate,
+                                onExport = onExport,
+                                onDelete = onDelete,
+                                subtitle = { h3CapabilityLabel(it) }
+                            )
+                        }
+                    }
+
+            // Bottom padding
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             }
         }
     }
+}
 
     // Import dialog
     if (uiState.showImportDialog) {
@@ -362,6 +449,15 @@ fun WorkflowsSettingsScreen(
     if (uiState.showDuplicateNameDialog) {
         DuplicateNameDialog(
             onDismiss = viewModel::dismissDuplicateNameDialog
+        )
+    }
+
+    if (showServerImportSheet) {
+        sh.hnet.comfychair.ui.components.ServerImportSheet(
+            onDismiss = { showServerImportSheet = false },
+            onImportSuccess = {
+                viewModel.reloadAndRefreshWorkflows()
+            }
         )
     }
 
@@ -423,14 +519,56 @@ private fun parseMappingsFromJson(jsonString: String): Map<String, Pair<String, 
     return mappings
 }
 
+private val filterLabels = listOf(
+    WorkflowFilter.ALL to "全部",
+    WorkflowFilter.TTI to "文生图",
+    WorkflowFilter.ITI to "图生图",
+    WorkflowFilter.TTV to "文生视频",
+    WorkflowFilter.ITV to "图生视频",
+    WorkflowFilter.H3 to "H3 视频"
+)
+
+/** Which types the page shows: one choice, scrolled into view when picked. */
+@Composable
+private fun WorkflowFilterChips(selected: WorkflowFilter, onSelect: (WorkflowFilter) -> Unit) {
+    val rowState = rememberLazyListState()
+    LaunchedEffect(selected) {
+        rowState.animateScrollToItem(filterLabels.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+    }
+    androidx.compose.foundation.lazy.LazyRow(
+        state = rowState,
+        contentPadding = PaddingValues(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(filterLabels.size) { index ->
+            val (option, label) = filterLabels[index]
+            val isSelected = option == selected
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(option) },
+                label = { Text(label) },
+                leadingIcon = if (isSelected) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                } else null
+            )
+        }
+    }
+}
+
 /**
- * A complete workflow section with header and segmented list card.
+ * A type's workflows: its heading with the count of those switched on (a menu switches all on or
+ * off), a warning when none is on, then your workflows (by name) and the built-in ones, each a
+ * group of name-and-switch rows.
  */
 @Composable
 private fun WorkflowSection(
     title: String,
     workflows: List<WorkflowManager.Workflow>,
-    onWorkflowClick: (WorkflowManager.Workflow) -> Unit,
+    disabledWorkflowIds: Set<String>,
+    onOpen: (WorkflowManager.Workflow) -> Unit,
+    onEnabledChange: (WorkflowManager.Workflow, Boolean) -> Unit,
+    onSectionEnabledChange: (Boolean) -> Unit,
     onEditStructure: (WorkflowManager.Workflow) -> Unit,
     onRename: (WorkflowManager.Workflow) -> Unit,
     onDuplicate: (WorkflowManager.Workflow) -> Unit,
@@ -439,46 +577,62 @@ private fun WorkflowSection(
     /** Extra line under the name, e.g. the modes an H3 template supports. */
     subtitle: (WorkflowManager.Workflow) -> String? = { null }
 ) {
+    val enabledCount = workflows.count { it.id !in disabledWorkflowIds }
+    val own = workflows.filter { !it.isBuiltIn }.sortedBy { it.name.lowercase() }
+    val builtIn = workflows.filter { it.isBuiltIn }
+
     Column {
-        // Section header
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 2.dp, top = 20.dp, bottom = 3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            if (workflows.isNotEmpty()) {
+                SectionCountButton(enabledCount, workflows.size, onSectionEnabledChange)
+            }
+        }
 
         if (workflows.isEmpty()) {
-            // Empty state
-            Text(
-                text = stringResource(R.string.workflow_section_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        } else {
-            // Card containing all workflows with dividers
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column {
-                    workflows.forEachIndexed { index, workflow ->
-                        key(workflow.id) {
-                            WorkflowListItemContent(
-                                workflow = workflow,
-                                onClick = { onWorkflowClick(workflow) },
-                                onEditStructure = { onEditStructure(workflow) },
-                                onRename = { onRename(workflow) },
-                                onDuplicate = { onDuplicate(workflow) },
-                                onExport = { format -> onExport(workflow, format) },
-                                onDelete = { onDelete(workflow) },
-                                subtitle = subtitle(workflow)
-                            )
-                            if (index < workflows.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant
+            SettingsFootnote(stringResource(R.string.workflow_section_empty))
+        } else if (enabledCount == 0) {
+            NoneOnCard(title)
+            Spacer(Modifier.height(6.dp))
+        }
+
+        listOf("自有" to own, "内置" to builtIn).forEach { (label, group) ->
+            if (group.isNotEmpty()) {
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 5.dp)
+                )
+                SettingsGroupCard {
+                    Column {
+                        group.forEachIndexed { index, workflow ->
+                            key(workflow.id) {
+                                WorkflowToggleRow(
+                                    workflow = workflow,
+                                    enabled = workflow.id !in disabledWorkflowIds,
+                                    onOpen = { onOpen(workflow) },
+                                    onEnabledChange = { onEnabledChange(workflow, it) },
+                                    onEditStructure = { onEditStructure(workflow) },
+                                    onRename = { onRename(workflow) },
+                                    onDuplicate = { onDuplicate(workflow) },
+                                    onExport = { format -> onExport(workflow, format) },
+                                    onDelete = { onDelete(workflow) },
+                                    subtitle = subtitle(workflow)
                                 )
+                                if (index < group.size - 1) SettingsRowDivider()
                             }
                         }
                     }
@@ -488,13 +642,78 @@ private fun WorkflowSection(
     }
 }
 
+/** "n of m on" as a button opening Switch all on / Switch all off; in the error colour when none is on. */
+@Composable
+private fun SectionCountButton(enabledCount: Int, total: Int, onSectionEnabledChange: (Boolean) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = if (enabledCount == 0) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            contentPadding = PaddingValues(horizontal = 8.dp)
+        ) {
+            Text("已启用 $enabledCount/$total", fontSize = 11.sp)
+            Icon(
+                if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            // The one that would change nothing is disabled
+            listOf(
+                "全部开启" to true,
+                "全部关闭" to false
+            ).forEach { (label, on) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    enabled = if (on) enabledCount < total else enabledCount > 0,
+                    onClick = {
+                        expanded = false
+                        onSectionEnabledChange(on)
+                    }
+                )
+            }
+        }
+    }
+}
+
+/** No workflow of this type is on: the screen can't generate. Switching all off is allowed; this is the warning. */
+@Composable
+private fun NoneOnCard(sectionTitle: String) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(
+                "“$sectionTitle”屏幕没有开启的工作流，无法生成。",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
 /**
- * Content for a single workflow item (without Card wrapper).
+ * A workflow: its name (opens it) and its actions menu, then past a divider its switch — two
+ * targets, so the switch is never hit by accident while opening the workflow.
  */
 @Composable
-private fun WorkflowListItemContent(
+private fun WorkflowToggleRow(
     workflow: WorkflowManager.Workflow,
-    onClick: () -> Unit,
+    enabled: Boolean,
+    onOpen: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
     onEditStructure: () -> Unit,
     onRename: () -> Unit,
     onDuplicate: () -> Unit,
@@ -507,19 +726,15 @@ private fun WorkflowListItemContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Workflow graph thumbnail
-        WorkflowThumbnail(
-            jsonContent = workflow.jsonContent,
-            modifier = Modifier.size(48.dp)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onOpen)
+                .padding(vertical = 7.dp)
+        ) {
             Text(
                 text = workflow.name,
                 style = MaterialTheme.typography.titleSmall
@@ -651,6 +866,17 @@ private fun WorkflowListItemContent(
                 )
             }
         }
+
+        VerticalDivider(
+            modifier = Modifier
+                .height(24.dp)
+                .padding(end = 4.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
     }
 }
 
@@ -1031,3 +1257,64 @@ private fun openH3Workspace(
 
 /** Import destinations are ordinary types plus this one; H3 is decided by the file. */
 private const val H3_IMPORT_LABEL = "H3 视频工作区（按文件自动识别）"
+
+@Composable
+private fun AddWorkflowFabMenu(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onCreate: () -> Unit,
+    onImportFromFile: () -> Unit,
+    onImportFromServer: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 1. 新建
+                androidx.compose.material3.ExtendedFloatingActionButton(
+                    onClick = { onToggle(); onCreate() },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("新建", fontWeight = FontWeight.Bold) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                // 2. 从文件
+                androidx.compose.material3.ExtendedFloatingActionButton(
+                    onClick = { onToggle(); onImportFromFile() },
+                    icon = { Icon(Icons.Default.UploadFile, contentDescription = null) },
+                    text = { Text("从文件", fontWeight = FontWeight.Bold) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                // 3. 从服务器
+                androidx.compose.material3.ExtendedFloatingActionButton(
+                    onClick = { onToggle(); onImportFromServer() },
+                    icon = { Icon(Icons.Default.SaveAlt, contentDescription = null) },
+                    text = { Text("从服务器", fontWeight = FontWeight.Bold) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+
+        androidx.compose.material3.FloatingActionButton(
+            onClick = onToggle,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = if (expanded) androidx.compose.material.icons.Icons.Default.Close else Icons.Default.Add,
+                contentDescription = if (expanded) "关闭" else "添加工作流"
+            )
+        }
+    }
+}

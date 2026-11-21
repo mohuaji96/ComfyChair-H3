@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.storage
 
 import android.content.Context
+import sh.hnet.comfychair.model.ContentProfile
 
 /**
  * Global app settings singleton.
@@ -14,6 +15,7 @@ object AppSettings {
     private const val KEY_DEBUG_LOGGING_ENABLED = "debug_logging_enabled"
     private const val KEY_AUTO_CONNECT = "autoConnect"
     private const val KEY_SHOW_BUILT_IN_WORKFLOWS = "show_built_in_workflows"
+    private const val KEY_DISABLED_WORKFLOWS = "disabled_workflows"
     private const val KEY_OFFLINE_MODE = "offline_mode"
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
@@ -140,6 +142,33 @@ object AppSettings {
     }
 
     /**
+     * IDs of the workflows the user switched off; they are not offered on the generation screens.
+     * Storing the disabled ones keeps every new workflow enabled by default.
+     *
+     * The former "show built-in workflows" switch is migrated on first read: if it was off, all
+     * built-in workflows ([builtInIds]) start disabled.
+     */
+    fun getDisabledWorkflowIds(context: Context, builtInIds: Collection<String>): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val disabled = prefs.getStringSet(KEY_DISABLED_WORKFLOWS, null).orEmpty().toMutableSet()
+        if (prefs.contains(KEY_SHOW_BUILT_IN_WORKFLOWS)) {
+            if (!prefs.getBoolean(KEY_SHOW_BUILT_IN_WORKFLOWS, true)) disabled += builtInIds
+            prefs.edit()
+                .putStringSet(KEY_DISABLED_WORKFLOWS, disabled.toSet())
+                .remove(KEY_SHOW_BUILT_IN_WORKFLOWS)
+                .apply()
+        }
+        return disabled
+    }
+
+    fun setDisabledWorkflowIds(context: Context, ids: Set<String>) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_DISABLED_WORKFLOWS, ids.toSet())
+            .apply()
+    }
+
+    /**
      * Check if offline mode is enabled.
      * When enabled, the app operates with cached data only and does not connect to the server.
      * Requires disk-first cache mode to be enabled for full functionality.
@@ -220,5 +249,44 @@ object AppSettings {
     fun setRelayNotifyEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_RELAY_NOTIFY, enabled).apply()
+    }
+
+    private const val KEY_CONTENT_PROFILE = "content_profile"
+    private const val KEY_SFW_INTRO_SEEN = "sfw_intro_seen"
+
+    /**
+     * 当前内容级别。
+     *
+     * 老用户默认「开」——升级不该让原有词库突然少一半；全新安装默认「关」，也不弹询问。
+     *
+     * 判断「老用户」用的是安装/更新时间差，而不是「有没有存过设置」：词库 Store 会在首次
+     * 启动时自己写出副本文件，若拿文件存在与否判断，全新安装第一次运行就会被误判成老用户。
+     * 安装时间差不受初始化顺序影响。
+     */
+    fun getContentProfile(context: Context): ContentProfile {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.getString(KEY_CONTENT_PROFILE, null)?.let { return ContentProfile.fromKey(it) }
+        val legacy = runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            info.lastUpdateTime - info.firstInstallTime > 5 * 60 * 1000L
+        }.getOrDefault(true)
+        val profile = if (legacy) ContentProfile.NSFW else ContentProfile.SFW
+        prefs.edit().putString(KEY_CONTENT_PROFILE, profile.key).apply()
+        return profile
+    }
+
+    fun setContentProfile(context: Context, profile: ContentProfile) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CONTENT_PROFILE, profile.key).apply()
+    }
+
+    /** 首次切到 SFW 的那张说明卡只弹一次。 */
+    fun hasSeenSfwIntro(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_SFW_INTRO_SEEN, false)
+
+    fun setSfwIntroSeen(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_SFW_INTRO_SEEN, true).apply()
     }
 }

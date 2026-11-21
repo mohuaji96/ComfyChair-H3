@@ -27,6 +27,8 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -60,18 +62,24 @@ import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
+import sh.hnet.comfychair.storage.MetadataStore
 import sh.hnet.comfychair.storage.SequenceStore
 import sh.hnet.comfychair.queue.H3RelayService
+import sh.hnet.comfychair.workflow.ProgressStage
 import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.ui.components.GenerationButton
+import sh.hnet.comfychair.ui.components.H3SeedField
 import sh.hnet.comfychair.workflow.H3Naming
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.util.GenerationMetadata
 import sh.hnet.comfychair.util.H3Frame
+import sh.hnet.comfychair.util.LoraInfo
 import sh.hnet.comfychair.util.VideoUtils
 import sh.hnet.comfychair.workflow.H3Continuation
 import sh.hnet.comfychair.workflow.H3Plan
 import sh.hnet.comfychair.workflow.H3Resolution
+import sh.hnet.comfychair.workflow.H3Seed
 import sh.hnet.comfychair.workflow.JobRecovery
 import sh.hnet.comfychair.workflow.PendingJobStore
 import sh.hnet.comfychair.workflow.SubmitPreflight
@@ -80,7 +88,7 @@ import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import java.util.UUID
 
 /** Progress routing id for this page. The ordinary pages own TEXT_TO_VIDEO / IMAGE_TO_VIDEO. */
-private const val H3_OWNER_ID = "H3_WORKSPACE"
+internal const val H3_OWNER_ID = "H3_WORKSPACE"
 
 /** Bottom of the trained frame range documented by `MiniMaxH3ImageToVideo`. */
 // Cell markers for the reference grid: one tile is the add button, one is the tail frame.
@@ -130,6 +138,8 @@ fun H3StudioContent(
     // Nothing is chosen by the user, so an empty page is a valid text-to-video submission.
     val mode = if (area == H3Plan.Area.R2V) H3Plan.Mode.R2V
     else H3Plan.Mode.forFrames(draft.first, draft.last)
+    // Only a tail frame is a different request from a first+last pair, so name it differently.
+    val modeLabel = if (mode == H3Plan.Mode.FL2V && draft.first.isBlank()) "尾帧视频" else mode.label
 
     val models by ConnectionManager.modelCache.collectAsState()
     val client = ConnectionManager.clientOrNull
@@ -158,14 +168,36 @@ fun H3StudioContent(
     var editing by remember(workflowId) { mutableStateOf<H3NumberParam?>(null) }
     var editText by remember(workflowId) { mutableStateOf("") }
     var pendingSlot by remember { mutableStateOf<String?>(null) }
+    var sourcePickerSlot by remember { mutableStateOf<String?>(null) }
     /** Which reference-audio slot the picker is filling; -1 means no pick is in flight. */
     var pendingAudio by remember { mutableStateOf(-1) }
     var previewRevision by remember { mutableStateOf(0) }
+    val isTurbo = remember(spec) { spec.extras.any { it.key == "94:value" } }
     // Progress and queue position come from the same WebSocket state the four ordinary pages use;
     // nothing here is polled by hand any more.
     val queueState by sh.hnet.comfychair.queue.JobRegistry.queueState.collectAsState()
-    val generationState = generationViewModel?.generationState?.collectAsState()?.value
     val ownJobExecuting = queueState.executingOwnerId == H3_OWNER_ID
+
+    // The relay banner used to say only "3 done, 5 left", which is silent about the segment that
+    // is actually costing the time. Stage changes are rare, so refreshing on those alone is cheap;
+    // doing it per step would rewrite the notification dozens of times a minute.
+    LaunchedEffect(generationViewModel) {
+        var lastStage: ProgressStage? = null
+        generationViewModel?.generationState?.collect { state ->
+            val stage = if (state.isGenerating && state.promptId != null) state.stage else null
+            if (stage == lastStage) return@collect
+            lastStage = stage
+            H3RelayStatus.setDetail(
+                when {
+                    stage == null -> ""
+                    stage == ProgressStage.SAMPLE && state.maxProgress > 0 ->
+                        "${stage.label} · 第 ${state.progress}/${state.maxProgress} 步"
+                    else -> stage.label
+                }
+            )
+            H3RelayService.update(context)
+        }
+    }
 
     // The WebSocket status message only says how many jobs the server holds, not where ours sits,
     // and /queue is the only place that order exists. Poll it while we wait, stop the moment the
@@ -585,8 +617,7 @@ fun H3StudioContent(
 
     /** Opens the picker for slot [index]; the list only grows after a successful upload. */
     fun startPick(index: Int) {
-        pendingSlot = "ref:$index"
-        picker.launch("image/*")
+        sourcePickerSlot = "ref:$index"
     }
 
     /**
@@ -633,7 +664,15 @@ fun H3StudioContent(
             .filter { it.status == sh.hnet.comfychair.queue.JobStatus.PENDING }
             .map { it.promptId }
         if (pending.isEmpty()) {
-            message = "队列里没有排着的任务"
+            if (queueState.totalQueueSize > 0) {
+                live.clearQueue { ok ->
+                    main.post {
+                        message = if (ok) "已清空服务器队列" else "清空队列失败：服务器未响应"
+                    }
+                }
+            } else {
+                message = "队列里没有排着的任务"
+            }
             return
         }
         live.deleteQueueItems(pending) { ok ->
@@ -666,8 +705,8 @@ fun H3StudioContent(
         when (mode) {
             H3Plan.Mode.R2V -> if (refs.isEmpty()) errors.add("参考生视频至少需要一张参考图")
             H3Plan.Mode.I2V -> if (draft.first.isBlank()) errors.add("图生视频需要首帧图片")
-            H3Plan.Mode.FL2V -> if (draft.first.isBlank() || draft.last.isBlank())
-                errors.add("首尾帧视频需要首帧和尾帧两张图片")
+            H3Plan.Mode.FL2V -> if (draft.first.isBlank() && draft.last.isBlank())
+                errors.add("首尾帧视频至少要选一张图片")
             else -> Unit
         }
         var customW: Int? = null
@@ -692,12 +731,37 @@ fun H3StudioContent(
         }
         if (errors.isNotEmpty()) { message = errors.joinToString("；"); return }
 
+        // Rolled here rather than at build time so the number on the page is the number that
+        // goes out: the draft update and the submitted extras come from the same map.
+        val seedKeys = spec.extras.filter { it.input in H3Seed.INPUTS }
+        // A pinned seed can still be a leftover from the 64-bit build, and the server drops the
+        // whole task over one out-of-range value — repair it on the way out either way.
+        val seedPatch: Map<String, String> = if (H3Seed.autoRandom(context)) {
+            seedKeys.associate { it.key to H3Seed.next().toString() }
+        } else {
+            seedKeys.mapNotNull { extra ->
+                val raw = draft.extras[extra.key] ?: extra.value.toString()
+                H3Seed.fit(raw)?.let { extra.key to it }
+            }.toMap()
+        }
+        if (seedPatch.isNotEmpty()) update(draft.copy(extras = draft.extras + seedPatch))
+
         busy = true; message = "正在准备提交…"
         scope.launch {
             val built = runCatching {
                 withContext(Dispatchers.IO) {
                     val exported = WorkflowManager.exportWorkflowToComfyUIFormat(workflowId).getOrThrow()
-                    val wrapped = JSONObject().put("nodes", JSONObject(exported)).toString()
+                    val expObj = JSONObject(exported)
+                    val apiDoc = if (expObj.optJSONArray("nodes") != null || expObj.has("last_node_id") || expObj.has("links")) {
+                        sh.hnet.comfychair.workflow.H3LiteGraphAdapter.convert(expObj)
+                    } else {
+                        expObj
+                    }
+                    val wrappedObj = if (apiDoc.optJSONObject("nodes") != null) apiDoc else JSONObject().put("nodes", apiDoc)
+                    spec?.modes?.let { mList ->
+                        wrappedObj.put("modes", org.json.JSONArray(mList.map { it.name }))
+                    }
+                    val wrapped = wrappedObj.toString()
                     val attributed = WorkflowManager.applyNodeAttributeEdits(wrapped, workflowId)
                     val plan = H3Plan.resolve(attributed) ?: error("无法解析当前工作流")
                     H3Plan.build(attributed, plan, H3Plan.Request(
@@ -719,11 +783,20 @@ fun H3StudioContent(
                         refAudios = if (mode == H3Plan.Mode.R2V) {
                             draft.audios.filter { it.isNotBlank() }
                         } else emptyList(),
-                        firstFrame = if (mode == H3Plan.Mode.I2V || mode == H3Plan.Mode.FL2V) draft.first else null,
-                        lastFrame = if (mode == H3Plan.Mode.FL2V) draft.last else null,
+                        firstFrame = if (mode == H3Plan.Mode.I2V || mode == H3Plan.Mode.FL2V)
+                            draft.first.takeIf { it.isNotBlank() } else null,
+                        lastFrame = if (mode == H3Plan.Mode.FL2V)
+                            draft.last.takeIf { it.isNotBlank() } else null,
+                        // An empty slot must also cut the template's own sample image.
+                        clearFirstFrame = mode == H3Plan.Mode.FL2V && draft.first.isBlank(),
+                        clearLastFrame = mode == H3Plan.Mode.FL2V && draft.last.isBlank(),
                          // Submitted count == what is actually wired, not the number of tiles shown.
                          maxReferences = if (mode == H3Plan.Mode.R2V) submittedRefs.size else null,
-                        extras = modelPayload(plan, draft)
+                        extras = modelPayload(
+                            plan,
+                            if (seedPatch.isEmpty()) draft
+                            else draft.copy(extras = draft.extras + seedPatch)
+                        )
                     ), aspectOptions)
                 }
             }.getOrElse {
@@ -759,6 +832,49 @@ fun H3StudioContent(
                             id, live.getBaseUrl().orEmpty(), "H3 ${mode.label}",
                             System.currentTimeMillis(), "QUEUED"))
                         sh.hnet.comfychair.queue.JobRegistry.clearFailure()
+                        // H3 writes through SaveVideo, which stores no prompt in the file, so
+                        // the parameters are captured here — this is the only moment they exist.
+                        runCatching {
+                            val unet = spec.unet?.let { ref ->
+                                (draft.extras[ref.key] ?: ref.value)
+                                    .substringAfterLast('\\').substringAfterLast('/')
+                            }
+                            val loras = buildList {
+                                draft.loras.values
+                                    .filter { it.enabled && it.file.isNotBlank() }
+                                    .forEach {
+                                        add(LoraInfo(
+                                            it.file.substringAfterLast('\\').substringAfterLast('/'),
+                                            it.strength
+                                        ))
+                                    }
+                                draft.extraLoras
+                                    .filter { it.name.isNotBlank() }
+                                    .forEach {
+                                        add(LoraInfo(
+                                            it.name.substringAfterLast('\\').substringAfterLast('/'),
+                                            it.strength.toDoubleOrNull() ?: 1.0
+                                        ))
+                                    }
+                            }
+                            val seed = spec.extras.firstOrNull { it.input in H3Seed.INPUTS }
+                                ?.let { extra ->
+                                    (draft.extras[extra.key] ?: extra.value.toString()).toLongOrNull()
+                                }
+                            MetadataStore.put(
+                                context,
+                                ConnectionManager.currentServerId ?: live.getBaseUrl().orEmpty(),
+                                id,
+                                MetadataStore.ANY_FILE,
+                                GenerationMetadata(
+                                    positivePrompt = prompt,
+                                    seed = seed,
+                                    steps = draft.steps.toIntOrNull(),
+                                    unets = listOfNotNull(unet),
+                                    loras = loras
+                                )
+                            )
+                        }
                         lastPromptId = id; result = null; resultPoster = null
                         if (draft.continuationAuto) {
                             autoPrefs.edit().putString("pending", id).apply()
@@ -811,18 +927,20 @@ fun H3StudioContent(
 
     Column(Modifier.fillMaxSize()) {
 
-        // Same bar as the ordinary video pages, and only while this page owns the running job.
-        if (ownJobExecuting && generationState != null && generationState.maxProgress > 0) {
-            sh.hnet.comfychair.ui.components.GenerationProgressBar(
-                progress = generationState.progress,
-                maxProgress = generationState.maxProgress,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
         // A slim bar names the card you are inside once its own header has scrolled away. The
         // cards themselves are untouched -- folding their headers made every pass-through animate.
         val listState = rememberLazyListState()
+
+        // Tab tapped again while on H3 workspace: smooth scroll back to top
+        val reselects = sh.hnet.comfychair.navigation.LocalTabReselects.current
+        LaunchedEffect(reselects) {
+            reselects.collect { route ->
+                if (route == sh.hnet.comfychair.navigation.MainRoute.H3Workspace) {
+                    listState.animateScrollToItem(0)
+                }
+            }
+        }
+
         val cardTitles = listOf(
             "视频提示词",
             if (area == H3Plan.Area.R2V) "参考素材" else "素材",
@@ -926,9 +1044,11 @@ fun H3StudioContent(
                         else "已选 ${filledRefs.size} / ${draft.refs.size} 张" +
                             (if (draft.continuation.isNotBlank()) " · 含尾帧" else "")
                     } else {
-                        "当前：${mode.label} · " + when (mode) {
-                            H3Plan.Mode.T2V -> "未选图片，纯文生"
-                            H3Plan.Mode.I2V -> "提交首帧"
+                        "当前：$modeLabel · " + when {
+                            mode == H3Plan.Mode.T2V -> "未选图片，纯文生"
+                            mode == H3Plan.Mode.I2V -> "提交首帧"
+                            draft.first.isBlank() -> "只提交尾帧，画面朝它收尾"
+                            draft.last.isBlank() -> "只提交首帧"
                             else -> "提交首帧 + 尾帧"
                         }
                     }
@@ -1007,8 +1127,7 @@ fun H3StudioContent(
                                                 onClick = {
                                                     selectedRef = if (selectedRef == cell) -1 else cell
                                                     if (file.isBlank() && selectedRef == cell) {
-                                                        pendingSlot = "ref:$cell"
-                                                        picker.launch("image/*")
+                                                        sourcePickerSlot = "ref:$cell"
                                                     }
                                                 }
                                             )
@@ -1041,7 +1160,7 @@ fun H3StudioContent(
                                     update(draft.copy(refs = refs))
                                     selectedRef = index + 1
                                 },
-                                onReplace = { pendingSlot = "ref:$index"; picker.launch("image/*") },
+                                 onReplace = { sourcePickerSlot = "ref:$index" },
                                 onToggle = {
                                     update(draft.copy(
                                         disabledRefs = if (disabled) draft.disabledRefs - index
@@ -1146,7 +1265,7 @@ fun H3StudioContent(
                                 revision = previewRevision,
                                 enabled = !busy && client != null,
                                 modifier = Modifier.weight(1f),
-                                onPick = { pendingSlot = "first"; picker.launch("image/*") },
+                                onPick = { sourcePickerSlot = "first" },
                                 onRemove = { update(draft.copy(first = "")); previewRevision++ }
                             )
                             H3FrameSlot(
@@ -1156,7 +1275,7 @@ fun H3StudioContent(
                                 revision = previewRevision,
                                 enabled = !busy && client != null,
                                 modifier = Modifier.weight(1f),
-                                onPick = { pendingSlot = "last"; picker.launch("image/*") },
+                                onPick = { sourcePickerSlot = "last" },
                                 onRemove = { update(draft.copy(last = "")); previewRevision++ }
                             )
                         }
@@ -1179,7 +1298,7 @@ fun H3StudioContent(
                             when (mode) {
                                 H3Plan.Mode.T2V -> "两张都空着就是文生视频，不提交任何图片。"
                                 H3Plan.Mode.I2V -> "只填首帧就是图生视频；再填尾帧即变成首尾帧视频。"
-                                else -> "首帧锁定开头、尾帧锁定结尾，中间自动补全。"
+                                else -> "首帧锁定开头、尾帧锁定结尾；只填尾帧也能生成，画面朝那张收尾。"
                             },
                             style = MaterialTheme.typography.labelSmall
                         )
@@ -1288,6 +1407,35 @@ fun H3StudioContent(
                         onCustom = { editText = draft.steps; editing = H3NumberParam.STEPS }
                     )
 
+                    // The seed belongs with the sampling knobs, not behind the advanced fold: it is
+                    // the one value that decides whether two runs of the same prompt differ.
+                    val seedExtras = spec.extras.filter { it.input in H3Seed.INPUTS }
+                    if (seedExtras.isNotEmpty()) {
+                        H3Divider()
+                        val seedAuto = remember(workflowId) {
+                            mutableStateOf(H3Seed.autoRandom(context))
+                        }
+                        seedExtras.forEach { extra ->
+                            H3SeedField(
+                                value = draft.extras[extra.key] ?: extra.value.toString(),
+                                auto = seedAuto.value,
+                                enabled = !busy,
+                                onAutoChange = { on ->
+                                    H3Seed.setAutoRandom(context, on)
+                                    seedAuto.value = on
+                                },
+                                onRoll = {
+                                    update(draft.copy(
+                                        extras = draft.extras + (extra.key to H3Seed.next().toString())
+                                    ))
+                                },
+                                onValueChange = { text ->
+                                    update(draft.copy(extras = draft.extras + (extra.key to text)))
+                                }
+                            )
+                        }
+                    }
+
                     when (editing) {
                         H3NumberParam.SECONDS -> {
                             val v = editText.toDoubleOrNull()
@@ -1338,9 +1486,71 @@ fun H3StudioContent(
                                 onDismiss = { editing = null }
                             )
                         }
+                        H3NumberParam.SECOND_PASS_MP -> {
+                            val v = editText.toDoubleOrNull()
+                            H3NumberDialog(
+                                title = "自定义二采像素量", unit = "MP",
+                                hint = "推荐 0.5 – 2.0 MP；两阶段放大二采精修目标像素量",
+                                value = editText,
+                                valid = v != null && v >= 0.1 && v <= 8.0,
+                                onChange = { editText = it },
+                                onConfirm = {
+                                    update(draft.copy(extras = draft.extras + ("23:value" to editText.trimEnd('.'))))
+                                    editing = null
+                                },
+                                onDismiss = { editing = null }
+                            )
+                        }
+                        H3NumberParam.SECOND_PASS_STEPS -> {
+                            val v = editText.toIntOrNull()
+                            H3NumberDialog(
+                                title = "自定义二采采样步数", unit = "步",
+                                hint = "推荐 2 – 10 步；Turbo 加速二采去噪精修步数",
+                                value = editText,
+                                valid = v != null && v in 1..50,
+                                wholeNumbers = true,
+                                onChange = { editText = it },
+                                onConfirm = {
+                                    update(draft.copy(extras = draft.extras + ("102:steps" to editText.trimEnd('.'))))
+                                    editing = null
+                                },
+                                onDismiss = { editing = null }
+                            )
+                        }
+                        H3NumberParam.RTX_SCALE -> {
+                            val v = editText.toDoubleOrNull()
+                            H3NumberDialog(
+                                title = "自定义 RTX 超分倍率", unit = "倍",
+                                hint = "填 1.0 即为不放大；1.2 为 1.2 倍放大；1.5 为 1.5 倍放大",
+                                value = editText,
+                                valid = v != null && v >= 1.0 && v <= 4.0,
+                                onChange = { editText = it },
+                                onConfirm = {
+                                    update(draft.copy(extras = draft.extras + ("39:resize_type.scale" to editText.trimEnd('.'))))
+                                    editing = null
+                                },
+                                onDismiss = { editing = null }
+                            )
+                        }
                         null -> Unit
                     }
                     }
+                }
+            }
+
+            // 3.5 二采与 Turbo 增强流水线设置（仅在 Turbo 工作流存在 94:value 时智能显示）
+            if (isTurbo) {
+                item {
+                    H3TurboPipelineCard(
+                        spec = spec,
+                        draft = draft,
+                        busy = busy,
+                        onEditNumber = { param, current ->
+                            editText = current
+                            editing = param
+                        },
+                        onUpdate = { update(it) }
+                    )
                 }
             }
 
@@ -1352,7 +1562,12 @@ fun H3StudioContent(
                 H3Card(
                     "模型与 LoRA",
                      subtitle = listOfNotNull(
-                         spec.unet?.fileName ?: "未识别基础模型",
+                         // The dropdown can hold a pick that differs from the template's own file;
+                      // the summary has to name what will actually be submitted.
+                      spec.unet?.let { ref ->
+                          (draft.extras[ref.key] ?: ref.value)
+                              .substringAfterLast('\\').substringAfterLast('/')
+                      } ?: "未识别基础模型",
                          if (spec.loras.isEmpty()) "无 LoRA" else "$loraOn/${spec.loras.size} LoRA 启用"
                      ).joinToString(" · "),
                      trailing = {
@@ -1493,7 +1708,9 @@ fun H3StudioContent(
                         H3Divider()
                         if (spec.extras.isEmpty()) Text("当前工作流没有其他可编辑的标量参数",
                             style = MaterialTheme.typography.labelSmall)
-                        spec.extras.forEach { extra ->
+                        // The seed has its own control on the basic page; repeating it here as a
+                        // plain text cell was how two "seed" fields ended up disagreeing.
+                        spec.extras.filter { !it.hidden && it.input !in H3Seed.INPUTS }.forEach { extra ->
                             val text = draft.extras[extra.key] ?: extra.value.toString()
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1554,7 +1771,7 @@ fun H3StudioContent(
                         }
                     } else {
                         Text(
-                            "Scheduler / Denoise / Sampler / 输出帧率 / Seed 等 ${spec.extras.size} 项可改",
+                            "Scheduler / Denoise / Sampler / 输出帧率 等 ${spec.extras.count { !it.hidden && it.input !in H3Seed.INPUTS }} 项可改",
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -1693,25 +1910,55 @@ fun H3StudioContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        // Three single-line rows. Previously five values shared one Text, which
-                        // let a wrap land inside a token ("4" / "步") and push the bar taller.
+                        // The template name is already the big line at the top of the page; the
+                        // bar carries parameters only, first pass then second pass on its own line.
+                        val baseSummary = listOfNotNull(
+                            H3Resolution.label(
+                                if (draft.customW.isNotBlank()) "${draft.customW}:${draft.customH}"
+                                else draft.ratio
+                            ),
+                            "${draft.mp} MP",
+                            "${draft.seconds}s",
+                            if (stepsShown.isBlank()) null else "${stepsShown} 步"
+                        ).joinToString(" · ")
+                        // Second pass gets its own two lines: one line of everything ran off the
+                        // edge on a phone, and the values that fell off were the ones that matter.
+                        val secondPassOn = isTurbo &&
+                            draft.extras["94:value"]?.toBooleanStrictOrNull() != true
+                        val secondPassLine = when {
+                            !isTurbo -> null
+                            !secondPassOn -> "二采 关"
+                            else -> listOfNotNull(
+                                "二采",
+                                (draft.extras["23:value"] ?: "1").let { "$it MP" },
+                                (draft.extras["102:steps"] ?: "3").let { "$it 步" },
+                                draft.extras["102:denoise"]?.let { "降噪 $it" }
+                            ).joinToString(" · ")
+                        }
+                        val accelLine = if (!isTurbo) null else {
+                            val frameGen = draft.extras["173:value"] ?: "1"
+                            listOfNotNull(
+                                "RTX ${draft.extras["39:resize_type.scale"] ?: "1.2"}×",
+                                if (spec.extras.any { it.key == "173:value" } && frameGen != "1") {
+                                    "${frameGen}×插帧"
+                                } else null
+                            ).joinToString(" · ").ifBlank { null }
+                        }
                         Text(
-                            workflow.name,
+                            baseSummary,
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        if (secondPassLine != null) Text(
+                            secondPassLine,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            listOfNotNull(
-                                H3Resolution.label(
-                                    if (draft.customW.isNotBlank()) "${draft.customW}:${draft.customH}"
-                                    else draft.ratio
-                                ),
-                                "${draft.mp} MP",
-                                "${draft.seconds}s",
-                                if (stepsShown.isBlank()) null else "${stepsShown} 步"
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.labelMedium,
+                        if (accelLine != null) Text(
+                            accelLine,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         val failure = queueState.lastFailure
@@ -1743,7 +1990,6 @@ fun H3StudioContent(
                     // submits, so a second and third segment can be queued while one runs.
                     GenerationButton(
                         modifier = Modifier.width(180.dp),
-                        queueSize = queueState.ownActiveJobCount,
                         isExecuting = ownJobExecuting,
                         isEnabled = !busy && client != null && !draft.mpOutOfRange,
                         isUploading = busy,
@@ -1754,6 +2000,82 @@ fun H3StudioContent(
                     )
                 }
             }
+        }
+
+        if (sourcePickerSlot != null) {
+            val slot = sourcePickerSlot
+            val title = when {
+                slot == "first" -> "选择首帧素材"
+                slot == "last" -> "选择尾帧素材"
+                slot?.startsWith("ref:") == true -> "选择参考图素材"
+                else -> "选择素材"
+            }
+            val currentFile = when {
+                slot == "first" -> draft.first
+                slot == "last" -> draft.last
+                slot?.startsWith("ref:") == true -> {
+                    val index = slot.removePrefix("ref:").toIntOrNull() ?: 0
+                    draft.refs.getOrNull(index)
+                }
+                else -> null
+            }
+            sh.hnet.comfychair.ui.components.H3SourcePickerSheet(
+                title = title,
+                currentSelectedFile = currentFile,
+                onDismiss = { sourcePickerSlot = null },
+                onPickFromAlbum = {
+                    val s = sourcePickerSlot
+                    sourcePickerSlot = null
+                    pendingSlot = s
+                    picker.launch("image/*")
+                },
+                onSelectFile = { filename, localPath ->
+                    val s = sourcePickerSlot
+                    sourcePickerSlot = null
+                    fun applySlotName(name: String) {
+                        update(when {
+                            s == "first" -> draft.copy(first = name)
+                            s == "last" -> draft.copy(last = name)
+                            else -> {
+                                val index = s?.removePrefix("ref:")?.toIntOrNull() ?: 0
+                                val refs = draft.refs.toMutableList()
+                                while (refs.size <= index) refs.add("")
+                                refs[index] = name
+                                draft.copy(refs = refs)
+                            }
+                        })
+                        previewRevision++
+                    }
+                    if (localPath == null) {
+                        // A server file is used by its name: nothing is uploaded
+                        applySlotName(filename)
+                        message = "已载入服务器素材：$filename"
+                    } else {
+                        // A frame this app wrote is only on the phone, so the server gets a copy
+                        val target = ConnectionManager.clientOrNull
+                        val bytesResult = runCatching { java.io.File(localPath).readBytes() }
+                        val bytes = bytesResult.getOrNull()
+                        if (target == null || bytes == null || bytes.isEmpty()) {
+                            message = "该帧无法读取，未能上传"
+                        } else {
+                            busy = true
+                            message = "正在上传提取帧…"
+                            target.uploadImage(
+                                bytes, "h3_${UUID.randomUUID()}.png",
+                                overwrite = false, returnFullPath = true
+                            ) { ok, name, error, _ ->
+                                main.post {
+                                    busy = false
+                                    if (ok && name != null) {
+                                        applySlotName(name)
+                                        message = "已载入提取帧：$filename"
+                                    } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                                }
+                            }
+                        }
+                    }
+                }
+            )
         }
     }
 }
@@ -1778,7 +2100,8 @@ private fun modelPayload(plan: H3Plan.Spec, draft: H3Draft): Map<String, Any> {
         val original = originals[key] ?: return@forEach
         if (text == original) return@forEach
         val value: Any = typed[key]?.let { extra ->
-            typedValue(extra.value, text) ?: error("${extra.label} 需要合法数值")
+            typedValue(extra.value, text, seed = extra.input in H3Seed.INPUTS)
+                ?: error("${extra.label} 需要合法数值")
         } ?: text
         out[key] = value
     }
@@ -1789,12 +2112,20 @@ private fun ComfyFrames(expression: String, seconds: Double): Int? =
     sh.hnet.comfychair.workflow.ComfyExpr.frames(expression, seconds)
 
 /** Keep the JSON type of a scalar: integers stay integers, combos stay strings. */
-private fun typedValue(original: Any, text: String): Any? = when (original) {
-    is Boolean -> text.trim().toBooleanStrictOrNull()
-    is Int -> text.trim().toIntOrNull()
-    is Long -> text.trim().toLongOrNull()
-    is Number -> text.trim().toDoubleOrNull()?.takeIf { it.isFinite() }
-    else -> text
+private fun typedValue(original: Any, text: String, seed: Boolean = false): Any? {
+    val raw = text.trim()
+    if (raw.isEmpty()) return null
+    return when (original) {
+        is Boolean -> raw.toBooleanStrictOrNull()
+        // A seed cell can start at 0 (an Int) or be handed a 64-bit roll, and the node accepts
+        // either. Rejecting the wider form was what stopped submission with "需要合法数值".
+        // Also: float parameters initialized as Int in template (e.g. value=1 in PrimitiveFloat) must accept decimals.
+        is Int -> raw.toIntOrNull() ?: raw.toDoubleOrNull()?.takeIf { it.isFinite() } ?: raw.toLongOrNull()?.takeIf { seed }
+        is Long -> raw.toLongOrNull() ?: raw.toDoubleOrNull()?.takeIf { it.isFinite() }
+        is Number -> raw.toDoubleOrNull()?.takeIf { it.isFinite() }
+        // The template may store the seed as text; keep the 64-bit value as a number either way.
+        else -> if (seed) raw.toLongOrNull() ?: raw else raw
+    }
 }
 
 // ---------------------------------------------------------------- small parts
@@ -1869,8 +2200,189 @@ private fun h3FailureGroup(nodeType: String?): String {
     return if (group == t) t else "$group（$t）"
 }
 
-/** The three numbers that share one dialog. */
-private enum class H3NumberParam { SECONDS, MEGAPIXELS, STEPS }
+/** The numbers that share one dialog. */
+private enum class H3NumberParam { SECONDS, MEGAPIXELS, STEPS, SECOND_PASS_MP, SECOND_PASS_STEPS, RTX_SCALE }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun H3TurboPipelineCard(
+    spec: H3Plan.Spec,
+    draft: H3Draft,
+    busy: Boolean,
+    onEditNumber: (H3NumberParam, String) -> Unit,
+    onUpdate: (H3Draft) -> Unit
+) {
+    // 节点 94:value 是 Boolean。原作者语义：True = skip second pass。
+    // UI 正向语义：二采开关开 = false (不跳过，执行二采)；关 = true (跳过二采)
+    val secondPassEnabled = draft.extras["94:value"]?.toBooleanStrictOrNull() != true
+    val secondPassMp = draft.extras["23:value"] ?: "1"
+    val secondPassSteps = draft.extras["102:steps"] ?: "3"
+    val rtxScale = draft.extras["39:resize_type.scale"] ?: "1.2"
+    val hasFrameGen = spec.extras.any { it.key == "173:value" }
+    val frameGen = draft.extras["173:value"] ?: "1"
+
+    H3Card(
+        title = "二采与 Turbo 增强设置",
+        subtitle = "两阶段采样精修 · RTX 视频超分" + (if (hasFrameGen) " · 动态插帧" else "")
+    ) {
+        // 顶部流程指示条
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (secondPassEnabled) "一采+二采精修" else "一采草稿",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (secondPassEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("➔", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = "RTX 超分 (${rtxScale}×)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (rtxScale != "1" && rtxScale != "1.0") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (hasFrameGen) {
+                    Text("➔", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = if (frameGen != "1") "插帧 (${frameGen}×)" else "无插帧",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (frameGen != "1") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text("➔", style = MaterialTheme.typography.labelSmall)
+                Text("保存视频", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        H3Divider()
+
+        // 1. 二采开关
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("二采高清精修（Second Pass）", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = if (secondPassEnabled) "开启：一采低清生成后经 Latent 放大由二采精修，#39 放大二采画面"
+                           else "关闭：跳过二采，#39 将直接对一采画面进行倍率放大",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = secondPassEnabled,
+                enabled = !busy,
+                onCheckedChange = { checked ->
+                    onUpdate(draft.copy(extras = draft.extras + ("94:value" to (!checked).toString())))
+                }
+            )
+        }
+
+        // 二采子参数（仅在二采开启时展示）
+        if (secondPassEnabled) {
+            H3Divider()
+            H3ParamBlock(
+                label = "二采目标像素",
+                detail = "${secondPassMp} MP",
+                hint = "两阶段放大的目标像素量",
+                presets = listOf("0.5", "1", "1.5"),
+                value = secondPassMp,
+                enabled = !busy,
+                onPreset = { picked ->
+                    onUpdate(draft.copy(extras = draft.extras + ("23:value" to picked)))
+                },
+                onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_MP, secondPassMp) }
+            )
+
+            H3Divider()
+            H3ParamBlock(
+                label = "二采采样步数",
+                detail = "${secondPassSteps} 步",
+                hint = "Simple 调度器二次去噪步数（默认降噪 0.3）",
+                presets = listOf("3", "4", "5"),
+                value = secondPassSteps,
+                enabled = !busy,
+                onPreset = { picked ->
+                    onUpdate(draft.copy(extras = draft.extras + ("102:steps" to picked)))
+                },
+                onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_STEPS, secondPassSteps) }
+            )
+
+            H3Divider()
+            Column(Modifier.fillMaxWidth()) {
+                Text("二采 Latent 放大模型", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(Color(0xFF2E7D32), CircleShape)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "minimax_h3_latent_upscaler_3d_fp16.safetensors（内置默认）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        H3Divider()
+
+        // 2. RTX 超分倍率
+        H3ParamBlock(
+            label = "RTX 视频超分倍率",
+            detail = if (rtxScale == "1" || rtxScale == "1.0") "1.0×" else "${rtxScale}×",
+            hint = "Ultra 档超分辨率放大；填 1.0 即为原样不放大",
+            presets = listOf("1.0", "1.2", "1.5", "2.0"),
+            value = rtxScale,
+            enabled = !busy,
+            onPreset = { picked ->
+                onUpdate(draft.copy(extras = draft.extras + ("39:resize_type.scale" to picked)))
+            },
+            onCustom = { onEditNumber(H3NumberParam.RTX_SCALE, rtxScale) }
+        )
+
+        // 3. 插帧倍率 (#173, 若存在)
+        if (hasFrameGen) {
+            H3Divider()
+            Column(Modifier.fillMaxWidth()) {
+                Text("视频插帧平滑", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = when (frameGen) {
+                        "2" -> "2× 帧率倍增（原生 24fps 提升至 48fps）"
+                        "3" -> "3× 帧率倍增（原生 24fps 提升至 72fps）"
+                        else -> "关闭插帧（保持原生 24fps）"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("1" to "1× (关)", "2" to "2× (48fps)", "3" to "3× (72fps)").forEach { (optVal, optLabel) ->
+                        val selected = frameGen == optVal
+                        FilterChip(
+                            selected = selected,
+                            enabled = !busy,
+                            onClick = {
+                                onUpdate(draft.copy(extras = draft.extras + ("173:value" to optVal)))
+                            },
+                            label = { Text(optLabel) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 /** One picked audio clip, read once off the main thread before it is uploaded. */
 private data class H3PickedAudio(

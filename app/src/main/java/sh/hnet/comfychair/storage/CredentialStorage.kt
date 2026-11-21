@@ -21,6 +21,7 @@ class CredentialStorage(context: Context) {
         private const val KEY_PASSWORD_PREFIX = "password_"
         private const val KEY_TOKEN_PREFIX = "token_"
         private const val KEY_COOKIES_PREFIX = "cookies_"
+        private const val KEY_API_KEY_PREFIX = "promptApiKey_"
     }
 
     private val prefs: SharedPreferences by lazy {
@@ -144,4 +145,22 @@ class CredentialStorage(context: Context) {
             }
         }
     }
+
+    // Prompt-optimiser provider keys. Kept in the same encrypted store so a provider's
+    // key never appears in the plaintext JSON that export/backup writes out.
+
+    fun getApiKey(providerId: String): String? =
+        prefs.getString("$KEY_API_KEY_PREFIX$providerId", null)
+
+    fun setApiKey(providerId: String, apiKey: String) {
+        prefs.edit().putString("$KEY_API_KEY_PREFIX$providerId", apiKey).apply()
+        DebugLogger.d(TAG, "Saved prompt API key for provider $providerId")
+    }
+
+    fun clearApiKey(providerId: String) {
+        prefs.edit().remove("$KEY_API_KEY_PREFIX$providerId").apply()
+    }
+
+    fun hasApiKey(providerId: String): Boolean =
+        !prefs.getString("$KEY_API_KEY_PREFIX$providerId", null).isNullOrBlank()
 }

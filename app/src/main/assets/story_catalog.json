@@ -1,0 +1,9735 @@
+{
+  "schemaVersion": 2,
+  "version": "0.9.8.8382.570-story",
+  "note": "剧情组合专用词库。六族体位 + 衣物状态机，requires 查在场，requiresWorn 查还穿着。 525: partner/outfit_b 池内置，mood 走模板占位。",
+  "casts": {
+    "solo": {
+      "text": "一个女孩"
+    },
+    "mf": {
+      "text": "一男一女",
+      "male": "男的"
+    },
+    "mff": {
+      "text": "一男两女",
+      "male": "男的"
+    },
+    "ff": {
+      "text": "两个女孩"
+    }
+  },
+  "pools": {
+    "world": [
+      {
+        "text": "现代",
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "古代",
+        "common": true,
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "校园",
+        "common": true,
+        "groups": [
+          "school",
+          "room",
+          "public",
+          "bath"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "民国",
+        "common": true,
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "修仙世界观",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "异世界",
+        "eras": [
+          "fantasy"
+        ]
+      },
+      {
+        "text": "赛博都市",
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "末世",
+        "eras": [
+          "modern",
+          "cyber"
+        ]
+      },
+      {
+        "text": "都市职场",
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "宫廷",
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "武侠",
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "乡村",
+        "eras": [
+          "ancient",
+          "modern"
+        ]
+      },
+      {
+        "text": "蒸汽朋克",
+        "eras": [
+          "modern",
+          "cyber"
+        ]
+      },
+      {
+        "text": "太空站",
+        "eras": [
+          "cyber"
+        ]
+      }
+    ],
+    "time": [
+      {
+        "text": "深夜",
+        "common": true
+      },
+      {
+        "text": "傍晚",
+        "common": true
+      },
+      {
+        "text": "清晨",
+        "common": true
+      },
+      {
+        "text": "午后",
+        "common": true
+      },
+      {
+        "text": "凌晨",
+        "common": true
+      },
+      {
+        "text": "黄昏",
+        "common": true
+      },
+      {
+        "text": "闷热的夏夜"
+      }
+    ],
+    "style": [
+      {
+        "text": "写实照片",
+        "common": true
+      },
+      {
+        "text": "电影剧照质感",
+        "common": true
+      },
+      {
+        "text": "手机私房写真",
+        "common": true
+      },
+      {
+        "text": "日系写真集风",
+        "common": true
+      },
+      {
+        "text": "高级私房摄影",
+        "common": true
+      },
+      {
+        "text": "电影感私房人像",
+        "common": true
+      },
+      {
+        "text": "霓虹夜色赛博人像",
+        "common": true,
+        "times": [
+          "傍晚",
+          "凌晨",
+          "深夜",
+          "闷热的夏夜",
+          "雨夜",
+          "雪夜",
+          "黄昏",
+          "外面下着雨，雨声很密",
+          "外面阴着天，雨还下着",
+          "外面堆着新雪，窗台白了一层"
+        ]
+      },
+      {
+        "text": "港风复古人像",
+        "common": true
+      },
+      {
+        "text": "柔焦梦幻人像",
+        "common": true
+      },
+      {
+        "text": "3D次世代CG",
+        "common": true
+      },
+      {
+        "text": "韩漫彩稿",
+        "common": true
+      },
+      {
+        "text": "成人OVA肉感动漫",
+        "common": true
+      },
+      {
+        "text": "复古杂志写真"
+      },
+      {
+        "text": "复古低清DV"
+      },
+      {
+        "text": "日式动漫"
+      },
+      {
+        "text": "赛璐璐动画"
+      },
+      {
+        "text": "2D动画"
+      },
+      {
+        "text": "美式漫画"
+      },
+      {
+        "text": "Galgame立绘"
+      },
+      {
+        "text": "京都清透动漫"
+      },
+      {
+        "text": "日系半写实动漫清透风"
+      },
+      {
+        "text": "新海诚光影动漫"
+      },
+      {
+        "text": "90年代复古动漫"
+      },
+      {
+        "text": "日系成熟向漫画彩稿"
+      },
+      {
+        "text": "欧美厚涂插画"
+      },
+      {
+        "text": "半写实电影感动漫厚涂"
+      },
+      {
+        "text": "半写实成熟向动漫厚涂"
+      },
+      {
+        "text": "欧式古典油画"
+      },
+      {
+        "text": "维多利亚哥特暗黑美学",
+        "times": [
+          "傍晚",
+          "凌晨",
+          "深夜",
+          "闷热的夏夜",
+          "雨夜",
+          "雪夜",
+          "黄昏",
+          "外面下着雨，雨声很密",
+          "外面阴着天，雨还下着",
+          "外面堆着新雪，窗台白了一层"
+        ]
+      },
+      {
+        "text": "3D写实渲染"
+      },
+      {
+        "text": "3D卡通渲染"
+      },
+      {
+        "text": "3D国漫玄幻"
+      },
+      {
+        "text": "韩系成熟厚涂"
+      }
+    ],
+    "hair": [
+      {
+        "text": "长发及腰",
+        "common": true
+      },
+      {
+        "text": "长直发",
+        "common": true
+      },
+      {
+        "text": "扎着马尾",
+        "common": true
+      },
+      {
+        "text": "盘发",
+        "common": true
+      },
+      {
+        "text": "齐肩发",
+        "common": true
+      },
+      {
+        "text": "波浪卷发",
+        "common": true
+      },
+      {
+        "text": "短发利落"
+      },
+      {
+        "text": "双马尾"
+      },
+      {
+        "text": "麻花辫"
+      },
+      {
+        "text": "高马尾"
+      },
+      {
+        "text": "湿发贴在脸颊"
+      },
+      {
+        "text": "刘海遮住眼睛"
+      },
+      {
+        "text": "半扎半放"
+      },
+      {
+        "text": "短发别在耳后"
+      },
+      {
+        "text": "波波头"
+      },
+      {
+        "text": "低马尾"
+      },
+      {
+        "text": "丸子头"
+      },
+      {
+        "text": "双丸子"
+      },
+      {
+        "text": "侧辫"
+      },
+      {
+        "text": "大波浪"
+      },
+      {
+        "text": "空气刘海"
+      },
+      {
+        "text": "齐刘海"
+      },
+      {
+        "text": "公主切"
+      },
+      {
+        "text": "姬发式"
+      },
+      {
+        "text": "湿发"
+      },
+      {
+        "text": "高盘发"
+      },
+      {
+        "text": "狼尾发型"
+      },
+      {
+        "text": "内扣"
+      },
+      {
+        "text": "外翻"
+      },
+      {
+        "text": "半扎发"
+      },
+      {
+        "text": "鱼骨辫"
+      },
+      {
+        "text": "锁骨发"
+      },
+      {
+        "text": "高髻"
+      },
+      {
+        "text": "发髻"
+      },
+      {
+        "text": "遮眼刘海"
+      },
+      {
+        "text": "低丸子"
+      },
+      {
+        "text": "侧马尾"
+      },
+      {
+        "text": "双麻花"
+      },
+      {
+        "text": "法式刘海"
+      },
+      {
+        "text": "锁骨微卷"
+      },
+      {
+        "text": "低盘发"
+      },
+      {
+        "text": "耳边碎发"
+      },
+      {
+        "text": "凌乱散发"
+      }
+    ],
+    "build": [
+      {
+        "text": "身材苗条",
+        "common": true
+      },
+      {
+        "text": "微胖",
+        "common": true
+      },
+      {
+        "text": "个子高挑",
+        "common": true
+      },
+      {
+        "text": "肉感",
+        "common": true
+      },
+      {
+        "text": "曲线明显"
+      },
+      {
+        "text": "骨架很小"
+      },
+      {
+        "text": "精瘦"
+      },
+      {
+        "text": "肩膀很窄"
+      },
+      {
+        "text": "臀部很翘"
+      },
+      {
+        "text": "大腿丰满"
+      },
+      {
+        "text": "身形圆润"
+      },
+      {
+        "text": "沙漏身材"
+      },
+      {
+        "text": "模特身材"
+      },
+      {
+        "text": "健身身材"
+      },
+      {
+        "text": "梨形身材"
+      },
+      {
+        "text": "骨感"
+      },
+      {
+        "text": "丰腴"
+      },
+      {
+        "text": "匀称"
+      },
+      {
+        "text": "窄腰宽胯"
+      },
+      {
+        "text": "细骨架"
+      },
+      {
+        "text": "高个子纤细"
+      },
+      {
+        "text": "娇小"
+      },
+      {
+        "text": "运动员身材"
+      },
+      {
+        "text": "标准身材"
+      },
+      {
+        "text": "圆肩软腰"
+      },
+      {
+        "text": "丰满但不胖"
+      },
+      {
+        "text": "小个子丰满"
+      },
+      {
+        "text": "柔软肉感"
+      },
+      {
+        "text": "腰腹线条清晰"
+      },
+      {
+        "text": "大腿缝明显"
+      },
+      {
+        "text": "力量型身材"
+      },
+      {
+        "text": "蜜桃臀"
+      }
+    ],
+    "accent": [
+      {
+        "text": "戴着耳环",
+        "common": true
+      },
+      {
+        "text": "戴着项链",
+        "common": true
+      },
+      {
+        "text": "嘴唇上有一颗痣",
+        "common": true
+      },
+      {
+        "text": "戴着项圈"
+      },
+      {
+        "text": "戴着戒指"
+      },
+      {
+        "text": "戴着脚链"
+      },
+      {
+        "text": "戴着蕾丝颈饰"
+      },
+      {
+        "text": "有纹身"
+      },
+      {
+        "text": "戴着手表"
+      },
+      {
+        "text": "指甲涂黑"
+      },
+      {
+        "text": "耳后别着一朵花"
+      },
+      {
+        "text": "戴着丝质手套"
+      }
+    ],
+    "place": [
+      {
+        "text": "厨房",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面",
+          "水"
+        ],
+        "common": true
+      },
+      {
+        "text": "餐桌边",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面",
+          "桌"
+        ],
+        "common": true
+      },
+      {
+        "text": "冰箱前",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面",
+          "冰箱"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "灶台前",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面"
+        ],
+        "common": true
+      },
+      {
+        "text": "洗碗池前",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面",
+          "水"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "橱柜边",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "台面"
+        ],
+        "common": true
+      },
+      {
+        "text": "厨房的地上",
+        "groups": [
+          "kitchen"
+        ],
+        "common": true
+      },
+      {
+        "text": "餐厅的角落",
+        "groups": [
+          "kitchen"
+        ],
+        "props": [
+          "桌"
+        ],
+        "common": true
+      },
+      {
+        "text": "浴室里",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "台面",
+          "镜",
+          "水"
+        ],
+        "common": true
+      },
+      {
+        "text": "浴缸里",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "浴缸",
+          "水"
+        ],
+        "common": true
+      },
+      {
+        "text": "淋浴间",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "墙",
+          "水"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "洗手台前",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ],
+        "common": true
+      },
+      {
+        "text": "镜子前",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "镜"
+        ],
+        "common": true
+      },
+      {
+        "text": "浴帘后",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "浴缸"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "桑拿房",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "木凳"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "洗衣机旁边",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "台面",
+          "洗衣机"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "浴缸边上",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "浴缸"
+        ]
+      },
+      {
+        "text": "浴室的地上",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "蒸汽弥漫的浴室",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "镜",
+          "水"
+        ]
+      },
+      {
+        "text": "卧室床边",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床"
+        ]
+      },
+      {
+        "text": "床上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床"
+        ]
+      },
+      {
+        "text": "客厅的沙发上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "沙发"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "地毯上",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "落地窗前",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "窗"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "衣柜前",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "门"
+        ]
+      },
+      {
+        "text": "梳妆台前",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ]
+      },
+      {
+        "text": "窗帘后",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "窗"
+        ]
+      },
+      {
+        "text": "沙发扶手上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "沙发"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "电视柜前",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "玄关",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "门"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "飘窗上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "窗"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "书桌前",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "桌"
+        ]
+      },
+      {
+        "text": "酒店房间",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "酒店的大床上",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "民宿的木屋里",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "民宿的露台上",
+        "groups": [
+          "hotel"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "酒店的浴缸里",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "浴缸",
+          "水"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "高层房间的落地窗前",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "窗"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "汽车旅馆",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "办公桌上",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "桌",
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "办公椅上",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "椅"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "会议室",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "桌",
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "打印机旁",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "办公室隔间里",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "文件柜前",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "公司洗手间",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "工位旁",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "大学教室里",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "桌",
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "图书馆书架间",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "书架"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "图书馆自习区",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "社团活动室",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "桌",
+          "沙发"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "教学楼楼梯间",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "墙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "教职工办公室",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "体育馆器材室",
+        "groups": [
+          "school"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "车里",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车",
+          "椅"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "车后座",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "驾驶座",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车",
+          "椅"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "副驾驶座",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车",
+          "椅"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "停车场",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "车库",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "车"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "电梯里",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "墙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "走廊尽头",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "墙"
+        ]
+      },
+      {
+        "text": "楼梯转角",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "墙",
+          "扶手"
+        ]
+      },
+      {
+        "text": "公共洗手间",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "试衣间",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "储物间",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "洗衣房",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "台面",
+          "洗衣机"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "健身房更衣室",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "长凳",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "24小时便利店后巷",
+        "groups": [
+          "alley"
+        ],
+        "props": [
+          "墙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "演唱会后台",
+        "groups": [
+          "backstage"
+        ],
+        "props": [
+          "沙发",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "化妆间",
+        "groups": [
+          "backstage"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ]
+      },
+      {
+        "text": "舞台侧幕",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "器材间",
+        "groups": [
+          "backstage"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "健身房器械区",
+        "groups": [
+          "gym"
+        ],
+        "props": [
+          "长凳",
+          "器械"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "瑜伽室",
+        "groups": [
+          "gym"
+        ],
+        "props": [
+          "垫子"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "泳池更衣室",
+        "groups": [
+          "gym"
+        ],
+        "props": [
+          "长凳",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "泳池边",
+        "groups": [
+          "gym"
+        ],
+        "props": [
+          "池边"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "阳台",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "扶手",
+          "洗衣机"
+        ]
+      },
+      {
+        "text": "天台",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "墙"
+        ]
+      },
+      {
+        "text": "花园里",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "沙滩上",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "树林里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "树"
+        ]
+      },
+      {
+        "text": "帐篷里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "垫子"
+        ]
+      },
+      {
+        "text": "露台",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "扶手"
+        ]
+      },
+      {
+        "text": "后巷的墙边",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "墙"
+        ]
+      },
+      {
+        "text": "公园的长椅上",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "长凳"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "野外的草地上",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "阶梯教室里",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "桌",
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "实验室里",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "琴房里",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "琴"
+        ]
+      },
+      {
+        "text": "体育馆看台上",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "看台"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "宿舍走廊",
+        "groups": [
+          "school"
+        ],
+        "props": [
+          "墙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "阁楼里",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "地下室",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "墙"
+        ]
+      },
+      {
+        "text": "会议室的长桌下",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "储物柜间",
+        "groups": [
+          "office"
+        ],
+        "props": [
+          "柜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "KTV包厢里",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "沙发"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "网吧包间",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "椅",
+          "桌"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "酒吧的卡座",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "沙发"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "照相馆的幕布前",
+        "groups": [
+          "public"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "美容院的按摩床上",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "高铁的洗手间",
+        "groups": [
+          "public"
+        ],
+        "props": [
+          "台面",
+          "镜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "温泉里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "水"
+        ]
+      },
+      {
+        "text": "竹林里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "树"
+        ]
+      },
+      {
+        "text": "温室花房里",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "废弃的厂房",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "墙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "海边礁石上",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "录音棚",
+        "groups": [
+          "backstage"
+        ],
+        "props": [
+          "台面"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "练功房",
+        "groups": [
+          "backstage"
+        ],
+        "props": [
+          "把杆",
+          "镜"
+        ]
+      },
+      {
+        "text": "厢房里",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床",
+          "桌"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "卧房里的拔步床上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "屏风后",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "罗汉床上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床",
+          "台面"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "书房的案几上",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "台面",
+          "桌"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "浴房里",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "水",
+          "台面"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "柴房里",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "客栈客房",
+        "groups": [
+          "hotel"
+        ],
+        "props": [
+          "床",
+          "桌"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "藏书阁的书架间",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "书架"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "亭子里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "长凳"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "竹林深处",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "假山后",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "温泉池边",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "池边",
+          "水"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "马车里",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "垫子"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "洞府内",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床",
+          "台面"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "灵泉池中",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "水",
+          "池边"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "蒲团上",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "宗门禁地",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "飞舟船舱里",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "垫子"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "药浴桶里",
+        "groups": [
+          "bath"
+        ],
+        "props": [
+          "水"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "全息投影室",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "台面"
+        ],
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "安全屋的地下室",
+        "groups": [
+          "room"
+        ],
+        "props": [
+          "床"
+        ],
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "悬浮车的后座",
+        "groups": [
+          "car"
+        ],
+        "props": [
+          "垫子"
+        ],
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "霓虹小巷里",
+        "groups": [
+          "alley"
+        ],
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "废墟掩体后",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "cyber"
+        ]
+      },
+      {
+        "text": "山顶的草地上",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "草地"
+        ]
+      },
+      {
+        "text": "雪地里",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "雪地"
+        ]
+      },
+      {
+        "text": "湖畔的浅滩上",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "水边"
+        ]
+      },
+      {
+        "text": "夜里的海边礁石上",
+        "groups": [
+          "outdoor"
+        ],
+        "props": [
+          "礁石"
+        ]
+      }
+    ],
+    "outfit": [
+      {
+        "text": "全裸",
+        "common": true,
+        "exclusive": true
+      },
+      {
+        "text": "全裸，身上还挂着水珠",
+        "groups": [
+          "bath",
+          "hotel"
+        ],
+        "exclusive": true
+      },
+      {
+        "text": "全裸，头发还湿着",
+        "groups": [
+          "bath"
+        ],
+        "exclusive": true
+      },
+      {
+        "text": "全裸，只留了一条项链",
+        "exclusive": true
+      },
+      {
+        "text": "只围了一条围裙",
+        "wears": [
+          "围裙"
+        ],
+        "common": true,
+        "exclusive": true
+      },
+      {
+        "text": "围裙里面什么都没穿",
+        "wears": [
+          "围裙"
+        ],
+        "exclusive": true
+      },
+      {
+        "text": "只穿着围裙和手套",
+        "wears": [
+          "围裙",
+          "手套"
+        ],
+        "exclusive": true
+      },
+      {
+        "text": "只穿了一件白衬衫",
+        "wears": [
+          "衬衫"
+        ],
+        "common": true,
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "衬衫扣子全开着",
+        "wears": [
+          "衬衫"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着一件男式衬衫，什么都没配",
+        "wears": [
+          "衬衫"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着一套黑色内衣",
+        "wears": [
+          "内衣",
+          "内裤"
+        ],
+        "common": true,
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿了一条内裤",
+        "wears": [
+          "内裤"
+        ],
+        "common": true,
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "上半身赤裸",
+        "common": true,
+        "exclusive": true
+      },
+      {
+        "text": "只穿着丝袜和高跟鞋",
+        "wears": [
+          "丝袜",
+          "高跟鞋"
+        ],
+        "common": true,
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着袜子",
+        "wears": [
+          "袜"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着宽松的家居服",
+        "wears": [
+          "家居服"
+        ]
+      },
+      {
+        "text": "穿着睡裙",
+        "wears": [
+          "睡裙"
+        ],
+        "common": true
+      },
+      {
+        "text": "穿着睡衣，扣子开着",
+        "wears": [
+          "睡衣"
+        ]
+      },
+      {
+        "text": "只穿着丝质吊带",
+        "wears": [
+          "吊带"
+        ],
+        "common": true,
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着吊带，肩带滑了下来",
+        "wears": [
+          "吊带"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着浴袍",
+        "wears": [
+          "浴袍",
+          "毛巾"
+        ]
+      },
+      {
+        "text": "只围着一条浴巾",
+        "wears": [
+          "浴巾"
+        ],
+        "common": true,
+        "exclusive": true
+      },
+      {
+        "text": "只穿着宽带背心和内裤",
+        "wears": [
+          "背心",
+          "内裤"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着打底衫和袜子",
+        "wears": [
+          "打底衫",
+          "袜"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着职业套装",
+        "wears": [
+          "西装",
+          "衬衫",
+          "裙",
+          "丝袜"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着职业套装，外套还没脱",
+        "wears": [
+          "西装",
+          "衬衫",
+          "裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着包臀裙和丝袜",
+        "wears": [
+          "裙",
+          "丝袜"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着白衬衫和包臀裙",
+        "wears": [
+          "衬衫",
+          "裙"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着短裙",
+        "wears": [
+          "裙"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着连衣裙，堆在腰上",
+        "wears": [
+          "裙"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着JK制服",
+        "wears": [
+          "JK制服",
+          "裙",
+          "袜"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着学生制服",
+        "wears": [
+          "制服",
+          "裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着校服",
+        "wears": [
+          "校服",
+          "裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "大学社团的T恤和短裤",
+        "wears": [
+          "T恤",
+          "短裤"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着旗袍",
+        "wears": [
+          "旗袍"
+        ],
+        "common": true,
+        "eras": [
+          "ancient",
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着和服，腰带松了一半",
+        "wears": [
+          "和服"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "穿着婚纱，裙摆铺在地上",
+        "wears": [
+          "婚纱"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着护士服",
+        "wears": [
+          "护士服"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着大衣，里面全裸",
+        "wears": [
+          "大衣"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着内裤和外套",
+        "wears": [
+          "内裤",
+          "外套"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着风衣，里面什么都没穿",
+        "wears": [
+          "风衣"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着内衣，外面套件外套",
+        "wears": [
+          "内衣",
+          "内裤",
+          "外套"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "泳装被拉到一边",
+        "wears": [
+          "泳装"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着比基尼上衣",
+        "wears": [
+          "泳装"
+        ],
+        "exclusive": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着运动背心和短裤",
+        "wears": [
+          "背心",
+          "短裤"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着工装裤和背心",
+        "wears": [
+          "工装裤",
+          "背心"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着演出服，亮片还挂着",
+        "wears": [
+          "演出服"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着汉服",
+        "wears": [
+          "汉服"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "穿着女仆装",
+        "wears": [
+          "女仆装",
+          "裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着兔女郎装",
+        "wears": [
+          "兔女郎装"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着啦啦队服",
+        "wears": [
+          "啦啦队服",
+          "裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着芭蕾练功服",
+        "wears": [
+          "练功服"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着拉丁舞裙",
+        "wears": [
+          "舞裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着瑜伽服",
+        "wears": [
+          "瑜伽服"
+        ],
+        "common": true,
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着白大褂",
+        "wears": [
+          "白大褂"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着空姐制服",
+        "wears": [
+          "空姐制服",
+          "裙",
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着皮衣",
+        "wears": [
+          "皮衣"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着紧身皮裙",
+        "wears": [
+          "皮裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着雨衣",
+        "wears": [
+          "雨衣"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着肚兜",
+        "wears": [
+          "肚兜"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "穿着轻薄的纱衣，里面什么都没穿",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ],
+        "wears": [
+          "纱衣"
+        ],
+        "common": true,
+        "available": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿着里衣，衣带还没系",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "里衣"
+        ],
+        "common": true
+      },
+      {
+        "text": "穿着宽松的道袍，腰带松垮",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ],
+        "wears": [
+          "道袍"
+        ],
+        "common": true,
+        "available": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着繁复的宫装，裙摆散开",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "宫装"
+        ],
+        "available": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着侠客劲装，护腕还没解",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "劲装"
+        ]
+      },
+      {
+        "text": "披着狐裘大氅，里面全裸",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "狐裘"
+        ],
+        "available": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着舞娘的薄纱裙，腰链垂着",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "薄纱裙"
+        ]
+      },
+      {
+        "text": "穿着修女服，头巾还没摘",
+        "eras": [
+          "ancient",
+          "modern"
+        ],
+        "wears": [
+          "修女服"
+        ],
+        "available": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着紧身机甲作战服，接口还在闪",
+        "eras": [
+          "cyber"
+        ],
+        "wears": [
+          "作战服"
+        ]
+      },
+      {
+        "text": "穿着半透明的发光雨衣，里面全裸",
+        "eras": [
+          "cyber"
+        ],
+        "wears": [
+          "雨衣"
+        ]
+      },
+      {
+        "text": "穿着贴身的数据流连体衣",
+        "eras": [
+          "cyber"
+        ],
+        "wears": [
+          "连体衣"
+        ]
+      },
+      {
+        "text": "白衬衫配百褶裙",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "衬衫",
+          "短裙"
+        ]
+      },
+      {
+        "text": "针织衫配长裙",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "针织衫",
+          "长裙"
+        ]
+      },
+      {
+        "text": "卫衣配热裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "卫衣",
+          "短裤"
+        ]
+      },
+      {
+        "text": "抹胸配A字裙",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "抹胸",
+          "短裙"
+        ]
+      },
+      {
+        "text": "细吊带裙",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "裙"
+        ]
+      },
+      {
+        "text": "吊带背心配紧身牛仔裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "背心",
+          "长裤"
+        ]
+      },
+      {
+        "text": "开衩长裙",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "长裙"
+        ]
+      },
+      {
+        "text": "短款针织衫配超短裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "针织衫",
+          "短裤"
+        ]
+      },
+      {
+        "text": "穿着OL衬衫",
+        "wears": [
+          "衬衫"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着浴衣",
+        "wears": [
+          "浴衣"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "穿着警服",
+        "wears": [
+          "警服"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只系着一条围裙，里面什么都没穿",
+        "wears": [
+          "围裙"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "exclusive": true
+      },
+      {
+        "text": "穿着水手服",
+        "wears": [
+          "水手服"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着教师套装",
+        "wears": [
+          "教师装"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着秘书套装",
+        "wears": [
+          "秘书装"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着宗门弟子服",
+        "wears": [
+          "弟子服"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "穿着无尘道袍",
+        "wears": [
+          "道袍"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "穿着广袖流仙裙",
+        "wears": [
+          "仙裙"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "穿着仙门大师姐套装",
+        "wears": [
+          "仙门套装"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "穿着花间仙子裙",
+        "wears": [
+          "仙子裙"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "穿着墨韵剑仙长袍",
+        "wears": [
+          "剑仙长袍"
+        ],
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      }
+    ],
+    "outfit_state": [
+      {
+        "text": "衣裳还很整齐",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳已经有点乱",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳半褪，露出半边肩膀",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳半褪，胸口露了出来",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣襟松散敞着，没穿内衣的胸部大片裸露在外",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣扣崩散敞开，乳房从敞开的衣襟间挤出半边弧度",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣襟大敞，敞开的衣衫下未着寸缕，露出白皙的双乳",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳全湿透了，贴在身上",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳被扯开一半，挂在臂弯",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳滑到肩下，随时会掉",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "只挂着一点衣料，什么都遮不住",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳穿得整整齐齐，里面什么都没穿",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "腰带松了，衣裳松松垮垮",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "身上还带着刚洗完的水汽",
+        "requiresWorn": [
+          "*"
+        ]
+      }
+    ],
+    "outfit_mid": [
+      {
+        "text": "内裤挂在一只脚踝上",
+        "removes": [
+          "内裤"
+        ],
+        "common": true,
+        "requiresWorn": [
+          "内裤"
+        ]
+      },
+      {
+        "text": "内裤被拉到膝盖",
+        "requiresWorn": [
+          "内裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "内裤被拨到一边",
+        "requiresWorn": [
+          "内裤"
+        ]
+      },
+      {
+        "text": "内裤湿了一片",
+        "requiresWorn": [
+          "内裤"
+        ]
+      },
+      {
+        "text": "胸罩被拉了下来",
+        "removes": [
+          "内衣"
+        ],
+        "common": true,
+        "requiresWorn": [
+          "内衣"
+        ]
+      },
+      {
+        "text": "内衣被扔在一边",
+        "removes": [
+          "内衣"
+        ],
+        "requiresWorn": [
+          "内衣"
+        ]
+      },
+      {
+        "text": "浴巾掉在地上",
+        "removes": [
+          "浴巾"
+        ],
+        "requiresWorn": [
+          "浴巾",
+          "毛巾"
+        ]
+      },
+      {
+        "text": "围裙被扯到一边",
+        "requiresWorn": [
+          "围裙"
+        ]
+      },
+      {
+        "text": "丝袜被扯开一道口子",
+        "requiresWorn": [
+          "丝袜",
+          "罗袜",
+          "袜",
+          "半截蕾丝袜"
+        ],
+        "common": true
+      },
+      {
+        "text": "丝袜勾了丝",
+        "requiresWorn": [
+          "丝袜",
+          "罗袜",
+          "袜",
+          "半截蕾丝袜"
+        ]
+      },
+      {
+        "text": "上衣还挂在肩上",
+        "requiresWorn": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "衣襟敞开着，没脱",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "下摆堆在腰上",
+        "requiresWorn": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "下摆卡在腰上，没脱",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "下摆被撩到腰上",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "下装褪到脚踝",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "外套掉在肩上",
+        "requiresWorn": [
+          "外套",
+          "风衣",
+          "大衣",
+          "西装"
+        ]
+      },
+      {
+        "text": "衣裳被推到胸口上方，露出一边",
+        "requiresWorn": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "肩带断了一根，半边衣裳挂不住",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "只脱了一只袖子，衣裳斜挂着",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣料被扯破，遮不住了",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣裳湿透了，贴在身上",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "半裸着上身，衣裳堆在腰上",
+        "requiresWorn": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "衣裳堆在脚边，身上只挂着一点",
+        "common": true
+      },
+      {
+        "text": "只剩丝袜了",
+        "removes": [
+          "*"
+        ],
+        "requiresWorn": [
+          "丝袜",
+          "罗袜",
+          "袜",
+          "半截蕾丝袜"
+        ],
+        "keep": [
+          "丝袜",
+          "罗袜",
+          "袜",
+          "半截蕾丝袜"
+        ],
+        "common": true
+      },
+      {
+        "text": "只剩内衣和内裤",
+        "removes": [
+          "*"
+        ],
+        "keep": [
+          "内衣",
+          "内裤"
+        ],
+        "common": true,
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "只剩一件外套披着",
+        "removes": [
+          "*"
+        ],
+        "keep": [
+          "外套",
+          "风衣",
+          "大衣"
+        ],
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "只剩高跟鞋",
+        "removes": [
+          "*"
+        ],
+        "keep": [
+          "高跟鞋",
+          "鞋",
+          "绣花鞋"
+        ]
+      },
+      {
+        "text": "已经完全脱光",
+        "removes": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "全身赤裸",
+        "removes": [
+          "*"
+        ]
+      }
+    ],
+    "chore": [
+      {
+        "text": "正在弯腰捡东西",
+        "common": true
+      },
+      {
+        "text": "正在脱下外套",
+        "common": true
+      },
+      {
+        "text": "正在喝水",
+        "common": true
+      },
+      {
+        "text": "正在系围裙",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在扎头发",
+        "common": true
+      },
+      {
+        "text": "正在回消息"
+      },
+      {
+        "text": "正在发呆"
+      },
+      {
+        "text": "正在整理衣领"
+      },
+      {
+        "text": "正在洗菜",
+        "groups": [
+          "kitchen"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在洗碗",
+        "groups": [
+          "kitchen"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在煮咖啡",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在切水果",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在翻冰箱",
+        "groups": [
+          "kitchen"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "正在擦台面",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在收拾餐桌",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在试汤的味道",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在把菜装盘",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在解冻食材",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在洗头发",
+        "groups": [
+          "bath"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在照镜子",
+        "groups": [
+          "bath"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在放水",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在刷牙",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在擦头发",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在刷洗浴缸",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在敷面膜",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在洗内裤",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在试水温",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在往身上抹沐浴露",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在换衣服",
+        "groups": [
+          "room",
+          "public"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在叠衣服",
+        "groups": [
+          "room"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在铺床",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在拖地",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在整理衣柜",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在晾衣服",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在看书",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在涂护手霜",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在收拾行李箱",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在拆快递",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "正在卷头发",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在调空调温度",
+        "groups": [
+          "room"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "正在拉开窗帘",
+        "groups": [
+          "hotel"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在把行李放下",
+        "groups": [
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在试酒店拖鞋",
+        "groups": [
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在看窗外的夜景",
+        "groups": [
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在整理文件",
+        "groups": [
+          "office"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在打电话",
+        "groups": [
+          "office"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在打印",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在写报告",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在泡茶",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在收拾办公桌",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在复印材料",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在整理书",
+        "groups": [
+          "school"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在书架间找书",
+        "groups": [
+          "school"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在抄笔记",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在还书",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在布置活动室",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在练台词",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在琴房外面等人",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在等红灯",
+        "groups": [
+          "car"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在找停车位",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在调座椅",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在关车窗",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在导航",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在后座补妆",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在等电梯",
+        "groups": [
+          "public"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在锁门",
+        "groups": [
+          "public"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在找钥匙",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在搬东西",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在试衣服",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在排队",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在擦汗",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在点烟",
+        "groups": [
+          "alley",
+          "outdoor"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在等外卖",
+        "groups": [
+          "alley"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "正在躲雨",
+        "groups": [
+          "alley"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在搬货",
+        "groups": [
+          "alley"
+        ]
+      },
+      {
+        "text": "正在卸妆",
+        "groups": [
+          "backstage"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在换演出服",
+        "groups": [
+          "backstage"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在对台本",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在检查耳返",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在热身",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在拉伸",
+        "groups": [
+          "gym"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在擦器械",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在量体重",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在喝水休息",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在收衣服",
+        "groups": [
+          "outdoor"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在浇花",
+        "groups": [
+          "outdoor"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在搭帐篷",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在晾泳衣",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在看手机",
+        "groups": [
+          "outdoor"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "正在吹风",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在拍照",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在穿丝袜",
+        "avoid": "丝袜"
+      },
+      {
+        "text": "正在穿内衣",
+        "avoid": "内衣"
+      },
+      {
+        "text": "正在吹头发"
+      },
+      {
+        "text": "正在修指甲"
+      },
+      {
+        "text": "正在试口红"
+      },
+      {
+        "text": "正在系鞋带"
+      },
+      {
+        "text": "正在喷香水"
+      },
+      {
+        "text": "正在量三围"
+      },
+      {
+        "text": "正在摆姿势自拍"
+      },
+      {
+        "text": "正在脱丝袜"
+      },
+      {
+        "text": "正在换床单",
+        "groups": [
+          "room",
+          "hotel",
+          "dorm"
+        ]
+      },
+      {
+        "text": "正在热饭",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在烧水",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在开红酒",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在擦灶台",
+        "groups": [
+          "kitchen"
+        ]
+      },
+      {
+        "text": "正在刮腿毛",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在涂身体乳",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在泡澡",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在擦镜子",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在擦窗户",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在给植物换水",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在装书架",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在扫地",
+        "groups": [
+          "room"
+        ]
+      },
+      {
+        "text": "正在调灯光",
+        "groups": [
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在开香薰",
+        "groups": [
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在盖章",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在核对发票",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在收文件",
+        "groups": [
+          "office"
+        ]
+      },
+      {
+        "text": "正在抄谱子",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在背单词",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在找座位",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在排练",
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "正在加油",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在洗车",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在看后视镜补口红",
+        "groups": [
+          "car"
+        ]
+      },
+      {
+        "text": "正在等位",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在试鞋",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在整理购物袋",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "正在搬啤酒箱",
+        "groups": [
+          "alley"
+        ]
+      },
+      {
+        "text": "正在抽烟",
+        "groups": [
+          "alley"
+        ]
+      },
+      {
+        "text": "正在调音",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在数拍子",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在贴胶带",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在铺瑜伽垫",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在绑护腕",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在看心率",
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "正在烤肉",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在擦防晒",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在收帐篷",
+        "groups": [
+          "outdoor"
+        ]
+      },
+      {
+        "text": "正在醉酒迷糊",
+        "groups": [
+          "room",
+          "hotel",
+          "kitchen",
+          "backstage"
+        ]
+      },
+      {
+        "text": "正在擦拭淋湿的身体",
+        "groups": [
+          "bath"
+        ]
+      },
+      {
+        "text": "正在整理散落的衣物",
+        "groups": [
+          "room",
+          "hotel"
+        ]
+      },
+      {
+        "text": "正在试穿新买的衣服",
+        "groups": [
+          "room"
+        ],
+        "common": true
+      },
+      {
+        "text": "正在做拉伸压腿",
+        "groups": [
+          "room",
+          "gym"
+        ]
+      },
+      {
+        "text": "正在写毛笔字",
+        "groups": [
+          "room",
+          "office"
+        ]
+      },
+      {
+        "text": "正在打坐调息",
+        "groups": [
+          "room"
+        ]
+      }
+    ],
+    "escalate": [
+      {
+        "text": "先低头接吻，手顺着腰往下滑",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "common": true
+      },
+      {
+        "text": "把她转过来，从背后抱住",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "common": true
+      },
+      {
+        "text": "从后面贴上去",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "common": true
+      },
+      {
+        "text": "把她的腿分开",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "一边吻一边把手伸进衣服里",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的下巴抬起来",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的头发从颈后拨开，吻下去",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把吻痕从锁骨一路往下",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "摸到她腿间",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她抵住不让动",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "把她的手腕按住，低头吻她",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "把她的手腕压在头顶",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的手按在背后",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "让她转过身",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "低头含住",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "解开围裙的带子",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "removes": [
+          "围裙"
+        ],
+        "common": true,
+        "requiresWorn": [
+          "围裙"
+        ]
+      },
+      {
+        "text": "把内裤拉到一边",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "内裤"
+        ],
+        "requiresWorn": [
+          "内裤"
+        ],
+        "removes": [
+          "内裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "把内衣推上去",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "内衣"
+        ],
+        "requiresWorn": [
+          "内衣"
+        ],
+        "common": true
+      },
+      {
+        "text": "把衬衫的扣子一颗颗解开",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "衬衫"
+        ],
+        "requiresWorn": [
+          "衬衫"
+        ]
+      },
+      {
+        "text": "把裙摆撩到腰上",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "裙"
+        ],
+        "requiresWorn": [
+          "裙"
+        ]
+      },
+      {
+        "text": "把她的裙子整个拉下去",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "裙"
+        ],
+        "requiresWorn": [
+          "裙"
+        ],
+        "removes": [
+          "裙"
+        ]
+      },
+      {
+        "text": "把外套从肩上褪下去",
+        "requires": [
+          "外套"
+        ],
+        "requiresWorn": [
+          "外套"
+        ],
+        "removes": [
+          "外套"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把丝袜从腰上往下卷",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "丝袜"
+        ],
+        "requiresWorn": [
+          "丝袜"
+        ],
+        "removes": [
+          "丝袜"
+        ]
+      },
+      {
+        "text": "把浴巾从她身上抽走",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "浴巾"
+        ],
+        "requiresWorn": [
+          "浴巾"
+        ],
+        "removes": [
+          "浴巾"
+        ]
+      },
+      {
+        "text": "从镜子里看她",
+        "requires": [
+          "镜"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她抱到台面上",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "台面"
+        ]
+      },
+      {
+        "text": "关掉水龙头",
+        "requires": [
+          "水"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "蹲下去",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让其中一个跪下去",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "一手一个，把两个人拉过来",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "先吻另一个人",
+        "casts": [
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "解开她的皮带",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "把她的手按在自己身上",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "自己把衣服脱掉",
+        "casts": [
+          "solo"
+        ],
+        "removes": [
+          "围裙",
+          "衬衫",
+          "裙",
+          "内裤",
+          "内衣",
+          "丝袜",
+          "外套",
+          "毛巾",
+          "浴巾",
+          "领带",
+          "袜",
+          "鞋",
+          "高跟鞋",
+          "旗袍",
+          "和服",
+          "泳装",
+          "睡裙",
+          "吊带",
+          "短裤",
+          "背心",
+          "西装",
+          "JK制服",
+          "制服",
+          "校服",
+          "T恤",
+          "家居服",
+          "浴袍",
+          "睡衣",
+          "婚纱",
+          "护士服",
+          "风衣",
+          "大衣",
+          "工装裤",
+          "演出服",
+          "打底衫",
+          "手套"
+        ]
+      },
+      {
+        "text": "把腿张开",
+        "casts": [
+          "solo",
+          "ff"
+        ]
+      },
+      {
+        "text": "慢慢往下滑",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "一把扯开浴袍的系带",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "浴袍"
+        ],
+        "requiresWorn": [
+          "浴袍"
+        ],
+        "removes": [
+          "浴袍"
+        ],
+        "common": true
+      },
+      {
+        "text": "用领带蒙住她的眼睛",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "领带"
+        ]
+      },
+      {
+        "text": "顺手锁上门，把钥匙拔下来",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "门"
+        ],
+        "common": true
+      },
+      {
+        "text": "把她手里的东西抽走扔到一边",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      }
+    ],
+    "pose": [
+      {
+        "text": "把她压在身上（传教士）",
+        "key": "压",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的腿折到胸前压下去（折叠位）",
+        "key": "折叠",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的腿架上肩膀",
+        "key": "肩扛",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的双腿并拢压向一侧",
+        "key": "并腿",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她仰躺在床沿，头垂下去",
+        "key": "床沿",
+        "requires": [
+          "床"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她平放在台面上",
+        "key": "台面平",
+        "requires": [
+          "台面"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她坐上来，扶着腰（正面骑乘）",
+        "key": "骑乘",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她背对着骑上来（反向骑乘）",
+        "key": "反骑",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她蹲在上面上下（深蹲骑乘）",
+        "key": "蹲骑",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她盘腿跨坐着紧抱（莲花座）",
+        "key": "莲花",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "让她坐在椅子边缘",
+        "key": "椅边",
+        "requires": [
+          "椅"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她坐在洗衣机上",
+        "key": "坐机器",
+        "requires": [
+          "洗衣机"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她侧躺着，一条腿抬起（侧入）",
+        "key": "侧躺",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "从身后环抱着她侧躺进入（汤匙式）",
+        "key": "汤匙",
+        "casts": [
+          "mf",
+          "ff"
+        ],
+        "common": true
+      },
+      {
+        "text": "侧躺着面对面",
+        "key": "侧面对面",
+        "casts": [
+          "mf",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她侧躺，从后面翻进去",
+        "key": "侧后",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "双腿交错着贴在一起（剪刀式）",
+        "key": "剪刀",
+        "casts": [
+          "ff"
+        ]
+      },
+      {
+        "text": "让她扶着台面，从后面进入（标准后入）",
+        "key": "后入",
+        "requires": [
+          "台面"
+        ],
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她扶着墙，从后面进入",
+        "key": "后入",
+        "requires": [
+          "墙"
+        ],
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她完全趴平，从上方压进去（熨斗式）",
+        "key": "俯卧",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她跪着塌下腰（跪趴）",
+        "key": "跪趴",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她双手撑地，抬起她的双腿（老汉推车）",
+        "key": "推车",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "让她扶着墙站好，从身后贴住",
+        "key": "站立后",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "墙"
+        ],
+        "common": true
+      },
+      {
+        "text": "让她趴在床边，脚踩在地上",
+        "key": "趴床沿",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "把她抵在墙上，抬起一条腿",
+        "key": "墙",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "墙"
+        ],
+        "common": true
+      },
+      {
+        "text": "把她整个抱起来（火车便当）",
+        "key": "悬空",
+        "casts": [
+          "mf"
+        ],
+        "common": true
+      },
+      {
+        "text": "面对面把她抱起来",
+        "key": "正面抱",
+        "casts": [
+          "mf"
+        ],
+        "common": true
+      },
+      {
+        "text": "让她单腿抬高，架在臂弯上",
+        "key": "单腿站",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "common": true
+      },
+      {
+        "text": "让她摆成弓箭步的姿势",
+        "key": "弓步",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "让她面对面坐在腿上（莲花坐姿）",
+        "key": "面对面坐",
+        "common": true,
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她抱坐在台面上",
+        "key": "抱坐",
+        "requires": [
+          "台面"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她坐在桌沿，双腿架在腰上（桌沿式）",
+        "key": "桌沿",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "台面"
+        ]
+      },
+      {
+        "text": "他跪坐着，让她背对着坐下",
+        "key": "跪坐",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "半跪着贴近她",
+        "key": "半跪",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "让她躺在浴缸边",
+        "key": "浴缸边",
+        "requires": [
+          "浴缸"
+        ],
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "乳交",
+        "key": "乳交",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "common": true
+      },
+      {
+        "text": "69",
+        "key": "69",
+        "casts": [
+          "mf",
+          "ff"
+        ],
+        "common": true
+      },
+      {
+        "text": "让她跨坐在脸上（颜面骑乘）",
+        "key": "颜骑",
+        "casts": [
+          "mf",
+          "ff",
+          "mff"
+        ]
+      },
+      {
+        "text": "把她的双腿夹紧摩擦（股间交）",
+        "key": "股间",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "用足部贴着磨（足交）",
+        "key": "足交",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "贴着腋下磨蹭（腋交）",
+        "key": "腋交",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "贴着外面磨，不进去（素股）",
+        "key": "素股",
+        "casts": [
+          "mf",
+          "ff"
+        ]
+      },
+      {
+        "text": "一前一后夹住她（三明治式）",
+        "key": "三明治",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "让两个人都叠趴在一起（叠罗汉式）",
+        "key": "叠",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "让两个人前后相连（火车式）",
+        "key": "火车",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "让两个人轮流",
+        "key": "轮流",
+        "casts": [
+          "mff"
+        ]
+      },
+      {
+        "text": "坐在浴缸边上",
+        "key": "坐边",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "浴缸"
+        ]
+      },
+      {
+        "text": "靠在墙上",
+        "key": "靠墙",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "墙"
+        ]
+      },
+      {
+        "text": "躺在床上",
+        "key": "躺",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "骑着枕头",
+        "key": "枕头",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "蹲下来",
+        "key": "蹲",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "趴在床上，腰塌下去",
+        "key": "趴",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "坐在椅子上，腿分开",
+        "key": "坐椅",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "椅"
+        ]
+      },
+      {
+        "text": "夹着被子",
+        "key": "夹被",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "仰躺下来，把腿张开",
+        "key": "仰开",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "侧躺下来，两腿夹紧",
+        "key": "侧收",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "趴下去，腰塌到底",
+        "key": "趴塌",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "跪坐起来，膝盖分开",
+        "key": "跪分",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "面对面贴着磨",
+        "key": "面对面",
+        "casts": [
+          "ff"
+        ]
+      },
+      {
+        "text": "从背后环抱住她",
+        "key": "背后",
+        "casts": [
+          "ff"
+        ]
+      },
+      {
+        "text": "共用一件道具",
+        "key": "道具",
+        "casts": [
+          "ff"
+        ]
+      },
+      {
+        "text": "在驾驶座上让她跨坐上来",
+        "key": "骑乘",
+        "casts": [
+          "mf"
+        ],
+        "requires": [
+          "车"
+        ],
+        "common": true
+      },
+      {
+        "text": "把她按在放倒的车后座上",
+        "key": "压",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "requires": [
+          "车"
+        ]
+      },
+      {
+        "text": "让她腰部垫在沙发扶手上仰躺",
+        "key": "压",
+        "casts": [
+          "mf",
+          "ff"
+        ],
+        "requires": [
+          "沙发"
+        ]
+      },
+      {
+        "text": "从身后托起她的双腿悬空抱住",
+        "key": "悬空",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "两人身体呈十字交叉侧卧",
+        "key": "侧躺",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "让她背对着抬起一条腿",
+        "key": "单腿站",
+        "casts": [
+          "mf"
+        ],
+        "common": true
+      },
+      {
+        "text": "让她用双腿死死盘住腰",
+        "key": "面对面坐",
+        "casts": [
+          "mf"
+        ]
+      },
+      {
+        "text": "让她反跨坐在椅子上，扶着椅背",
+        "key": "椅边",
+        "casts": [
+          "mf"
+        ],
+        "requires": [
+          "椅"
+        ]
+      },
+      {
+        "text": "把她的双手反剪在身后，按着她的手腕",
+        "key": "跪趴",
+        "casts": [
+          "mf"
+        ],
+        "common": true
+      },
+      {
+        "text": "单手掐住她的脖子，把她按在床上",
+        "key": "压",
+        "casts": [
+          "mf"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "把她按在镜子上，逼她看着镜子里的自己",
+        "key": "墙",
+        "casts": [
+          "mf"
+        ],
+        "requires": [
+          "镜"
+        ]
+      },
+      {
+        "text": "让她跪坐在车厢的软垫上",
+        "key": "跪坐",
+        "casts": [
+          "mf"
+        ],
+        "requires": [
+          "垫子"
+        ]
+      },
+      {
+        "text": "让她站着承受",
+        "key": "站承",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她跪趴下去",
+        "key": "跪趴下",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她仰躺张开腿",
+        "key": "仰躺开",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她跪坐着",
+        "key": "跪坐",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她把腿张开",
+        "key": "张腿",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的腿掰成M字",
+        "key": "M字",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "把她的腿抬起来",
+        "key": "抬腿",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她塌腰翘臀",
+        "key": "塌腰",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她弯下腰",
+        "key": "弯腰",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她蹲下去",
+        "key": "蹲下",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她翘起一条腿",
+        "key": "翘腿",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她盘腿坐着",
+        "key": "盘腿",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她侧躺下来",
+        "key": "侧躺",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她俯身撑在床上",
+        "key": "俯撑",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "让她趴在床上",
+        "key": "趴床",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "让她坐在椅子上",
+        "key": "坐椅",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "requires": [
+          "椅"
+        ]
+      },
+      {
+        "text": "让她跨坐上来",
+        "key": "跨坐",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她背对着坐下去",
+        "key": "背坐",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她骑上来自己动",
+        "key": "骑动",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "让她蹲在上面",
+        "key": "蹲上",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ]
+      }
+    ],
+    "act": [
+      {
+        "text": "两根手指插进阴道里抽送",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指按着阴蒂打圈，越揉越快",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "玩具的龟头抵着穴口，慢慢推到底",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "玩具整根没进去，只留底座在外面",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "骑在玩具上上下起伏",
+        "casts": [
+          "solo"
+        ],
+        "poses": [
+          "蹲",
+          "蹲上"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一手掰开阴唇，一手揉着阴蒂",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "指尖在穴口来回滑，水顺着指缝往下滴",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指插到底，拇指压着阴蒂",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "玩具顶到最深处，停在那儿发抖",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "趴在床上，从后面把手指插进去",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "张开腿，手指插进去给自己看",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "高潮后手指还在轻轻抽送",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把玩具抽出来，穴口还张着",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指沾满水，拉出一条丝",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "夹着腿磨，隔着内裤按着阴蒂",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两根手指撑开自己往里看",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一边揉着乳尖一边插自己",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指插着，身体绷紧到脚背",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把阴茎整根插进她的阴道",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "龟头抵着穴口，慢慢磨进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "阴茎从后面顶到最深处",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "扶着阴茎对准她，一口气插到底",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "阴茎在她体内抽出又顶入，每一下都撞到最里面",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "一手按着她的腰，把阴茎一点点挤进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "抽出来只留龟头卡在穴口，又整根推回去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "插得太深，她的小腹被顶出一点弧度",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "抱着她坐到身上，阴茎从下面插进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "莲花",
+          "跪坐"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "拉着她的手按在小腹上，让她感觉阴茎在里面",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "拔出来，龟头蹭着阴唇磨了两下",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "一边插一边低头含住她的乳尖",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "从侧后方插进去，一条腿架在臂弯里",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "侧后",
+          "单腿站"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "把她抱起来，边走边插",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "悬空",
+          "正面抱"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "让她自己扶着阴茎慢慢坐下去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "骑乘",
+          "蹲骑"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "顶到最里面停着，逼她开口",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "抽送得很快，水声盖过说话声",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "在穴口蹭了几下，才整根插进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "把她的腿压到胸前，插得更深",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "抽出来，用龟头拍她的阴蒂",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "插进去一半就停住，看她忍不住",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "一边插一边用拇指揉她的阴蒂",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "手伸到下面揉着阴蒂，阴茎抽得更快",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "阴茎退到穴口又狠狠顶回去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "让她跪好，从后面插进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "跪趴"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "按着她的后颈，把阴茎送到最深处",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "趴床沿",
+          "跪趴"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "她夹得很紧，抽出来时被裹住",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "整根拔出来，穴口还开着慢慢合上",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "一人被他插着，另一人趴在她身上舔她的阴蒂",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人跪趴着被后入，另一人躺在下面含住她的乳尖",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "叠",
+          "跪趴"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人跨坐在她脸上让她舔",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人凑过去和她接吻",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人用手指揉她的阴蒂",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人骑在他身上，另一人跪在旁边舔他的蛋蛋",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人骑在他身上，另一人从背后揉她的胸口",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "他躺下，一人骑在阴茎上，另一人坐在他脸上",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人扶着阴茎往下坐，另一人从后面推她的腰",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被后入，另一人跪在前面让她舔",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人把玩具按在自己阴蒂上",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人掰开她的臀瓣看得更清楚",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人把她的腿举起来",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人跪在旁边舔结合处",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人在下面承受，另一人贴着她耳朵说脏话",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被抱着操，另一人在旁边自己揉",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "他抽出来换到另一人身上，前一个还张着腿喘",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "轮流"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "两个女人面对面抱着，他从后面插其中一个",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "火车",
+          "三明治"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插到高潮，另一人用手指接着刺激她的阴蒂",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人跨在她腿上磨着",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "他用手指插一个，阴茎插另一个",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "叠"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人被插着，另一人低头含住她的舌头",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两人一起跪着，他轮流插",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "轮流"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人躺在下面被插，另一人骑在她脸上，他被夹在中间",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "三明治"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "舌头压在她的阴蒂上来回舔",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两根手指插进去抽送",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把她的腿分开，低头舔她的穴口",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "舌尖伸进去，鼻尖蹭着阴蒂",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指插着，拇指揉着阴蒂",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "69，互相舔着",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "69"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "跨坐在她脸上让她舔",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "颜骑"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "贴着磨阴部，两个人都湿了",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "面对面",
+          "剪刀"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "用玩具插她，一边看她的表情",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "道具"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "舔到她潮吹，水喷在脸上",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指刚拔出来，她夹着不放",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人用嘴，一人用手指",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把玩具推到最深处",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "道具"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "亲着她的脖子，手指还在里面",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一边接吻一边揉她的阴蒂",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两根手指撑开她的穴口",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把她按在身下，舔到她发抖",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一起磨到高潮",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "接吻，舌头缠在一起",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "手在她身上慢慢摸",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "换个姿势，把她翻过来",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "停下来抱着喘气",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "额头抵着额头看着对方",
+        "casts": [
+          "mf",
+          "mff",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "让她跪下去含住阴茎",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "按着她的头深喉，喉口裹着龟头",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "用胸部夹着阴茎上下滑动",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "用脚心夹着阴茎慢慢磨",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "隔着内裤揉她的阴蒂",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把脸埋进她双腿之间舔她的穴口",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "手指插着她，舌头压着阴蒂",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "让她舔着龟头，等她抬头再插进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "两人轮流含着阴茎",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一人含着他的阴茎，另一人从后面舔他的后腰",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "用舌头把她的阴唇含进嘴里",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "舔着她的耳后，手指还在里面动",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "她含着他，他同时舔着她",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "69"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "坐在他脸上，让他从下面舔",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "颜骑"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "把双腿夹紧，让阴茎在股间磨",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "股间",
+          "素股"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "贴着他的腋下慢慢磨",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "腋交"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "抱着枕头骑在上面磨",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "枕头"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人用胸部夹着阴茎，另一人凑过来一起舔",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "乳交"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人用脚心夹着阴茎磨，另一人被他插着",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "足交"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人坐在他脸上，另一人扶着阴茎往下坐",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "颜骑"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "三个人挤在一起，两双手一起弄着阴茎",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "轮流"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "两人一起抱着枕头磨",
+        "casts": [
+          "ff"
+        ],
+        "poses": [
+          "枕头"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "夹着枕头骑在上面磨",
+        "casts": [
+          "solo"
+        ],
+        "poses": [
+          "枕头"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "压低了上身贴着她的胸，阴茎插在里面，低头跟她接吻",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "把她的一条腿扛到肩上，阴茎斜着往里插到底",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "肩扛"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "她两条腿盘住他的腰，阴茎插在最里面慢慢地磨",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "在她臀下垫了个枕头，抬着角度把阴茎往最深处顶",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "插到一半停住，龟头抵着最里面来回碾",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一手按着她的小腹，能摸到阴茎在里面顶",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "抓着她的头发往后拉，阴茎撞得更狠，胯拍在她臀上",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "掌掴她的臀肉，阴茎跟着插得更深，穴口被撑得发白",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "边插边低头咬她的脖子，她缩了一下，里面跟着绞紧",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "整根抽出来再整根撞回去，每次都顶到宫口",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
+      },
+      {
+        "text": "低头含住她的乳尖，两根手指还在她阴道里搅",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两根手指弯起来刮她的G点",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两个人的手同时伸进对方穴里",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "阴户贴着她的大腿磨，水蹭了一片",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两个人各坐一头，被同一根玩具填满",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "把她舔到高潮，才换过来让她舔自己的穴",
+        "casts": [
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两根手指夹着阴蒂轻轻捻",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "指腹快速地左右拨着阴蒂，越拨越快",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一只手揉着阴蒂，一只手伸进去弯着刮前面",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "对着镜子张开腿，看着自己的手指在穴里进出",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "花洒对着阴蒂冲，水顺着腿往下流",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "groups": [
+          "bath",
+          "hotel"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "吸吮玩具罩住阴蒂，开到最大档",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两个女人一前一后贴着他，他插着其中一个，另一个贴着她的脸接吻",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "两个女人把脸凑在一起，两根舌头一起舔他的龟头",
+        "casts": [
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "抹了润滑，龟头抵着后穴慢慢推进去",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "整根插进后穴，她的腰塌下去",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "拔出来又顶进后穴，动作比刚才更慢",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "手指先探进后穴，再换成阴茎",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "后穴被撑开，她抓着床单",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "从后面插进后穴，一手扶着她的胯",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "射进后穴，拔出来时还在收缩",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      },
+      {
+        "text": "前面插着手指，后面被阴茎填满",
+        "casts": [
+          "mf",
+          "mff"
+        ],
+        "poses": [],
+        "penetrating": true,
+        "common": true
+      }
+    ],
+    "act_finish": [
+      {
+        "text": "射进她的阴道里",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "拔出来射在她脸上",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "射在她小腹上",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "射在她胸口",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "射在她嘴里",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "射完还插着不动，等它慢慢软下来",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "拔出来，精液从穴口流出来",
+        "casts": [
+          "mf",
+          "mff"
+        ]
+      },
+      {
+        "text": "潮吹，水喷在手上",
+        "casts": [
+          "solo",
+          "ff"
+        ]
+      },
+      {
+        "text": "自己弄到高潮，手指还插着",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "一起高潮，两个人抱在一起发抖",
+        "casts": [
+          "mff",
+          "ff"
+        ]
+      },
+      {
+        "text": "舔到她潮吹",
+        "casts": [
+          "ff"
+        ]
+      },
+      {
+        "text": "高潮后还在轻轻抽送",
+        "casts": [
+          "solo",
+          "mf",
+          "ff"
+        ]
+      }
+    ],
+    "prop": [
+      {
+        "text": "跳蛋",
+        "common": true,
+        "props": [
+          "跳蛋"
+        ]
+      },
+      {
+        "text": "按摩棒",
+        "common": true,
+        "props": [
+          "按摩棒"
+        ]
+      },
+      {
+        "text": "领带",
+        "common": true,
+        "props": [
+          "领带"
+        ]
+      },
+      {
+        "text": "冰块",
+        "common": true,
+        "props": [
+          "冰块"
+        ]
+      },
+      {
+        "text": "羽毛",
+        "common": true,
+        "props": [
+          "羽毛"
+        ]
+      },
+      {
+        "text": "眼罩",
+        "common": true,
+        "props": [
+          "眼罩"
+        ]
+      },
+      {
+        "text": "枕头",
+        "common": true,
+        "props": [
+          "枕头"
+        ]
+      },
+      {
+        "text": "镜子",
+        "props": [
+          "镜子",
+          "镜"
+        ]
+      },
+      {
+        "text": "丝巾",
+        "props": [
+          "丝巾"
+        ]
+      },
+      {
+        "text": "皮带",
+        "props": [
+          "皮带"
+        ]
+      },
+      {
+        "text": "蜡烛",
+        "props": [
+          "蜡烛"
+        ]
+      },
+      {
+        "text": "手机",
+        "props": [
+          "手机"
+        ]
+      },
+      {
+        "text": "毛巾",
+        "props": [
+          "毛巾"
+        ]
+      },
+      {
+        "text": "遥控器",
+        "props": [
+          "遥控器"
+        ]
+      },
+      {
+        "text": "手铐",
+        "props": [
+          "手铐"
+        ]
+      },
+      {
+        "text": "绳子",
+        "props": [
+          "绳子"
+        ]
+      },
+      {
+        "text": "皮拍",
+        "props": [
+          "皮拍"
+        ]
+      },
+      {
+        "text": "口球",
+        "props": [
+          "口球"
+        ]
+      },
+      {
+        "text": "项圈",
+        "props": [
+          "项圈"
+        ]
+      },
+      {
+        "text": "锁链",
+        "props": [
+          "锁链"
+        ]
+      },
+      {
+        "text": "按摩精油",
+        "props": [
+          "按摩精油"
+        ]
+      },
+      {
+        "text": "假阳具",
+        "props": [
+          "假阳具"
+        ]
+      },
+      {
+        "text": "肛塞",
+        "props": [
+          "肛塞"
+        ]
+      },
+      {
+        "text": "束缚带",
+        "props": [
+          "束缚带"
+        ]
+      },
+      {
+        "text": "计时器",
+        "props": [
+          "计时器"
+        ]
+      },
+      {
+        "text": "毛刷",
+        "props": [
+          "毛刷"
+        ]
+      },
+      {
+        "text": "绒布",
+        "props": [
+          "绒布"
+        ]
+      },
+      {
+        "text": "丝质绑带",
+        "props": [
+          "丝质绑带"
+        ]
+      },
+      {
+        "text": "细链条金丝眼镜"
+      },
+      {
+        "text": "细银质锁骨链"
+      },
+      {
+        "text": "发间丝带绑绳"
+      },
+      {
+        "text": "半透明蕾丝眼罩"
+      },
+      {
+        "text": "薄纱遮面面纱"
+      }
+    ],
+    "detail": [
+      {
+        "text": "她被他按在台面上，水龙头还开着",
+        "requires": [
+          "水"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "她靠在冰箱边，冰箱门还开着",
+        "requires": [
+          "冰箱"
+        ],
+        "groups": []
+      },
+      {
+        "text": "他把她压上桌沿，桌上的东西扫落一地",
+        "requires": [
+          "桌"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "他拽松了她围裙的带子",
+        "requires": [
+          "围裙"
+        ],
+        "groups": []
+      },
+      {
+        "text": "她贴着镜子，镜面蒙了一层雾",
+        "requires": [
+          "镜"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "他扯下毛巾扔在地上",
+        "requires": [
+          "毛巾"
+        ],
+        "groups": []
+      },
+      {
+        "text": "她跨进浴缸，水从边缘溢出来",
+        "requires": [
+          "浴缸"
+        ],
+        "groups": []
+      },
+      {
+        "text": "他扯下她的外衣，落在脚边",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "他随手带上门，没锁",
+        "requires": [
+          "门"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "手机在床头响着，没人接",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "空调嗡嗡响着，盖住了她的声音",
+        "groups": []
+      },
+      {
+        "text": "她贴着车窗，玻璃蒙了一层雾",
+        "requires": [
+          "车"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "车停在路边，还没熄火",
+        "requires": [
+          "车"
+        ],
+        "groups": []
+      },
+      {
+        "text": "咬着下唇没出声",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "她的膝盖有点抖",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "手扶不住台面",
+        "requires": [
+          "台面"
+        ],
+        "groups": []
+      },
+      {
+        "text": "指节按得发白",
+        "groups": []
+      },
+      {
+        "text": "头发被汗黏在额头上",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "呼吸乱得说不出话",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "窗帘没拉严，漏进一道光",
+        "requires": [
+          "窗"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "楼下有人经过，她不敢出声",
+        "groups": []
+      },
+      {
+        "text": "音乐还在放，盖住了她的声音",
+        "groups": []
+      },
+      {
+        "text": "她的腰塌下去",
+        "groups": []
+      },
+      {
+        "text": "丝袜挂在脚踝上",
+        "requires": [
+          "丝袜"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "裙子还卡在腰上",
+        "requires": [
+          "裙"
+        ],
+        "groups": []
+      },
+      {
+        "text": "衣服湿透了贴在身上",
+        "groups": []
+      },
+      {
+        "text": "膝盖在床边压出印子",
+        "requires": [
+          "床"
+        ],
+        "groups": []
+      },
+      {
+        "text": "她在镜子里看着自己",
+        "requires": [
+          "镜"
+        ],
+        "groups": []
+      },
+      {
+        "text": "汗顺着背流下去",
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "窗外的灯还亮着，照在她身上",
+        "groups": []
+      },
+      {
+        "text": "她小声说了句什么",
+        "groups": []
+      },
+      {
+        "text": "她撞上书架，一本书掉在地上",
+        "requires": [
+          "书架"
+        ],
+        "groups": [
+          "school"
+        ]
+      },
+      {
+        "text": "电梯停住，数字还在跳",
+        "requires": [
+          "墙"
+        ],
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "走廊的感应灯灭了又亮",
+        "groups": [
+          "public"
+        ]
+      },
+      {
+        "text": "更衣室的柜门没关",
+        "groups": [
+          "gym",
+          "public"
+        ]
+      },
+      {
+        "text": "器械还在轻轻晃",
+        "requires": [
+          "器械"
+        ],
+        "groups": [
+          "gym"
+        ]
+      },
+      {
+        "text": "后台的对讲机还在响",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "舞台上的音乐还在继续",
+        "groups": [
+          "backstage"
+        ]
+      },
+      {
+        "text": "浴巾掉在脚边",
+        "requires": [
+          "浴巾"
+        ],
+        "groups": []
+      },
+      {
+        "text": "内衣挂在门把上",
+        "requires": [
+          "内衣"
+        ],
+        "groups": []
+      },
+      {
+        "text": "她的手抓着床单",
+        "requires": [
+          "床"
+        ],
+        "common": true,
+        "groups": []
+      },
+      {
+        "text": "窗外的雨声很大",
+        "groups": []
+      },
+      {
+        "text": "雪落在窗台上没化",
+        "requires": [
+          "窗"
+        ],
+        "groups": []
+      },
+      {
+        "text": "锁骨上落着一层薄汗"
+      },
+      {
+        "text": "胸口随呼吸剧烈起伏"
+      },
+      {
+        "text": "大腿内侧泛着红"
+      },
+      {
+        "text": "腰侧留着几道指痕"
+      },
+      {
+        "text": "脚背绷成一条直线"
+      },
+      {
+        "text": "后颈沁出细密的汗"
+      },
+      {
+        "text": "小腹绷着，微微起伏"
+      },
+      {
+        "text": "膝盖跪出浅浅的红印"
+      },
+      {
+        "text": "手腕上留着一圈红痕"
+      },
+      {
+        "text": "唇被吻得发亮"
+      },
+      {
+        "text": "发丝黏在湿透的颈侧"
+      },
+      {
+        "text": "衣料被汗浸出深色"
+      },
+      {
+        "text": "肩胛骨随动作一收一放"
+      },
+      {
+        "text": "脚趾蜷紧又松开"
+      },
+      {
+        "text": "乳尖被磨得发红"
+      },
+      {
+        "text": "腰后被掐出浅浅的印子"
+      },
+      {
+        "text": "光裸的皮肤映着窗外的灯"
+      },
+      {
+        "text": "斑驳阳光透过树叶洒在身上"
+      },
+      {
+        "text": "水面折射下的丁达尔光束与细小气泡"
+      },
+      {
+        "text": "摇曳烛光与深邃阴影的强烈明暗对比"
+      },
+      {
+        "text": "体积雾营造出的空灵胶片感"
+      },
+      {
+        "text": "暗色调环境光与微弱轮廓光交织"
+      }
+    ],
+    "mood": [
+      {
+        "text": "咬着嘴唇死死忍住声音，眼神却已经迷离",
+        "common": true
+      },
+      {
+        "text": "嘴上还在强撑着挑衅，声音却抖得不成样子",
+        "common": true
+      },
+      {
+        "text": "眼尾泛红，带着哭腔低声求饶",
+        "common": true
+      },
+      {
+        "text": "呼吸滚烫，主动迎合上去"
+      },
+      {
+        "text": "紧张得屏住呼吸，手指死死攥着床单",
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "羞耻得偏过头不敢看，耳根红透",
+        "common": true
+      },
+      {
+        "text": "眼神失焦，只能跟着他的节奏起伏"
+      },
+      {
+        "text": "眼角还挂着泪，却笑着说不许停"
+      },
+      {
+        "text": "气息乱得说不出整句，只能断断续续地应"
+      },
+      {
+        "text": "极力忍着不发出声音，肩膀却在发抖"
+      },
+      {
+        "text": "一边躲一边又忍不住贴回来"
+      },
+      {
+        "text": "仰着头喘息，喉咙里溢出细碎的声音"
+      },
+      {
+        "text": "咬着下唇瞪着他，眼里全是水光"
+      },
+      {
+        "text": "声音软下来，带着一点撒娇的鼻音"
+      },
+      {
+        "text": "被弄得说不出完整的话，只能发出气声"
+      },
+      {
+        "text": "嘴上说着不要，身体却迎了上去"
+      },
+      {
+        "text": "声音哑了，只剩断断续续的喘"
+      },
+      {
+        "text": "高潮过后眼神发直，一时回不过神"
+      },
+      {
+        "text": "眼眶湿了，却还倔强地瞪着他"
+      },
+      {
+        "text": "忍不住小声呜咽，又咬着嘴唇压回去"
+      },
+      {
+        "text": "主动凑上去要更多，耳根却红透了"
+      },
+      {
+        "text": "抖得厉害，手指抓住任何能抓的东西"
+      },
+      {
+        "text": "一边掉眼泪一边说还要"
+      },
+      {
+        "text": "呼吸乱成一团，喉咙里滚出细碎的声音"
+      },
+      {
+        "text": "侧过脸避开视线耳根通红"
+      },
+      {
+        "text": "咬着下唇眼神清冷又难掩情动"
+      },
+      {
+        "text": "仰着颈子微张着嘴溢出短促轻喘"
+      },
+      {
+        "text": "眼神迷离泛水汽睫毛发颤"
+      },
+      {
+        "text": "嘴角微微上扬，眼睛里也带着笑意"
+      },
+      {
+        "text": "眼神失焦，像是还没回过神来"
+      },
+      {
+        "text": "整个人松下来，脸上是餍足的慵懒"
+      },
+      {
+        "text": "低着头不敢看，耳根却红透了"
+      },
+      {
+        "text": "胸口起伏得厉害，气息还没平复"
+      },
+      {
+        "text": "脸上和颈侧都泛着散不去的红"
+      },
+      {
+        "text": "闭上眼，睫毛轻轻颤着"
+      },
+      {
+        "text": "咬着下唇，把声音压回去"
+      },
+      {
+        "text": "眼里蓄着泪，却还在笑"
+      },
+      {
+        "text": "眼神放空，嘴角带着餍足的笑意"
+      },
+      {
+        "text": "抬眼看他，带着一点求的意思"
+      },
+      {
+        "text": "手不知道往哪放，眼神到处躲"
+      }
+    ],
+    "socks": [
+      {
+        "text": "黑色丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "肉色丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "白色连裤袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "连裤袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "网袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "大网眼网袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "吊带袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "开裆丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "破洞丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "渐变丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "亮片丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "过膝袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "大腿袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "及膝袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "中筒袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "短袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "船袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "堆堆袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "白棉袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "蕾丝花边袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "绑带袜圈",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "半截蕾丝袜",
+        "wears": [
+          "半截蕾丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "罗袜",
+        "wears": [
+          "罗袜"
+        ],
+        "eras": [
+          "ancient"
+        ],
+        "common": true
+      },
+      {
+        "text": "光着腿",
+        "common": true
+      },
+      {
+        "text": "渔网袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "运动袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "超薄丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "后线丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "泡泡袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "毛绒袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "羊毛袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "隐形袜",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "过膝网袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "蕾丝边丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "天鹅绒丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "波点丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "竖条纹丝袜",
+        "wears": [
+          "丝袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "袜口卷边",
+        "wears": [
+          "袜"
+        ],
+        "eras": [
+          "modern"
+        ]
+      }
+    ],
+    "shoes": [
+      {
+        "text": "踩着高跟鞋",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ],
+        "common": true
+      },
+      {
+        "text": "踩着细高跟",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着绑带高跟",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着尖头高跟",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着防水台高跟",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着粗跟鞋",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着平底鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着乐福鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着玛丽珍鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着帆布鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着运动鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着短靴",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着马丁靴",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着过膝长靴",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着绣花鞋",
+        "wears": [
+          "绣花鞋"
+        ],
+        "eras": [
+          "ancient"
+        ],
+        "common": true
+      },
+      {
+        "text": "踩着木屐",
+        "wears": [
+          "木屐"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "踩着布鞋",
+        "wears": [
+          "布鞋"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "赤脚",
+        "common": true
+      },
+      {
+        "text": "踩着细跟高跟鞋",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着尖头高跟鞋",
+        "wears": [
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着雪地靴",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着芭蕾平底",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着穆勒鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着松糕鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "踩着绑带凉鞋",
+        "wears": [
+          "鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      }
+    ],
+    "man_look": [
+      {
+        "text": "清爽帅哥",
+        "common": true
+      },
+      {
+        "text": "成熟大叔",
+        "common": true
+      },
+      {
+        "text": "西装革履",
+        "common": true
+      },
+      {
+        "text": "健身型",
+        "common": true
+      },
+      {
+        "text": "斯文清瘦",
+        "common": true
+      },
+      {
+        "text": "少年感",
+        "common": true
+      },
+      {
+        "text": "糙汉",
+        "common": true
+      },
+      {
+        "text": "混血长相",
+        "common": true
+      },
+      {
+        "text": "肩宽腰窄",
+        "common": true
+      },
+      {
+        "text": "小臂青筋微凸",
+        "common": true
+      },
+      {
+        "text": "戴细框眼镜神情冷峻自持",
+        "common": true
+      },
+      {
+        "text": "身形挺拔",
+        "common": true
+      },
+      {
+        "text": "高挺鼻梁深邃眼窝侧脸冷峻",
+        "common": true
+      },
+      {
+        "text": "胸膛宽厚结实",
+        "common": true
+      }
+    ],
+    "man_outfit": [
+      {
+        "text": "衬衫西裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "衬衫",
+          "西裤",
+          "皮带"
+        ],
+        "common": true
+      },
+      {
+        "text": "西装三件套",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "西装",
+          "衬衫",
+          "西裤",
+          "领带",
+          "皮带"
+        ],
+        "common": true
+      },
+      {
+        "text": "T恤牛仔",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "T恤",
+          "牛仔裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "黑色连帽卫衣配长裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "卫衣",
+          "长裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "灰色宽松卫裤配白背心",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "背心",
+          "卫裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "宽松纯棉睡衣",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "睡衣",
+          "睡裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "圆领毛衣配休闲长裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "毛衣",
+          "长裤"
+        ]
+      },
+      {
+        "text": "工装连帽风衣配长裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "风衣",
+          "长裤"
+        ]
+      },
+      {
+        "text": "皮夹克配黑色长裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "皮夹克",
+          "长裤"
+        ]
+      },
+      {
+        "text": "短袖配纯棉大短裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "短袖",
+          "短裤"
+        ]
+      },
+      {
+        "text": "背心短裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "背心",
+          "短裤"
+        ]
+      },
+      {
+        "text": "运动服",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "运动服",
+          "运动裤"
+        ]
+      },
+      {
+        "text": "格子睡裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "睡裤"
+        ]
+      },
+      {
+        "text": "只穿浴袍",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "浴袍"
+        ]
+      },
+      {
+        "text": "下半身只裹着浴巾",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "浴巾"
+        ]
+      },
+      {
+        "text": "只穿深色平角内裤",
+        "eras": [
+          "modern"
+        ],
+        "wears": [
+          "内裤"
+        ]
+      },
+      {
+        "text": "全裸",
+        "exclusive": true,
+        "common": true
+      },
+      {
+        "text": "古装长衫",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "长衫",
+          "长袍"
+        ],
+        "common": true
+      },
+      {
+        "text": "交领棉麻短打",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "短打",
+          "长裤"
+        ]
+      },
+      {
+        "text": "赛博机能服",
+        "eras": [
+          "cyber"
+        ],
+        "wears": [
+          "机能服"
+        ]
+      },
+      {
+        "text": "黑色劲装夜行衣配束袖护腕",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "夜行衣",
+          "护腕"
+        ],
+        "common": true
+      },
+      {
+        "text": "锦缎圆领袍配玉带",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "圆领袍",
+          "长裤",
+          "玉带"
+        ]
+      },
+      {
+        "text": "长袍马褂配丝绸对襟",
+        "eras": [
+          "ancient"
+        ],
+        "wears": [
+          "长袍",
+          "马褂"
+        ]
+      },
+      {
+        "text": "云纹广袖白玉道袍",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ],
+        "wears": [
+          "道袍",
+          "长裤"
+        ]
+      },
+      {
+        "text": "紧身宇航服内胆长裤",
+        "eras": [
+          "cyber"
+        ],
+        "wears": [
+          "内胆服",
+          "长裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "战术T恤配束脚工装裤",
+        "eras": [
+          "modern",
+          "cyber"
+        ],
+        "wears": [
+          "T恤",
+          "工装裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "骑士皮甲配贴身马裤",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ],
+        "wears": [
+          "皮甲",
+          "马裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "复古立领白衬衫配修身骑马裤",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ],
+        "wears": [
+          "衬衫",
+          "骑马裤"
+        ],
+        "common": true
+      }
+    ],
+    "man_state": [
+      {
+        "text": "皮带已经解开",
+        "requiresWorn": [
+          "衬衫西裤",
+          "西装三件套",
+          "T恤牛仔",
+          "战术T恤配束脚工装裤",
+          "皮夹克配黑色长裤",
+          "骑士皮甲配贴身马裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "皮带金属扣解开，裤腰松垮",
+        "requiresWorn": [
+          "衬衫西裤",
+          "西装三件套",
+          "T恤牛仔",
+          "战术T恤配束脚工装裤",
+          "皮夹克配黑色长裤",
+          "骑士皮甲配贴身马裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "卫衣兜帽还戴在头上，只把裤子拉链拉开挺出",
+        "requiresWorn": [
+          "黑色连帽卫衣配长裤",
+          "工装连帽风衣配长裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "上身外套穿得严严实实，唯独长裤扯下一截卡在胯骨",
+        "requiresWorn": [
+          "皮夹克配黑色长裤",
+          "工装连帽风衣配长裤",
+          "西装三件套",
+          "衬衫西裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "单手把T恤下摆撩到胸前咬在嘴里",
+        "requiresWorn": [
+          "T恤牛仔",
+          "战术T恤配束脚工装裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "灰色卫裤松紧带被随手扯到大腿根",
+        "requiresWorn": [
+          "灰色宽松卫裤配白背心"
+        ],
+        "common": true
+      },
+      {
+        "text": "纯棉睡裤松垮地褪到膝弯",
+        "requiresWorn": [
+          "宽松纯棉睡衣",
+          "格子睡裤"
+        ]
+      },
+      {
+        "text": "睡衣纽扣从上往下解开，两边衣襟大敞",
+        "requiresWorn": [
+          "宽松纯棉睡衣"
+        ]
+      },
+      {
+        "text": "毛衣下摆直接往上推到胸口堆着",
+        "requiresWorn": [
+          "圆领毛衣配休闲长裤"
+        ]
+      },
+      {
+        "text": "衬衫敞着露出胸口",
+        "requiresWorn": [
+          "衬衫西裤",
+          "复古立领白衬衫配修身骑马裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "裤子褪到膝下",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "衣服还整整齐齐",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "领带松了，衬衫解开两颗扣",
+        "requiresWorn": [
+          "西装三件套"
+        ]
+      },
+      {
+        "text": "上衣脱了一半挂在肩上",
+        "requiresWorn": [
+          "*"
+        ]
+      },
+      {
+        "text": "下半身浴巾一把扯掉扔在地上",
+        "requiresWorn": [
+          "下半身只裹着浴巾"
+        ]
+      },
+      {
+        "text": "平角内裤被直接褪到膝盖",
+        "requiresWorn": [
+          "只穿深色平角内裤"
+        ]
+      },
+      {
+        "text": "浑身肌肉紧绷，手臂线条暴起发力",
+        "common": true
+      },
+      {
+        "text": "浑身泛着滚烫薄汗，腹肌随着动作起伏",
+        "common": true
+      },
+      {
+        "text": "衣服已经全部脱光，浑身赤裸",
+        "requiresWorn": [
+          "*"
+        ],
+        "common": true
+      },
+      {
+        "text": "上身还整齐穿着衣服，下半身早已完全脱光",
+        "requiresWorn": [
+          "衬衫西裤",
+          "西装三件套",
+          "T恤牛仔",
+          "黑色连帽卫衣配长裤",
+          "圆领毛衣配休闲长裤",
+          "工装连帽风衣配长裤",
+          "皮夹克配黑色长裤",
+          "运动服",
+          "古装长衫",
+          "交领棉麻短打",
+          "赛博机能服",
+          "锦缎圆领袍配玉带",
+          "长袍马褂配丝绸对襟",
+          "云纹广袖白玉道袍",
+          "战术T恤配束脚工装裤",
+          "骑士皮甲配贴身马裤",
+          "复古立领白衬衫配修身骑马裤"
+        ],
+        "common": true
+      },
+      {
+        "text": "长袍下摆直接撩到腰际，下身一丝不挂挺入",
+        "requiresWorn": [
+          "古装长衫",
+          "长袍马褂配丝绸对襟",
+          "锦缎圆领袍配玉带",
+          "云纹广袖白玉道袍",
+          "交领棉麻短打",
+          "黑色劲装夜行衣配束袖护腕",
+          "只穿浴袍"
+        ],
+        "common": true
+      },
+      {
+        "text": "一把扯断腰间系带，外袍大敞滑落在地",
+        "requiresWorn": [
+          "古装长衫",
+          "长袍马褂配丝绸对襟",
+          "锦缎圆领袍配玉带",
+          "云纹广袖白玉道袍",
+          "交领棉麻短打",
+          "黑色劲装夜行衣配束袖护腕",
+          "只穿浴袍"
+        ]
+      }
+    ],
+    "ethnicity": [
+      {
+        "text": "人类",
+        "common": true
+      },
+      {
+        "text": "精灵",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "暗精灵",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "半精灵",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "魅魔",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern",
+          "cyber"
+        ]
+      },
+      {
+        "text": "小恶魔",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern",
+          "cyber"
+        ]
+      },
+      {
+        "text": "吸血鬼",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "天使",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "堕天使",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "女武神",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "龙女",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "幽灵",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "仙子妖精",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "狐妖",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "猫妖",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "兔耳娘",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "狼女",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "蛇女",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "雪女",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "人鱼",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "海妖",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "花妖",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "牛娘",
+        "common": true,
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "史莱姆娘",
+        "eras": [
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "鹿娘",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "僵尸娘",
+        "eras": [
+          "ancient",
+          "modern"
+        ]
+      },
+      {
+        "text": "羊娘",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "虎娘",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern"
+        ]
+      },
+      {
+        "text": "人偶",
+        "eras": [
+          "ancient",
+          "fantasy",
+          "modern",
+          "cyber"
+        ]
+      },
+      {
+        "text": "蛛娘",
+        "eras": [
+          "ancient",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "仿生人",
+        "common": true,
+        "eras": [
+          "cyber",
+          "modern"
+        ]
+      }
+    ],
+    "skin": [
+      {
+        "text": "白皙"
+      },
+      {
+        "text": "自然肤色"
+      },
+      {
+        "text": "小麦色"
+      },
+      {
+        "text": "蜜色"
+      },
+      {
+        "text": "冷白"
+      },
+      {
+        "text": "暖调"
+      }
+    ],
+    "mark": [
+      {
+        "text": "吻痕"
+      },
+      {
+        "text": "颈侧吻痕"
+      },
+      {
+        "text": "锁骨红印"
+      },
+      {
+        "text": "指痕"
+      },
+      {
+        "text": "淡红掌印"
+      },
+      {
+        "text": "口红印"
+      },
+      {
+        "text": "抓痕"
+      },
+      {
+        "text": "腰间指印"
+      },
+      {
+        "text": "脖子上的齿痕"
+      },
+      {
+        "text": "咬痕"
+      },
+      {
+        "text": "牙印"
+      },
+      {
+        "text": "颈侧咬痕"
+      },
+      {
+        "text": "手腕红痕"
+      },
+      {
+        "text": "乳尖红肿"
+      },
+      {
+        "text": "阴部红肿"
+      },
+      {
+        "text": "淤青"
+      },
+      {
+        "text": "膝盖压痕"
+      },
+      {
+        "text": "床单压痕"
+      },
+      {
+        "text": "指甲划痕"
+      },
+      {
+        "text": "大腿内侧红痕"
+      },
+      {
+        "text": "臀上掌印"
+      },
+      {
+        "text": "腰侧指痕"
+      },
+      {
+        "text": "肩头咬痕"
+      }
+    ],
+    "glasses": [
+      {
+        "text": "无框眼镜"
+      },
+      {
+        "text": "细框眼镜"
+      },
+      {
+        "text": "黑框眼镜"
+      },
+      {
+        "text": "金丝边眼镜"
+      },
+      {
+        "text": "银丝边眼镜"
+      },
+      {
+        "text": "圆框眼镜"
+      },
+      {
+        "text": "猫眼眼镜"
+      },
+      {
+        "text": "方框眼镜"
+      },
+      {
+        "text": "透明框眼镜"
+      },
+      {
+        "text": "粗框黑眼镜"
+      },
+      {
+        "text": "复古圆片眼镜"
+      },
+      {
+        "text": "链条眼镜"
+      },
+      {
+        "text": "单片眼镜"
+      },
+      {
+        "text": "蓝光眼镜"
+      },
+      {
+        "text": "护目镜"
+      },
+      {
+        "text": "飞行员墨镜"
+      },
+      {
+        "text": "圆片墨镜"
+      },
+      {
+        "text": "金框墨镜"
+      },
+      {
+        "text": "茶色镜片墨镜"
+      },
+      {
+        "text": "反光墨镜"
+      },
+      {
+        "text": "半框眼镜"
+      },
+      {
+        "text": "眼镜"
+      },
+      {
+        "text": "墨镜"
+      },
+      {
+        "text": "眼镜架在头顶"
+      },
+      {
+        "text": "眼镜滑到鼻尖"
+      },
+      {
+        "text": "摘下眼镜叼在嘴边"
+      },
+      {
+        "text": "一边镜片有裂痕"
+      },
+      {
+        "text": "镜片起雾"
+      },
+      {
+        "text": "墨镜推上去卡在发间"
+      }
+    ],
+    "outfit_b": [
+      {
+        "text": "只穿着黑色蕾丝内衣",
+        "wears": [
+          "内衣"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿了一件宽大的白衬衫",
+        "wears": [
+          "衬衫"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只裹着一条浴巾，头发还湿着",
+        "wears": [
+          "浴巾"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "身上只剩丝袜和高跟鞋",
+        "wears": [
+          "丝袜",
+          "高跟鞋"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "只穿了一条吊带睡裙",
+        "wears": [
+          "睡裙"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着一件半透的薄纱长裙",
+        "wears": [
+          "裙"
+        ],
+        "eras": [
+          "modern",
+          "fantasy"
+        ]
+      },
+      {
+        "text": "只穿了一件男士外套，里面什么都没穿",
+        "wears": [
+          "外套"
+        ],
+        "eras": [
+          "modern"
+        ]
+      },
+      {
+        "text": "穿着浴袍，带子松松地系着",
+        "wears": [
+          "浴袍"
+        ],
+        "groups": [
+          "hotel",
+          "home"
+        ]
+      },
+      {
+        "text": "穿着半褪的和服",
+        "wears": [
+          "和服"
+        ],
+        "eras": [
+          "ancient"
+        ]
+      },
+      {
+        "text": "披着一层薄纱，里面空着",
+        "wears": [
+          "薄纱"
+        ],
+        "eras": [
+          "fantasy"
+        ]
+      }
+    ],
+    "region": [
+      {
+        "text": "韩国",
+        "common": true
+      },
+      {
+        "text": "日本",
+        "common": true
+      },
+      {
+        "text": "中国",
+        "common": true
+      },
+      {
+        "text": "欧美",
+        "common": true
+      },
+      {
+        "text": "混血",
+        "common": true
+      },
+      {
+        "text": "俄罗斯"
+      },
+      {
+        "text": "乌克兰"
+      },
+      {
+        "text": "北欧"
+      },
+      {
+        "text": "法国"
+      },
+      {
+        "text": "意大利"
+      },
+      {
+        "text": "英国"
+      },
+      {
+        "text": "德国"
+      },
+      {
+        "text": "西班牙"
+      },
+      {
+        "text": "瑞典"
+      },
+      {
+        "text": "芬兰"
+      },
+      {
+        "text": "波兰"
+      },
+      {
+        "text": "泰国"
+      },
+      {
+        "text": "越南"
+      },
+      {
+        "text": "印度"
+      },
+      {
+        "text": "巴西"
+      },
+      {
+        "text": "墨西哥"
+      },
+      {
+        "text": "拉丁"
+      },
+      {
+        "text": "东亚",
+        "common": true
+      },
+      {
+        "text": "东南亚",
+        "common": true
+      },
+      {
+        "text": "中东"
+      }
+    ],
+    "age": [
+      "十八岁外表",
+      "二十岁出头",
+      "二十二岁",
+      "二十五岁",
+      "二十八岁",
+      "三十岁",
+      "三十五岁",
+      "四十岁",
+      "二十六岁",
+      "三十出头",
+      "二十四岁",
+      "二十七岁",
+      "二十九岁",
+      "三十二岁"
+    ],
+    "look": [
+      "清纯",
+      "甜美",
+      "可爱",
+      "高冷",
+      "性感",
+      "妩媚",
+      "成熟",
+      "御姐",
+      "病娇",
+      "温柔",
+      "狐狸精",
+      "冷艳",
+      "妩媚勾人",
+      "反差萌",
+      "冷美人",
+      "欲女",
+      "纯欲风",
+      "贵族气质",
+      "勾人",
+      "撩人",
+      "风情",
+      "媚态",
+      "风骚",
+      "风情万种",
+      "轻熟",
+      "熟女感",
+      "少妇感"
+    ],
+    "hair_color": [
+      "黑色",
+      "深棕色",
+      "浅棕色",
+      "金色",
+      "铂金色",
+      "亚麻色",
+      "奶茶色",
+      "银色",
+      "白色",
+      "灰色",
+      "栗色",
+      "棕色",
+      "浅金色",
+      "蜂蜜色",
+      "焦糖色",
+      "红棕色",
+      "酒红色",
+      "紫红色",
+      "粉色",
+      "雾粉色",
+      "玫瑰金",
+      "蓝黑色",
+      "墨绿色",
+      "挑染",
+      "银灰色",
+      "燕麦色",
+      "冷棕色",
+      "暖棕色",
+      "黑茶色",
+      "巧克力色",
+      "蜜茶色",
+      "灰棕色",
+      "奶茶棕",
+      "烟灰色",
+      "香槟色",
+      "焦橙色",
+      "珊瑚色",
+      "莓果色",
+      "冷调黑",
+      "暖调棕",
+      "乌黑",
+      "雪白",
+      "霜白",
+      "浅灰",
+      "银白"
+    ],
+    "bust_size": [
+      "贫乳",
+      "微乳",
+      "小巧胸部",
+      "中等胸部",
+      "丰满胸部",
+      "巨乳",
+      "爆乳",
+      "超巨乳"
+    ],
+    "bust_shape": [
+      "下垂",
+      "极度下垂",
+      "挺拔",
+      "半球形",
+      "水滴形",
+      "圆润",
+      "外扩",
+      "内收",
+      "深乳沟",
+      "侧乳明显",
+      "上围饱满",
+      "晃动",
+      "贴合胸型",
+      "不对称",
+      "柔软下垂",
+      "坚挺圆锥形",
+      "梨形",
+      "并拢的胸部",
+      "自然垂感",
+      "聚拢形状",
+      "从侧面能看见弧度"
+    ],
+    "areola": [
+      "粉嫩乳晕",
+      "浅色乳晕",
+      "深色乳晕",
+      "大乳晕",
+      "小乳晕",
+      "乳晕清晰",
+      "凸起乳晕",
+      "皱褶乳晕",
+      "光滑乳晕"
+    ],
+    "nipple": [
+      "乳头凸起",
+      "乳头内陷",
+      "乳头柔软",
+      "乳头硬挺",
+      "湿润乳头",
+      "自然放松",
+      "粉嫩乳头",
+      "深色乳头",
+      "浅褐乳头",
+      "大乳头",
+      "小乳头",
+      "长乳头",
+      "扁乳头",
+      "不对称乳头",
+      "穿孔乳头",
+      "带乳环"
+    ],
+    "weather": [
+      {
+        "text": "外面天晴得很透",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面飘着几片云",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面阴着天",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面下着小雨",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面一阵一阵下雨",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面下着暴雨",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "远处打着雷",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面飘着雪",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面起了一层雾",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "外面起着风",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "闷热得厉害",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      },
+      {
+        "text": "又湿又冷",
+        "groups": [
+          "outdoor",
+          "alley",
+          "car"
+        ]
+      }
+    ]
+  },
+  "templates": {
+    "mf": [
+      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{male}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她{mood}。"
+    ],
+    "mff": [
+      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{her2}\n\n{wear2}\n\n{male}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她们{mood}。"
+    ],
+    "ff": [
+      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{her2}\n\n{wear2}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她们{mood}。"
+    ],
+    "solo": [
+      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她{mood}。"
+    ]
+  },
+  "profile": "nsfw",
+  "rating": "adult",
+  "mutex": [
+    [
+      "贫乳",
+      "上围饱满"
+    ],
+    [
+      "贫乳",
+      "深乳沟"
+    ],
+    [
+      "贫乳",
+      "侧乳明显"
+    ],
+    [
+      "贫乳",
+      "聚拢形状"
+    ],
+    [
+      "贫乳",
+      "半球形"
+    ],
+    [
+      "微乳",
+      "上围饱满"
+    ],
+    [
+      "微乳",
+      "深乳沟"
+    ],
+    [
+      "微乳",
+      "侧乳明显"
+    ],
+    [
+      "微乳",
+      "聚拢形状"
+    ],
+    [
+      "微乳",
+      "半球形"
+    ],
+    [
+      "小巧胸部",
+      "上围饱满"
+    ],
+    [
+      "小巧胸部",
+      "深乳沟"
+    ],
+    [
+      "小巧胸部",
+      "侧乳明显"
+    ],
+    [
+      "小巧胸部",
+      "聚拢形状"
+    ],
+    [
+      "小巧胸部",
+      "半球形"
+    ],
+    [
+      "贫乳",
+      "上围饱满"
+    ],
+    [
+      "贫乳",
+      "深乳沟"
+    ],
+    [
+      "贫乳",
+      "侧乳明显"
+    ],
+    [
+      "贫乳",
+      "聚拢形状"
+    ],
+    [
+      "贫乳",
+      "半球形"
+    ],
+    [
+      "十八岁外表",
+      "熟女感"
+    ],
+    [
+      "十八岁外表",
+      "少妇感"
+    ],
+    [
+      "十八岁外表",
+      "御姐"
+    ],
+    [
+      "十八岁外表",
+      "轻熟"
+    ],
+    [
+      "十八岁外表",
+      "成熟"
+    ],
+    [
+      "二十岁出头",
+      "熟女感"
+    ],
+    [
+      "二十岁出头",
+      "少妇感"
+    ],
+    [
+      "二十岁出头",
+      "御姐"
+    ],
+    [
+      "二十岁出头",
+      "轻熟"
+    ],
+    [
+      "二十岁出头",
+      "成熟"
+    ],
+    [
+      "二十二岁",
+      "熟女感"
+    ],
+    [
+      "二十二岁",
+      "少妇感"
+    ],
+    [
+      "二十二岁",
+      "御姐"
+    ],
+    [
+      "二十二岁",
+      "轻熟"
+    ],
+    [
+      "二十二岁",
+      "成熟"
+    ],
+    [
+      "三十五岁",
+      "清纯"
+    ],
+    [
+      "三十五岁",
+      "甜美"
+    ],
+    [
+      "三十五岁",
+      "可爱"
+    ],
+    [
+      "四十岁",
+      "清纯"
+    ],
+    [
+      "四十岁",
+      "甜美"
+    ],
+    [
+      "四十岁",
+      "可爱"
+    ],
+    [
+      "骨感",
+      "巨乳"
+    ],
+    [
+      "骨感",
+      "爆乳"
+    ],
+    [
+      "骨感",
+      "超巨乳"
+    ],
+    [
+      "精瘦",
+      "巨乳"
+    ],
+    [
+      "精瘦",
+      "爆乳"
+    ],
+    [
+      "精瘦",
+      "超巨乳"
+    ],
+    [
+      "细骨架",
+      "巨乳"
+    ],
+    [
+      "细骨架",
+      "爆乳"
+    ],
+    [
+      "细骨架",
+      "超巨乳"
+    ],
+    [
+      "贫乳",
+      "从侧面能看见弧度"
+    ],
+    [
+      "贫乳",
+      "晃动"
+    ],
+    [
+      "微乳",
+      "从侧面能看见弧度"
+    ],
+    [
+      "微乳",
+      "晃动"
+    ],
+    [
+      "小巧胸部",
+      "从侧面能看见弧度"
+    ],
+    [
+      "小巧胸部",
+      "晃动"
+    ],
+    [
+      "贫乳",
+      "从侧面能看见弧度"
+    ],
+    [
+      "贫乳",
+      "晃动"
+    ],
+    [
+      "丰满胸部",
+      "极度下垂"
+    ]
+  ]
+}

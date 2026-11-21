@@ -165,8 +165,9 @@
     <string name="desc_prompt_spell_check">在提示词输入框中启用拼写检查和自动更正。AI专用术语可能被标记为错误。</string>
     <string name="label_prompt_expand">输入时展开提示词输入框</string>
     <string name="desc_prompt_expand">获得焦点时，提示词输入框将填满键盘上方的屏幕空间。关闭键盘前预览将被隐藏。</string>
-    <string name="button_reset_prompts_and_library">重置提示词和库</string>
-    <string name="msg_reset_prompts_and_library_success">提示词和库已重置</string>
+    <string name="button_reset_prompts_and_library">清空提示词与预设</string>
+    <string name="msg_confirm_reset_prompts">会清空当前服务器下，文生图、图生图、文生视频、图生视频保存的正向提示词，该服务器的负向提示词，以及全部提示词预设。不会影响标签词库、剧情词库和优化历史。</string>
+    <string name="msg_reset_prompts_and_library_success">提示词和预设已清空</string>
     <string name="button_clear_cache">清空缓存</string>
     <string name="button_restore_defaults">恢复默认设置</string>
 
@@ -182,6 +183,7 @@
     <string name="title_image_to_video">图生视频</string>
     <string name="nav_image_to_video">图生视频</string>
     <string name="nav_h3_workspace">H3 视频工作区</string>
+    <string name="nav_tag_composer">词库组合</string>
     <string name="label_highnoise_unet">高噪声 UNET</string>
     <string name="label_lownoise_unet">低噪声 UNET</string>
     <string name="label_highnoise_lora">高噪声 LoRA</string>
@@ -224,6 +226,7 @@
     <string name="error_invalid_server_response">无效的服务器响应</string>
     <string name="error_failed_load_workflow">加载工作流失败</string>
     <string name="error_generation_failed">生成失败</string>
+    <string name="msg_result_fetch_failed">生成完成，但结果没能取回来，可以到图库看看</string>
     <string name="msg_connection_lost_generation_may_continue">连接丢失。将在重新连接后检查完成状态。</string>
     <string name="error_no_connection">未连接到服务器</string>
     <string name="error_workflow_not_found">未找到工作流</string>
@@ -385,8 +388,10 @@
     <string name="gallery_filter_all">全部</string>
     <string name="gallery_filter_image">图片</string>
     <string name="gallery_filter_video">视频</string>
+    <string name="gallery_filter_frame">提取帧</string>
     <string name="gallery_filter_favorite">收藏</string>
     <string name="msg_gallery_empty_video">暂无视频</string>
+    <string name="msg_gallery_empty_frame">暂无提取帧 · 全屏播放视频时可提取当前画面</string>
     <string name="msg_gallery_empty_favorite">还没有收藏 · 点心形加入</string>
     <string name="gallery_badge_cached">缓存</string>
 
@@ -396,6 +401,8 @@
     <!-- Media viewer action buttons -->
     <string name="media_viewer_delete">删除</string>
     <string name="media_viewer_save">保存</string>
+    <string name="media_viewer_extract_frame">保存当前帧</string>
+    <string name="msg_frame_saved">当前帧已保存至图库「提取帧」</string>
     <string name="media_viewer_share">分享</string>
     <string name="media_viewer_previous">上一个</string>
     <string name="media_viewer_next">下一个</string>
@@ -643,6 +650,74 @@
     <string name="favorite_add">收藏</string>
     <string name="favorite_remove">取消收藏</string>
     <string name="metadata_retry">重试</string>
-    <string name="gallery_filter_sequence">连拍视频</string>
+    <string name="gallery_filter_sequence">连拍</string>
     <string name="msg_gallery_empty_sequence">还没有连拍视频</string>
+    <string name="section_connection_generation">连接与生成</string>
+    <string name="section_data">数据</string>
+    <string name="msg_confirm_irreversible">此操作无法撤销。</string>
+    <string name="label_library_version">词库</string>
+    <string name="label_version_number">版本号</string>
+    <string name="section_version">版本</string>
+    <string name="section_links">链接</string>
+    <string name="gallery_select_all">全选</string>
+    <string name="gallery_deselect_all">取消全选</string>
+    <string name="gallery_select_day">选这一天</string>
+    <string name="gallery_deselect_day">取消这天的选择</string>
+    <string name="gallery_delete_confirm_title">删除 %1$d 项？</string>
+    <string name="gallery_delete_confirm_text">同一次生成的其他文件也会一起删掉，此操作不可撤销。</string>
+    <string name="gallery_delete_confirm_action">删除</string>
+    <string name="video_time_display" translatable="false">%1$s / %2$s</string>
+    <string name="video_previous_frame">上一帧</string>
+    <string name="video_next_frame">下一帧</string>
+    <string name="video_loop">循环播放</string>
+    <string name="video_loop_on">开启循环</string>
+    <string name="video_loop_off">关闭循环</string>
+    <string name="video_position">进度</string>
+    <string name="video_back_5s">快退5秒</string>
+    <string name="video_forward_5s">快进5秒</string>
+    <string name="video_sound">声音</string>
+    <string name="video_sound_on">开启声音</string>
+    <string name="video_sound_off">静音</string>
+    <string name="video_no_sound">无音轨</string>
+    <string name="video_loading">正在加载视频</string>
+    <string name="content_description_play_video">播放视频</string>
+    <string name="content_description_pause_video">暂停视频</string>
+    <string name="content_description_video_position">%1$s / %2$s</string>
+    <string name="button_workflow_from_file">从文件</string>
+    <string name="button_workflow_from_server">从服务器</string>
+    <string name="title_server_import">从服务器导入</string>
+    <string name="msg_server_import_no_match">没有与“%1$s”匹配的工作流</string>
+    <string name="label_server_workflow_too_large">太大，无法导入（%1$s）</string>
+    <string name="label_server_workflow_imported">已导入</string>
+    <string name="content_description_downloading">正在下载</string>
+    <string name="title_server_import_empty">此服务器上没有工作流</string>
+    <string name="desc_server_import_empty">在 ComfyUI 中保存工作流（Workflow › Save）后，它会显示在这里。</string>
+    <string name="button_refresh">刷新</string>
+    <string name="button_retry">重试</string>
+    <string name="title_server_import_failed">无法加载工作流</string>
+    <string name="desc_server_import_failed">服务器没有响应。请检查它是否在运行，然后重试。</string>
+    <string name="title_server_import_multiuser">此服务器有用户账户</string>
+    <string name="desc_server_import_multiuser">暂不支持从多用户服务器导入。请在 ComfyUI 中导出工作流并导入文件。</string>
+    <string name="button_import_from_file">从文件导入</string>
+    <string name="error_server_workflows_refresh">无法刷新列表</string>
+    <string name="error_server_workflow_too_large">%1$s 太大，无法导入（上限 %2$s）</string>
+    <string name="error_server_workflow_not_workflow">%1$s 不是 ComfyUI 工作流</string>
+    <string name="error_server_workflow_download">无法下载 %1$s</string>
+    <plurals name="hint_server_import_search">
+        <item quantity="other">搜索 %d 个工作流</item>
+    </plurals>
+    <string name="label_server_import_count_of">工作流：%1$d / %2$d</string>
+    <string name="label_check_update">检查更新</string>
+    <string name="value_update_checking">正在检查…</string>
+    <string name="value_update_available">有新版本 %1$s</string>
+    <string name="value_update_uptodate">已是最新</string>
+    <string name="value_update_failed">检查失败，点此重试</string>
+    <string name="value_update_idle">点此检查</string>
+    <string name="label_update_auto">自动检查更新</string>
+    <string name="desc_update_auto">每天一次，向 GitHub 要一次最新正式版</string>
+    <string name="title_update_available">发现新版本 %1$s</string>
+    <string name="label_update_current">当前 %1$s</string>
+    <string name="desc_update_browser">会在浏览器里打开 GitHub，下载后由系统安装器接手。</string>
+    <string name="action_open_release">打开下载页</string>
+    <string name="action_skip_version">跳过这个版本</string>
 </resources>

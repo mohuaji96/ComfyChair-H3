@@ -21,7 +21,18 @@ object H3RelayStatus {
     private val _remaining = MutableStateFlow(0)
     val remaining: StateFlow<Int> = _remaining.asStateFlow()
 
+    /**
+     * What the segment being generated is doing right now. Empty when nothing is running, so the
+     * notification can drop the line instead of leaving a stale stage on screen.
+     */
+    private val _detail = MutableStateFlow("")
+    val detail: StateFlow<String> = _detail.asStateFlow()
+
     val active: Boolean get() = _done.value + _remaining.value > 0
+
+    fun setDetail(value: String) {
+        _detail.value = value
+    }
 
     fun report(done: Int, remaining: Int) {
         _done.value = done
@@ -40,5 +51,6 @@ object H3RelayStatus {
         _paused.value = false
         _done.value = 0
         _remaining.value = 0
+        _detail.value = ""
     }
 }

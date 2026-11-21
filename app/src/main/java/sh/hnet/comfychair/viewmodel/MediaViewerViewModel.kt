@@ -61,7 +61,9 @@ data class MediaViewerItem(
     val isVideo: Boolean,
     val index: Int = 0,
     /** The server has no history entry for it, so deleting is a cache operation. */
-    val localOnly: Boolean = false
+    val localOnly: Boolean = false,
+    /** A file this app wrote itself (an extracted frame): shown from here, never fetched. */
+    val localPath: String? = null
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -72,6 +74,7 @@ data class MediaViewerItem(
             put("isVideo", isVideo)
             put("index", index)
             put("localOnly", localOnly)
+            put("localPath", localPath)
         }
     }
 
@@ -84,7 +87,8 @@ data class MediaViewerItem(
                 type = json.optString("type", "output"),
                 isVideo = json.optBoolean("isVideo", false),
                 index = json.optInt("index", 0),
-                localOnly = json.optBoolean("localOnly", false)
+                localOnly = json.optBoolean("localOnly", false),
+                localPath = json.optString("localPath").takeIf { it.isNotBlank() }
             )
         }
 
@@ -375,7 +379,13 @@ class MediaViewerViewModel : ViewModel() {
                     isLoading = false
                 )
             } else {
-                val bitmap = MediaCache.fetchImage(key, item.subfolder, item.type)
+                // A frame this app wrote lives on the phone; asking the server for it never works
+                val local = item.localPath
+                val bitmap = if (local != null) {
+                    MediaCache.bitmapFromLocalFile(key, local)
+                } else {
+                    MediaCache.fetchImage(key, item.subfolder, item.type)
+                }
                 _uiState.value = _uiState.value.copy(
                     currentBitmap = bitmap,
                     isLoading = false
@@ -701,6 +711,78 @@ class MediaViewerViewModel : ViewModel() {
                 _events.emit(MediaViewerEvent.ShowToast(R.string.msg_image_saved_to_gallery))
             } catch (e: Exception) {
                 _events.emit(MediaViewerEvent.ShowToast(R.string.error_save_image))
+            }
+        }
+    }
+
+    fun extractAndSaveCurrentFrame(context: Context, positionMs: Long) {
+        val state = _uiState.value
+        val item = state.currentItem ?: return
+        if (!item.isVideo) return
+
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val retriever = android.media.MediaMetadataRetriever()
+                    val videoFile = java.io.File(context.cacheDir, "media_${item.filename}")
+                    val sourcePath = if (videoFile.exists() && videoFile.length() > 0) {
+                        videoFile.absolutePath
+                    } else {
+                        val uri = state.currentVideoUri
+                        if (uri != null) {
+                            retriever.setDataSource(context, uri)
+                            null
+                        } else null
+                    }
+                    if (sourcePath != null) {
+                        retriever.setDataSource(sourcePath)
+                    }
+
+                    val bitmap = retriever.getFrameAtTime(
+                        positionMs.coerceAtLeast(0) * 1000,
+                        android.media.MediaMetadataRetriever.OPTION_CLOSEST
+                    ) ?: retriever.getFrameAtTime(positionMs.coerceAtLeast(0) * 1000)
+                    retriever.release()
+
+                    if (bitmap == null) {
+                        _events.emit(MediaViewerEvent.ShowToast(R.string.error_save_image))
+                        return@withContext
+                    }
+
+                    val filename = "frame_${System.currentTimeMillis()}.png"
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ComfyChair")
+                    }
+                    val resolver = context.contentResolver
+                    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    uri?.let { outUri ->
+                        resolver.openOutputStream(outUri)?.use { outStream ->
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+                        }
+                    }
+
+                    val offlineDir = java.io.File(context.filesDir, "gallery_offline")
+                    if (offlineDir.exists() || offlineDir.mkdirs()) {
+                        val localFile = java.io.File(offlineDir, filename)
+                        localFile.outputStream().use { out ->
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                    }
+
+                    // Also populate MediaCache so thumbnails load immediately
+                    val cacheKey = sh.hnet.comfychair.cache.MediaCacheKey("local_$filename", filename)
+                    sh.hnet.comfychair.cache.MediaCache.putBitmap(cacheKey, bitmap)
+
+                    sh.hnet.comfychair.repository.GalleryRepository.getInstance().addLocalExtractedFrame(
+                        filename = filename,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    _events.emit(MediaViewerEvent.ShowToast(R.string.msg_frame_saved))
+                } catch (e: Exception) {
+                    _events.emit(MediaViewerEvent.ShowToast(R.string.error_save_image))
+                }
             }
         }
     }

@@ -1,0 +1,948 @@
+{
+  "h3Preferred": false,
+  "name": "H3 首尾帧生视频（二采Turbo加速）",
+  "nodes": {
+    "2": {
+      "inputs": {
+        "value": "<Prompt>"
+      },
+      "class_type": "PrimitiveStringMultiline",
+      "_meta": {
+        "title": "Prompt",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "3": {
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "class_type": "VAELoader",
+      "_meta": {
+        "title": "加载VAE",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "4": {
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "class_type": "VAELoader",
+      "_meta": {
+        "title": "加载VAE",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "9": {
+      "inputs": {
+        "image": "example.png"
+      },
+      "class_type": "LoadImage",
+      "_meta": {
+        "title": "Starting image for I2V - not reference-only (bypass for T2V)",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "15": {
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      },
+      "class_type": "CLIPLoader",
+      "_meta": {
+        "title": "加载CLIP",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "17": {
+      "inputs": {
+        "value": 15
+      },
+      "class_type": "PrimitiveFloat",
+      "_meta": {
+        "title": "Duration in seconds - Preview + Full",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "18": {
+      "inputs": {
+        "sampler_name": "er_sde"
+      },
+      "class_type": "KSamplerSelect",
+      "_meta": {
+        "title": "K采样器选择",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "20": {
+      "inputs": {
+        "aspect_ratio": "4:3 (Standard)",
+        "megapixels": 0.3,
+        "multiple": 32
+      },
+      "class_type": "ResolutionSelector",
+      "_meta": {
+        "title": "Selector First LowRes Pass",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "23": {
+      "inputs": {
+        "value": 1
+      },
+      "class_type": "PrimitiveFloat",
+      "_meta": {
+        "title": "Final Target Megapixels (2nd Pass)",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "24": {
+      "inputs": {
+        "scheduler": "sgm_uniform",
+        "steps": 8,
+        "denoise": 1,
+        "model": [
+          "37",
+          0
+        ]
+      },
+      "class_type": "BasicScheduler",
+      "_meta": {
+        "title": "Scheduler First Pass",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "30": {
+      "inputs": {
+        "unet_name": "H3\\无审核\\NSFW专用，8八步加速10Eros_Max_h3_8stepTURBO_beta7_int8HQ.safetensors",
+        "weight_dtype": "default"
+      },
+      "class_type": "UNETLoader",
+      "_meta": {
+        "title": "UNet加载器",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "36": {
+      "inputs": {
+        "lora_name": "H3\\增加人物稳定性，可成人向人体结构、裸露人体表现优化权重0.65～0.85MysticXXX_MMH3-V2.safetensors",
+        "strength_model": 1,
+        "model": [
+          "30",
+          0
+        ]
+      },
+      "class_type": "LoraLoaderModelOnly",
+      "_meta": {
+        "title": "Load TURBO LoRA (skip if model includes it)",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "37": {
+      "inputs": {
+        "attention": "comfy kitchen attention",
+        "model": [
+          "100",
+          0
+        ]
+      },
+      "class_type": "ModelAttentionBackend",
+      "_meta": {
+        "title": "模型注意力后端",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "38": {
+      "inputs": {
+        "shift_video": 12,
+        "shift_audio": 3,
+        "model": [
+          "36",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3SigmaShift",
+      "_meta": {
+        "title": "MiniMax H3 Sigma Shift",
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0"
+      }
+    },
+    "39": {
+      "inputs": {
+        "resize_type": "scale by multiplier",
+        "resize_type.scale": 1.2,
+        "quality": "ULTRA",
+        "strength": 1,
+        "image_encoding": "10-bit RGB (RGB10A2)",
+        "images": [
+          "151:25",
+          0
+        ]
+      },
+      "class_type": "RTXVideoSuperResolution",
+      "_meta": {
+        "title": "RTX Video Super Resolution",
+        "cnr_id": "comfyui_nvidia_rtx_nodes",
+        "ver": "892515e3eb9a4920a131a502a047e47adca9eb0d"
+      }
+    },
+    "40": {
+      "inputs": {
+        "filename_prefix": [
+          "152:75",
+          0
+        ],
+        "format": "mp4",
+        "format.codec": "auto",
+        "codec": "auto",
+        "video": [
+          "152:135",
+          0
+        ]
+      },
+      "class_type": "SaveVideo",
+      "_meta": {
+        "title": "Save 24 FPS video",
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2"
+      }
+    },
+    "59": {
+      "inputs": {
+        "seed": -1
+      },
+      "class_type": "Seed (rgthree)",
+      "_meta": {
+        "title": "Seed (rgthree)",
+        "cnr_id": "rgthree-comfy",
+        "ver": "1.0.2511270846"
+      }
+    },
+    "73": {
+      "inputs": {
+        "value": "video/ErosMaxH3_b7_TURBO_2Pass"
+      },
+      "class_type": "PrimitiveString",
+      "_meta": {
+        "title": "File name prefix for Full Resolution",
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1"
+      }
+    },
+    "74": {
+      "inputs": {
+        "value": "video/Preview_ErosMaxH3_b7_TURBO"
+      },
+      "class_type": "PrimitiveString",
+      "_meta": {
+        "title": "File name prefix for Previews",
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1"
+      }
+    },
+    "94": {
+      "inputs": {
+        "value": false
+      },
+      "class_type": "PrimitiveBoolean",
+      "_meta": {
+        "title": "Preview - skip second pass",
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1"
+      }
+    },
+    "100": {
+      "inputs": {
+        "selection": "vsa",
+        "selection.keep_percent": 10,
+        "start_percent": 0,
+        "end_percent": 1,
+        "dense_blocks": "0,1",
+        "min_tokens": 12288,
+        "extra_tokens": 256,
+        "sink_conditioning": "exact_kv_and_rows",
+        "verbose": false,
+        "model": [
+          "38",
+          0
+        ]
+      },
+      "class_type": "BlockSparseAttention",
+      "_meta": {
+        "title": "模型稀疏注意力",
+        "cnr_id": "comfy-core",
+        "ver": "0.38.2"
+      }
+    },
+    "102": {
+      "inputs": {
+        "scheduler": "simple",
+        "steps": 3,
+        "denoise": 0.3,
+        "model": [
+          "37",
+          0
+        ]
+      },
+      "class_type": "BasicScheduler",
+      "_meta": {
+        "title": "Scheduler Second Pass",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "174": {
+      "inputs": {
+        "value": 0.005
+      },
+      "class_type": "PrimitiveFloat",
+      "_meta": {
+        "title": "Output grain strength — 0 = OFF",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "181": {
+      "inputs": {
+        "frame_idx": 0,
+        "positive": [
+          "151:11",
+          0
+        ],
+        "latent": [
+          "151:11",
+          1
+        ],
+        "vae": [
+          "3",
+          0
+        ],
+        "image": [
+          "9",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3AddGuide",
+      "_meta": {
+        "title": "Starting frame 0 - pass 1",
+        "cnr_id": "comfy-core",
+        "ver": "0.42.0"
+      }
+    },
+    "182": {
+      "inputs": {
+        "frame_idx": 0,
+        "positive": [
+          "151:11",
+          0
+        ],
+        "latent": [
+          "151:10",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ],
+        "image": [
+          "9",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3AddGuide",
+      "_meta": {
+        "title": "Starting frame 0 - pass 2",
+        "cnr_id": "comfy-core",
+        "ver": "0.42.0"
+      }
+    },
+    "189": {
+      "inputs": {
+        "value": true
+      },
+      "class_type": "PrimitiveBoolean",
+      "_meta": {
+        "title": "Free VRAM after video processing",
+        "cnr_id": "comfy-core",
+        "ver": "0.44.2"
+      }
+    },
+    "190": {
+      "inputs": {
+        "image": "example_end.png"
+      },
+      "class_type": "LoadImage",
+      "_meta": {
+        "title": "Ending image for I2V - optional final-frame guide",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "192": {
+      "inputs": {
+        "frame_idx": -1,
+        "positive": [
+          "181",
+          0
+        ],
+        "latent": [
+          "151:11",
+          1
+        ],
+        "vae": [
+          "3",
+          0
+        ],
+        "image": [
+          "190",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3AddGuide",
+      "_meta": {
+        "title": "Ending frame - pass 1",
+        "cnr_id": "comfy-core",
+        "ver": "0.42.0"
+      }
+    },
+    "193": {
+      "inputs": {
+        "frame_idx": -1,
+        "positive": [
+          "182",
+          0
+        ],
+        "latent": [
+          "151:10",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ],
+        "image": [
+          "190",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3AddGuide",
+      "_meta": {
+        "title": "Ending frame - pass 2",
+        "cnr_id": "comfy-core",
+        "ver": "0.42.0"
+      }
+    },
+    "178:179": {
+      "inputs": {
+        "choice": "medium",
+        "index": 5,
+        "option1": "ultrafast",
+        "option2": "superfast",
+        "option3": "veryfast",
+        "option4": "faster",
+        "option5": "fast",
+        "option6": "medium",
+        "option7": "slow",
+        "option8": "slower",
+        "option9": "veryslow",
+        "option10": ""
+      },
+      "class_type": "CustomCombo",
+      "_meta": {
+        "title": "Encoder presets — fixed workflow options",
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2"
+      }
+    },
+    "178:180": {
+      "inputs": {
+        "any_01": [
+          "178:179",
+          0
+        ]
+      },
+      "class_type": "Any Switch (rgthree)",
+      "_meta": {
+        "title": "Preset passthrough — one connected input",
+        "cnr_id": "rgthree-comfy",
+        "ver": "1.0.2610050029"
+      }
+    },
+    "151:32": {
+      "inputs": {
+        "model": [
+          "37",
+          0
+        ],
+        "conditioning": [
+          "193",
+          0
+        ]
+      },
+      "class_type": "BasicGuider",
+      "_meta": {
+        "title": "基本引导器",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:10": {
+      "inputs": {
+        "video_latent": [
+          "151:26",
+          0
+        ],
+        "audio_latent": [
+          "151:35",
+          1
+        ]
+      },
+      "class_type": "LTXVConcatAVLatent",
+      "_meta": {
+        "title": "拼接 AV 潜空间",
+        "cnr_id": "comfy-core",
+        "ver": "0.5.1"
+      }
+    },
+    "151:21": {
+      "inputs": {
+        "noise": [
+          "151:31",
+          0
+        ],
+        "guider": [
+          "151:29",
+          0
+        ],
+        "sampler": [
+          "18",
+          0
+        ],
+        "sigmas": [
+          "24",
+          0
+        ],
+        "latent_image": [
+          "151:11",
+          1
+        ]
+      },
+      "class_type": "SamplerCustomAdvanced",
+      "_meta": {
+        "title": "自定义采样器（高级）",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:25": {
+      "inputs": {
+        "samples": [
+          "151:95",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ]
+      },
+      "class_type": "VAEDecode",
+      "_meta": {
+        "title": "VAE解码",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:14": {
+      "inputs": {
+        "samples": [
+          "151:86",
+          0
+        ],
+        "vae": [
+          "4",
+          0
+        ]
+      },
+      "class_type": "VAEDecodeAudio",
+      "_meta": {
+        "title": "VAE解码（音频）",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:29": {
+      "inputs": {
+        "model": [
+          "37",
+          0
+        ],
+        "conditioning": [
+          "192",
+          0
+        ]
+      },
+      "class_type": "BasicGuider",
+      "_meta": {
+        "title": "基本引导器",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:16": {
+      "inputs": {
+        "noise": [
+          "151:31",
+          0
+        ],
+        "guider": [
+          "151:32",
+          0
+        ],
+        "sampler": [
+          "18",
+          0
+        ],
+        "sigmas": [
+          "102",
+          0
+        ],
+        "latent_image": [
+          "151:10",
+          0
+        ]
+      },
+      "class_type": "SamplerCustomAdvanced",
+      "_meta": {
+        "title": "自定义采样器（高级）",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:19": {
+      "inputs": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "values.a": [
+          "17",
+          0
+        ]
+      },
+      "class_type": "ComfyMathExpression",
+      "_meta": {
+        "title": "数学表达式",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:35": {
+      "inputs": {
+        "av_latent": [
+          "151:21",
+          1
+        ]
+      },
+      "class_type": "LTXVSeparateAVLatent",
+      "_meta": {
+        "title": "分离 AV 潜空间",
+        "cnr_id": "comfy-core",
+        "ver": "0.5.1"
+      }
+    },
+    "151:86": {
+      "inputs": {
+        "empty_cache": [
+          "189",
+          0
+        ],
+        "gc_collect": [
+          "189",
+          0
+        ],
+        "unload_all_models": [
+          "189",
+          0
+        ],
+        "any_input": [
+          "151:35",
+          1
+        ],
+        "image_pass": [
+          "39",
+          0
+        ]
+      },
+      "class_type": "VRAM_Debug",
+      "_meta": {
+        "title": "Wait for video/RTX - decode audio last",
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "83262fae95ab3d715c85cbde2701e5584b653285"
+      }
+    },
+    "151:95": {
+      "inputs": {
+        "switch": [
+          "94",
+          0
+        ],
+        "on_false": [
+          "151:16",
+          0
+        ],
+        "on_true": [
+          "151:35",
+          0
+        ]
+      },
+      "class_type": "ComfySwitchNode",
+      "_meta": {
+        "title": "Choose video for preview",
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1"
+      }
+    },
+    "151:26": {
+      "inputs": {
+        "width": [
+          "151:187",
+          1
+        ],
+        "height": [
+          "151:188",
+          1
+        ],
+        "model": [
+          "151:186",
+          0
+        ],
+        "samples": [
+          "151:35",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3LatentUpscaleWithModel",
+      "_meta": {
+        "title": "Native H3 learned latent upscale",
+        "cnr_id": "comfy-core",
+        "ver": "0.43.0"
+      }
+    },
+    "151:11": {
+      "inputs": {
+        "prompt": [
+          "2",
+          0
+        ],
+        "width": [
+          "20",
+          0
+        ],
+        "height": [
+          "20",
+          1
+        ],
+        "length": [
+          "151:19",
+          1
+        ],
+        "ref_image_size": "match",
+        "clip": [
+          "15",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ],
+        "audio_vae": [
+          "4",
+          0
+        ],
+        "ref_images.ref_image_0": [
+          "9",
+          0
+        ],
+        "ref_images.ref_image_1": [
+          "190",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3ReferenceToVideo",
+      "_meta": {
+        "title": "MiniMax H3 参考转视频",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:31": {
+      "inputs": {
+        "noise_seed": [
+          "59",
+          0
+        ]
+      },
+      "class_type": "RandomNoise",
+      "_meta": {
+        "title": "随机噪波",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    },
+    "151:186": {
+      "inputs": {
+        "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors"
+      },
+      "class_type": "LatentUpscaleModelLoader",
+      "_meta": {
+        "title": "Native H3 latent upscale model (same FP16 weights)",
+        "cnr_id": "comfy-core",
+        "ver": "0.43.0"
+      }
+    },
+    "151:187": {
+      "inputs": {
+        "expression": "max(16, round((pow(c * 1024 * 1024 / ((a // 16) / (b // 16)), 0.5) * ((a // 16) / (b // 16))) / 32) * 32)",
+        "values.a": [
+          "20",
+          0
+        ],
+        "values.b": [
+          "20",
+          1
+        ],
+        "values.c": [
+          "23",
+          0
+        ]
+      },
+      "class_type": "ComfyMathExpression",
+      "_meta": {
+        "title": "Target width: existing megapixels + 32-pixel alignment",
+        "cnr_id": "comfy-core",
+        "ver": "0.43.0"
+      }
+    },
+    "151:188": {
+      "inputs": {
+        "expression": "max(16, round((pow(c * 1024 * 1024 / ((a // 16) / (b // 16)), 0.5)) / 32) * 32)",
+        "values.a": [
+          "20",
+          0
+        ],
+        "values.b": [
+          "20",
+          1
+        ],
+        "values.c": [
+          "23",
+          0
+        ]
+      },
+      "class_type": "ComfyMathExpression",
+      "_meta": {
+        "title": "Target height: existing megapixels + 32-pixel alignment",
+        "cnr_id": "comfy-core",
+        "ver": "0.43.0"
+      }
+    },
+    "152:75": {
+      "inputs": {
+        "switch": [
+          "94",
+          0
+        ],
+        "on_false": [
+          "73",
+          0
+        ],
+        "on_true": [
+          "74",
+          0
+        ]
+      },
+      "class_type": "ComfySwitchNode",
+      "_meta": {
+        "title": "Preview / Full filename",
+        "cnr_id": "comfy-core",
+        "ver": "0.35.1"
+      }
+    },
+    "152:135": {
+      "inputs": {
+        "upscale": false,
+        "upscale_method": "lanczos",
+        "upscale_by": 2,
+        "interpolate": false,
+        "original_fps": 24,
+        "interpolate_by": 2,
+        "dual_pass_rife": false,
+        "grain": [
+          "152:176",
+          2
+        ],
+        "grain_intensity": [
+          "174",
+          0
+        ],
+        "saturation_mix": 0.25,
+        "compress": true,
+        "crf": 18,
+        "batching_mode": "custom",
+        "custom_batch_size": 4,
+        "encoder_preset": [
+          "178:180",
+          0
+        ],
+        "h264_profile": "auto",
+        "images": [
+          "39",
+          0
+        ],
+        "audio_pass": [
+          "151:14",
+          0
+        ]
+      },
+      "class_type": "LokkenVideoPostProcessing",
+      "_meta": {
+        "title": "Encode one clip + first-pass audio (24 FPS / CRF 18)",
+        "cnr_id": "lokken-videotools",
+        "aux_id": "LordLocksley/ComfyUI-Lokken-VideoTools",
+        "ver": "4d7550543483b00bf281d0bf3ba36d7daeb5ffe9"
+      }
+    },
+    "152:176": {
+      "inputs": {
+        "expression": "a > 0",
+        "values.a": [
+          "174",
+          0
+        ]
+      },
+      "class_type": "ComfyMathExpression",
+      "_meta": {
+        "title": "Grain enabled only when strength > 0",
+        "cnr_id": "comfy-core",
+        "ver": "0.33.2"
+      }
+    }
+  },
+  "description": "二采 + Turbo 加速 首尾帧生视频模板",
+  "modes": [
+    "T2V",
+    "I2V",
+    "FL2V"
+  ]
+}

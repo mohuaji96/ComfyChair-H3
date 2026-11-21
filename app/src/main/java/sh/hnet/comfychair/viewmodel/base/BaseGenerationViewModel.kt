@@ -90,6 +90,33 @@ abstract class BaseGenerationViewModel<UiState, Event> : ViewModel() {
     }
 
     /**
+     * Resolves a model field that was restored from storage but could not be checked yet.
+     *
+     * The model cache arrives in five separate emits (one per folder), so a restored value is
+     * routinely resolved against a list that is still empty. Validating against that empty
+     * list wiped the saved selection on every cold start. Three outcomes:
+     *
+     *  - the deferred value is now present -> apply it and drop the deferral
+     *  - the list has not loaded yet      -> keep both untouched, try again on the next emit
+     *  - the list is loaded without it    -> validate the current pick, but keep the deferral
+     *    so a stale folder response cannot permanently throw away a saved selection
+     *
+     * A user picking a model explicitly must clear the deferral themselves, or the next
+     * cache emit would put the stored value back.
+     *
+     * @return resolved selection to the still-pending deferred value (null once applied)
+     */
+    protected fun resolveModelSelection(
+        deferred: String?,
+        selected: String,
+        available: List<String>
+    ): Pair<String, String?> {
+        deferred?.takeIf { available.contains(it) }?.let { return it to null }
+        if (available.isEmpty()) return selected to deferred
+        return validateModelSelection(selected, available) to deferred
+    }
+
+    /**
      * Check if the ViewModel has been initialized.
      */
     fun isInitialized(): Boolean = isInitialized

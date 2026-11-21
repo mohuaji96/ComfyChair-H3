@@ -383,14 +383,8 @@ class WorkflowEditorViewModel : ViewModel() {
                     return@fetchObjectInfo
                 }
 
-                // Built-in workflows cannot be edited
-                if (workflow.isBuiltIn) {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        errorMessage = context.getString(R.string.error_cannot_edit_builtin)
-                    )
-                    return@fetchObjectInfo
-                }
+                // Built-in workflows cannot be overwritten; allow preview and edit as a clone (Save As)
+                val isBuiltIn = workflow.isBuiltIn
 
                 // Parse the workflow
                 var graph = parser.parse(sh.hnet.comfychair.storage.H3SourceStore(context).apply(workflow.id, workflow.jsonContent), workflow.name, workflow.description)
@@ -406,16 +400,17 @@ class WorkflowEditorViewModel : ViewModel() {
 
                 _uiState.value = _uiState.value.copy(
                     graph = graph,
-                    workflowName = workflow.name,
+                    workflowName = if (isBuiltIn) "${workflow.name} (副本)" else workflow.name,
                     isLoading = false,
                     errorMessage = null,
                     graphBounds = bounds,
-                    // Edit-existing specific flags
-                    isEditExistingMode = true,
+                    // If built-in, redirect save to Save As (create mode), never overwrite original
+                    isEditExistingMode = !isBuiltIn,
+                    isCreateMode = isBuiltIn,
                     isEditMode = true,  // Start in edit mode
-                    editingWorkflowId = workflowId,
+                    editingWorkflowId = if (isBuiltIn) null else workflowId,
                     editingWorkflowType = workflow.type,
-                    originalWorkflowName = workflow.name,
+                    originalWorkflowName = if (isBuiltIn) "${workflow.name} (副本)" else workflow.name,
                     originalWorkflowDescription = workflow.description,
                     hasUnsavedChanges = false,
                     // Sync manual placement mode from graph

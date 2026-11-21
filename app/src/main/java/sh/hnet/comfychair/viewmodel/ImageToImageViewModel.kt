@@ -26,7 +26,6 @@ import sh.hnet.comfychair.model.LoraSelection
 import sh.hnet.comfychair.model.WorkflowCapabilities
 import sh.hnet.comfychair.ui.components.config.CommonGenerationState
 import sh.hnet.comfychair.model.WorkflowValues
-import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.ui.components.shared.WorkflowItemBase
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.LoraChainManager
@@ -310,57 +309,32 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
         viewModelScope.launch {
             ConnectionManager.modelCache.collect { cache ->
                 _uiState.update { state ->
-                    // Apply deferred selections first, then validate or fall back to first available
-                    val checkpoint = state.deferredCheckpoint?.takeIf { it in cache.checkpoints }
-                        ?: validateModelSelection(state.selectedCheckpoint, cache.checkpoints)
-                    val unet = state.deferredUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedUnet, cache.unets)
-                    val vae = state.deferredVae?.takeIf { it in cache.vaes }
-                        ?: validateModelSelection(state.selectedVae, cache.vaes)
-                    val clip = state.deferredClip?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip, cache.clips)
-                    val clip1 = state.deferredClip1?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip1, cache.clips)
-                    val clip2 = state.deferredClip2?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip2, cache.clips)
-                    val clip3 = state.deferredClip3?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip3, cache.clips)
-                    val clip4 = state.deferredClip4?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip4, cache.clips)
-                    val textEncoder = state.deferredTextEncoder?.takeIf { it in cache.textEncoders }
-                        ?: validateModelSelection(state.selectedTextEncoder, cache.textEncoders)
-                    val latentUpscaleModel = state.deferredLatentUpscaleModel?.takeIf { it in cache.latentUpscaleModels }
-                        ?: validateModelSelection(state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
-                    val editingUnet = state.deferredEditingUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedEditingUnet, cache.unets)
-                    val editingVae = state.deferredEditingVae?.takeIf { it in cache.vaes }
-                        ?: validateModelSelection(state.selectedEditingVae, cache.vaes)
-                    val editingClip = state.deferredEditingClip?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedEditingClip, cache.clips)
-                    val editingClip1 = state.deferredEditingClip1?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedEditingClip1, cache.clips)
-                    val editingClip2 = state.deferredEditingClip2?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedEditingClip2, cache.clips)
-                    val editingClip3 = state.deferredEditingClip3?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedEditingClip3, cache.clips)
-                    val editingClip4 = state.deferredEditingClip4?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedEditingClip4, cache.clips)
-                    val editingLora = state.deferredEditingLora?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedEditingLora, cache.loras)
-                    val editingTextEncoder = state.deferredEditingTextEncoder?.takeIf { it in cache.textEncoders }
-                        ?: validateModelSelection(state.selectedEditingTextEncoder, cache.textEncoders)
-                    val editingLatentUpscaleModel = state.deferredEditingLatentUpscaleModel?.takeIf { it in cache.latentUpscaleModels }
-                        ?: validateModelSelection(state.selectedEditingLatentUpscaleModel, cache.latentUpscaleModels)
-                    val editingCheckpoint = state.deferredEditingCheckpoint?.takeIf { it in cache.checkpoints }
-                        ?: validateModelSelection(state.selectedEditingCheckpoint, cache.checkpoints)
-                    val editingHighnoiseUnet = state.deferredEditingHighnoiseUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedEditingHighnoiseUnet, cache.unets)
-                    val editingLownoiseUnet = state.deferredEditingLownoiseUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedEditingLownoiseUnet, cache.unets)
-                    val editingHighnoiseLora = state.deferredEditingHighnoiseLora?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedEditingHighnoiseLora, cache.loras)
-                    val editingLownoiseLora = state.deferredEditingLownoiseLora?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedEditingLownoiseLora, cache.loras)
+                    // Apply deferred selections first; an empty folder list must not wipe a saved pick
+                    val (checkpoint, deferredCheckpointNext) = resolveModelSelection(state.deferredCheckpoint, state.selectedCheckpoint, cache.checkpoints)
+                    val (unet, deferredUnetNext) = resolveModelSelection(state.deferredUnet, state.selectedUnet, cache.unets)
+                    val (vae, deferredVaeNext) = resolveModelSelection(state.deferredVae, state.selectedVae, cache.vaes)
+                    val (clip, deferredClipNext) = resolveModelSelection(state.deferredClip, state.selectedClip, cache.clips)
+                    val (clip1, deferredClip1Next) = resolveModelSelection(state.deferredClip1, state.selectedClip1, cache.clips)
+                    val (clip2, deferredClip2Next) = resolveModelSelection(state.deferredClip2, state.selectedClip2, cache.clips)
+                    val (clip3, deferredClip3Next) = resolveModelSelection(state.deferredClip3, state.selectedClip3, cache.clips)
+                    val (clip4, deferredClip4Next) = resolveModelSelection(state.deferredClip4, state.selectedClip4, cache.clips)
+                    val (textEncoder, deferredTextEncoderNext) = resolveModelSelection(state.deferredTextEncoder, state.selectedTextEncoder, cache.textEncoders)
+                    val (latentUpscaleModel, deferredLatentUpscaleModelNext) = resolveModelSelection(state.deferredLatentUpscaleModel, state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
+                    val (editingUnet, deferredEditingUnetNext) = resolveModelSelection(state.deferredEditingUnet, state.selectedEditingUnet, cache.unets)
+                    val (editingVae, deferredEditingVaeNext) = resolveModelSelection(state.deferredEditingVae, state.selectedEditingVae, cache.vaes)
+                    val (editingClip, deferredEditingClipNext) = resolveModelSelection(state.deferredEditingClip, state.selectedEditingClip, cache.clips)
+                    val (editingClip1, deferredEditingClip1Next) = resolveModelSelection(state.deferredEditingClip1, state.selectedEditingClip1, cache.clips)
+                    val (editingClip2, deferredEditingClip2Next) = resolveModelSelection(state.deferredEditingClip2, state.selectedEditingClip2, cache.clips)
+                    val (editingClip3, deferredEditingClip3Next) = resolveModelSelection(state.deferredEditingClip3, state.selectedEditingClip3, cache.clips)
+                    val (editingClip4, deferredEditingClip4Next) = resolveModelSelection(state.deferredEditingClip4, state.selectedEditingClip4, cache.clips)
+                    val (editingLora, deferredEditingLoraNext) = resolveModelSelection(state.deferredEditingLora, state.selectedEditingLora, cache.loras)
+                    val (editingTextEncoder, deferredEditingTextEncoderNext) = resolveModelSelection(state.deferredEditingTextEncoder, state.selectedEditingTextEncoder, cache.textEncoders)
+                    val (editingLatentUpscaleModel, deferredEditingLatentUpscaleModelNext) = resolveModelSelection(state.deferredEditingLatentUpscaleModel, state.selectedEditingLatentUpscaleModel, cache.latentUpscaleModels)
+                    val (editingCheckpoint, deferredEditingCheckpointNext) = resolveModelSelection(state.deferredEditingCheckpoint, state.selectedEditingCheckpoint, cache.checkpoints)
+                    val (editingHighnoiseUnet, deferredEditingHighnoiseUnetNext) = resolveModelSelection(state.deferredEditingHighnoiseUnet, state.selectedEditingHighnoiseUnet, cache.unets)
+                    val (editingLownoiseUnet, deferredEditingLownoiseUnetNext) = resolveModelSelection(state.deferredEditingLownoiseUnet, state.selectedEditingLownoiseUnet, cache.unets)
+                    val (editingHighnoiseLora, deferredEditingHighnoiseLoraNext) = resolveModelSelection(state.deferredEditingHighnoiseLora, state.selectedEditingHighnoiseLora, cache.loras)
+                    val (editingLownoiseLora, deferredEditingLownoiseLoraNext) = resolveModelSelection(state.deferredEditingLownoiseLora, state.selectedEditingLownoiseLora, cache.loras)
 
                     state.copy(
                         availableCheckpoints = cache.checkpoints,
@@ -398,32 +372,32 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
                         selectedEditingLownoiseUnet = editingLownoiseUnet,
                         selectedEditingHighnoiseLora = editingHighnoiseLora,
                         selectedEditingLownoiseLora = editingLownoiseLora,
-                        // Clear deferred values once applied
-                        deferredCheckpoint = null,
-                        deferredUnet = null,
-                        deferredVae = null,
-                        deferredClip = null,
-                        deferredClip1 = null,
-                        deferredClip2 = null,
-                        deferredClip3 = null,
-                        deferredClip4 = null,
-                        deferredTextEncoder = null,
-                        deferredLatentUpscaleModel = null,
-                        deferredEditingUnet = null,
-                        deferredEditingVae = null,
-                        deferredEditingClip = null,
-                        deferredEditingClip1 = null,
-                        deferredEditingClip2 = null,
-                        deferredEditingClip3 = null,
-                        deferredEditingClip4 = null,
-                        deferredEditingLora = null,
-                        deferredEditingTextEncoder = null,
-                        deferredEditingLatentUpscaleModel = null,
-                        deferredEditingCheckpoint = null,
-                        deferredEditingHighnoiseUnet = null,
-                        deferredEditingLownoiseUnet = null,
-                        deferredEditingHighnoiseLora = null,
-                        deferredEditingLownoiseLora = null,
+                        // Deferrals now hold whatever is still waiting for a later cache emit
+                        deferredCheckpoint = deferredCheckpointNext,
+                        deferredUnet = deferredUnetNext,
+                        deferredVae = deferredVaeNext,
+                        deferredClip = deferredClipNext,
+                        deferredClip1 = deferredClip1Next,
+                        deferredClip2 = deferredClip2Next,
+                        deferredClip3 = deferredClip3Next,
+                        deferredClip4 = deferredClip4Next,
+                        deferredTextEncoder = deferredTextEncoderNext,
+                        deferredLatentUpscaleModel = deferredLatentUpscaleModelNext,
+                        deferredEditingUnet = deferredEditingUnetNext,
+                        deferredEditingVae = deferredEditingVaeNext,
+                        deferredEditingClip = deferredEditingClipNext,
+                        deferredEditingClip1 = deferredEditingClip1Next,
+                        deferredEditingClip2 = deferredEditingClip2Next,
+                        deferredEditingClip3 = deferredEditingClip3Next,
+                        deferredEditingClip4 = deferredEditingClip4Next,
+                        deferredEditingLora = deferredEditingLoraNext,
+                        deferredEditingTextEncoder = deferredEditingTextEncoderNext,
+                        deferredEditingLatentUpscaleModel = deferredEditingLatentUpscaleModelNext,
+                        deferredEditingCheckpoint = deferredEditingCheckpointNext,
+                        deferredEditingHighnoiseUnet = deferredEditingHighnoiseUnetNext,
+                        deferredEditingLownoiseUnet = deferredEditingLownoiseUnetNext,
+                        deferredEditingHighnoiseLora = deferredEditingHighnoiseLoraNext,
+                        deferredEditingLownoiseLora = deferredEditingLownoiseLoraNext,
                         loraChain = LoraChainManager.filterUnavailable(state.loraChain, cache.loras),
                         editingLoraChain = LoraChainManager.filterUnavailable(state.editingLoraChain, cache.loras),
                         editingHighnoiseLoraChain = LoraChainManager.filterUnavailable(state.editingHighnoiseLoraChain, cache.loras),
@@ -452,13 +426,10 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
     private fun loadWorkflows() {
         val ctx = applicationContext ?: return
 
-        val showBuiltIn = AppSettings.isShowBuiltInWorkflows(ctx)
         // Load inpainting workflows (ITI_INPAINTING)
-        val inpaintingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_INPAINTING)
-            .filter { showBuiltIn || !it.isBuiltIn }
+        val inpaintingWorkflows = WorkflowManager.getEnabledWorkflowsByType(WorkflowType.ITI_INPAINTING)
         // Load editing workflows (ITI_EDITING)
-        val editingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_EDITING)
-            .filter { showBuiltIn || !it.isBuiltIn }
+        val editingWorkflows = WorkflowManager.getEnabledWorkflowsByType(WorkflowType.ITI_EDITING)
 
         // Create inpainting workflow list
         val unifiedWorkflows = inpaintingWorkflows.map { workflow ->
@@ -1271,52 +1242,52 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
     // Model selection callbacks
 
     fun onCheckpointChange(checkpoint: String) {
-        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint)
+        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint, deferredCheckpoint = null)
         savePreferences()
     }
 
     fun onUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedUnet = unet, deferredUnet = null)
         savePreferences()
     }
 
     fun onVaeChange(vae: String) {
-        _uiState.value = _uiState.value.copy(selectedVae = vae)
+        _uiState.value = _uiState.value.copy(selectedVae = vae, deferredVae = null)
         savePreferences()
     }
 
     fun onClipChange(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip = clip)
+        _uiState.value = _uiState.value.copy(selectedClip = clip, deferredClip = null)
         savePreferences()
     }
 
     fun onClip1Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip1 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip1 = clip, deferredClip1 = null)
         savePreferences()
     }
 
     fun onClip2Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip2 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip2 = clip, deferredClip2 = null)
         savePreferences()
     }
 
     fun onClip3Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip3 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip3 = clip, deferredClip3 = null)
         savePreferences()
     }
 
     fun onClip4Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip4 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip4 = clip, deferredClip4 = null)
         savePreferences()
     }
 
     fun onTextEncoderChange(textEncoder: String) {
-        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder)
+        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder, deferredTextEncoder = null)
         savePreferences()
     }
 
     fun onLatentUpscaleModelChange(model: String) {
-        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model)
+        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model, deferredLatentUpscaleModel = null)
         savePreferences()
     }
 
@@ -1492,77 +1463,77 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
     }
 
     fun onEditingUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedEditingUnet = unet, deferredEditingUnet = null)
         savePreferences()
     }
 
     fun onEditingLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingLora = lora)
+        _uiState.value = _uiState.value.copy(selectedEditingLora = lora, deferredEditingLora = null)
         savePreferences()
     }
 
     fun onEditingVaeChange(vae: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingVae = vae)
+        _uiState.value = _uiState.value.copy(selectedEditingVae = vae, deferredEditingVae = null)
         savePreferences()
     }
 
     fun onEditingClipChange(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingClip = clip)
+        _uiState.value = _uiState.value.copy(selectedEditingClip = clip, deferredEditingClip = null)
         savePreferences()
     }
 
     fun onEditingClip1Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingClip1 = clip)
+        _uiState.value = _uiState.value.copy(selectedEditingClip1 = clip, deferredEditingClip1 = null)
         savePreferences()
     }
 
     fun onEditingClip2Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingClip2 = clip)
+        _uiState.value = _uiState.value.copy(selectedEditingClip2 = clip, deferredEditingClip2 = null)
         savePreferences()
     }
 
     fun onEditingClip3Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingClip3 = clip)
+        _uiState.value = _uiState.value.copy(selectedEditingClip3 = clip, deferredEditingClip3 = null)
         savePreferences()
     }
 
     fun onEditingClip4Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingClip4 = clip)
+        _uiState.value = _uiState.value.copy(selectedEditingClip4 = clip, deferredEditingClip4 = null)
         savePreferences()
     }
 
     fun onEditingTextEncoderChange(textEncoder: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingTextEncoder = textEncoder)
+        _uiState.value = _uiState.value.copy(selectedEditingTextEncoder = textEncoder, deferredEditingTextEncoder = null)
         savePreferences()
     }
 
     fun onEditingLatentUpscaleModelChange(model: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingLatentUpscaleModel = model)
+        _uiState.value = _uiState.value.copy(selectedEditingLatentUpscaleModel = model, deferredEditingLatentUpscaleModel = null)
         savePreferences()
     }
 
     fun onEditingCheckpointChange(checkpoint: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingCheckpoint = checkpoint)
+        _uiState.value = _uiState.value.copy(selectedEditingCheckpoint = checkpoint, deferredEditingCheckpoint = null)
         savePreferences()
     }
 
     fun onEditingHighnoiseUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingHighnoiseUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedEditingHighnoiseUnet = unet, deferredEditingHighnoiseUnet = null)
         savePreferences()
     }
 
     fun onEditingLownoiseUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingLownoiseUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedEditingLownoiseUnet = unet, deferredEditingLownoiseUnet = null)
         savePreferences()
     }
 
     fun onEditingHighnoiseLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingHighnoiseLora = lora)
+        _uiState.value = _uiState.value.copy(selectedEditingHighnoiseLora = lora, deferredEditingHighnoiseLora = null)
         savePreferences()
     }
 
     fun onEditingLownoiseLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedEditingLownoiseLora = lora)
+        _uiState.value = _uiState.value.copy(selectedEditingLownoiseLora = lora, deferredEditingLownoiseLora = null)
         savePreferences()
     }
 
@@ -2051,6 +2022,36 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
     }
 
     /**
+     * Pulls the finished image down, retrying a couple of times, then ends the run regardless.
+     * The completion event is consumed on arrival, so a silent failure used to leave the page
+     * generating until the user navigated away and back.
+     */
+    private fun fetchResultWithRetry(promptId: String, attempt: Int) {
+        fetchGeneratedImage(promptId) { success ->
+            if (success) {
+                generationViewModelRef?.completeGeneration(promptId)
+                return@fetchGeneratedImage
+            }
+            if (attempt < ResultFetch.RETRIES) {
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(ResultFetch.RETRY_DELAY_MS)
+                    fetchResultWithRetry(promptId, attempt + 1)
+                }
+            } else {
+                DebugLogger.w(TAG, "Giving up on the result, ending the run")
+                generationViewModelRef?.completeGeneration(promptId)
+                viewModelScope.launch {
+                    _events.emit(
+                        ImageToImageEvent.ShowToastMessage(
+                            applicationContext?.getString(R.string.msg_result_fetch_failed).orEmpty()
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Fetch and save generated image from history
      * @param promptId The prompt ID to fetch
      * @param onComplete Callback with success boolean (true if image was fetched and set)
@@ -2208,12 +2209,7 @@ class ImageToImageViewModel : BaseGenerationViewModel<ImageToImageUiState, Image
             is GenerationEvent.ImageGenerated -> {
                 val promptId = event.promptId
                 DebugLogger.i(TAG, "ImageGenerated: ${Obfuscator.promptId(promptId)}")
-                fetchGeneratedImage(promptId) { success ->
-                    if (success) {
-                        generationViewModelRef?.completeGeneration(promptId)
-                    }
-                    // If not successful, don't complete - will retry on next return
-                }
+                fetchResultWithRetry(promptId, 0)
             }
             is GenerationEvent.ConnectionLostDuringGeneration -> {
                 DebugLogger.w(TAG, "ConnectionLostDuringGeneration")

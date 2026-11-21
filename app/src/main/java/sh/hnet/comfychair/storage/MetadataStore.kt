@@ -75,8 +75,20 @@ object MetadataStore {
         }
     }
 
-    fun get(context: Context, serverId: String, promptId: String, filename: String): GenerationMetadata? =
-        entries(context, serverId)[key(promptId, filename)]?.metadata
+    /**
+     * Filename used for parameters captured at submit time, before any output file exists.
+     *
+     * H3 writes through SaveVideo, which does not embed the prompt the way VHS_VideoCombine
+     * does, so reading the file back always came up empty. Recording at submit time is the only
+     * way those runs can ever show what was sent.
+     */
+    const val ANY_FILE = "*"
+
+    fun get(context: Context, serverId: String, promptId: String, filename: String): GenerationMetadata? {
+        val stored = entries(context, serverId)
+        return stored[key(promptId, filename)]?.metadata
+            ?: stored[key(promptId, ANY_FILE)]?.metadata
+    }
 
     fun put(
         context: Context,

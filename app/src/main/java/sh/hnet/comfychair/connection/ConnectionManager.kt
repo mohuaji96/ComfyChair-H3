@@ -35,6 +35,7 @@ import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.repository.GalleryRepository
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.ObjectInfoCache
+import sh.hnet.comfychair.storage.OptimizeHistoryStore
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
 import sh.hnet.comfychair.workflow.NodeTypeRegistry
@@ -83,7 +84,19 @@ sealed class ConnectionState {
 object ConnectionManager {
     private const val TAG = "Connection"
     private const val KEEPALIVE_INTERVAL_MS = 30000L
-    private const val MAX_RECONNECT_ATTEMPTS = 3
+    /**
+ * A drop mid-job used to be fatal after three tries: the bar froze at whatever stage it reached
+ * and stayed there until the user submitted again. Eight attempts cover a server restart or a
+ * tunnel flapping, and still give up inside two minutes so a dead host is not hammered.
+ */
+private const val MAX_RECONNECT_ATTEMPTS = 8
+
+    /**
+     * The job the server is running right now. `progress` does not say which prompt it belongs to,
+     * so stepping is attributed to whatever `executing` last announced.
+     */
+    @Volatile
+    private var lastExecutingPromptId: String? = null
 
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -276,6 +289,12 @@ object ConnectionManager {
             _client?.shutdown()
         }
 
+        // A fresh session gets a fresh retry budget. logout() deliberately exhausts it to stop
+        // reconnecting, and without this reset the next login answered its very first dropped
+        // socket with "connection failed" and never tried again.
+        reconnectAttempts = 0
+        _isConnecting.value = false
+
         // Generate unique client ID for this session
         _clientId = "comfychair_android_${UUID.randomUUID()}"
 
@@ -334,6 +353,8 @@ object ConnectionManager {
      */
     fun invalidateForRestore() {
         DebugLogger.i(TAG, "Invalidating for restore")
+        // A restored backup starts a new session: the rewrite log belongs to the old one.
+        _applicationContext?.let { OptimizeHistoryStore.clear(it) }
         // Reload workflows to pick up restored user workflows
         WorkflowManager.reloadWorkflows()
         disconnect()
@@ -611,6 +632,24 @@ object ConnectionManager {
      * Events are parsed and broadcast via [webSocketMessages] SharedFlow.
      * @return true if connection attempt started
      */
+    /**
+     * Brings the socket back for something the user just did.
+     *
+     * The socket used to be opened once at start-up and retried three times. If that burst failed
+     * -- phone still waking, tunnel not up yet -- nothing ever re-opened it, so the rest of the
+     * session ran with no progress, no preview and no completion events, while ordinary HTTP
+     * requests kept working and made the connection look healthy.
+     */
+    fun ensureWebSocket(): Boolean {
+        val state = _webSocketState.value
+        if (state is WebSocketState.Connected || state is WebSocketState.Connecting) return true
+        DebugLogger.i(TAG, "ensureWebSocket: re-opening, was=$state")
+        reconnectAttempts = 0
+        _isConnecting.value = false
+        _isReconnecting.value = false
+        return openWebSocket()
+    }
+
     fun openWebSocket(): Boolean {
         DebugLogger.d(TAG, "openWebSocket: called, currentState=${_webSocketState.value}")
         val client = _client ?: run {
@@ -660,14 +699,29 @@ object ConnectionManager {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                DebugLogger.e(TAG, "WebSocket connection failed: ${t::class.simpleName}")
+                // Type alone said nothing: connect-refused, TLS, 401 and "socket closed" all looked
+                // the same, so every diagnosis turned into guesswork.
+                DebugLogger.e(
+                    TAG,
+                    "WebSocket connection failed: ${t::class.java.name}: ${t.message}" +
+                        (response?.let { " (HTTP ${it.code} ${it.message})" } ?: " (no response)")
+                )
                 stopKeepalive()
+                // Move off "connecting" first. scheduleReconnect() skips while _isConnecting is
+                // set, so a failure on the very first attempt scheduled nothing and left the
+                // session on "connecting" for good -- no previews, no progress, no completion.
+                _isConnecting.value = false
+                _isReconnecting.value = false
+                if (_webSocketState.value !is WebSocketState.Connected) {
+                    _webSocketState.value = WebSocketState.Disconnected
+                }
                 scheduleReconnect()
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 DebugLogger.i(TAG, "WebSocket closed (code: $code)")
                 stopKeepalive()
+                _isConnecting.value = false
                 if (code != 1000) {
                     scheduleReconnect()
                 } else {
@@ -711,21 +765,26 @@ object ConnectionManager {
                     val node = data?.optString("node")
                     val isComplete = data?.isNull("node") == true
 
-                    if (isComplete && !promptId.isNullOrEmpty()) {
-                        DebugLogger.i(TAG, "WS: executing complete (promptId: ${Obfuscator.promptId(promptId)})")
-                        // Notify JobRegistry of completion (JobRegistry handles gallery refresh)
-                        JobRegistry.markCompleted(promptId)
-                        WebSocketMessage.ExecutionComplete(promptId)
-                    } else {
-                        WebSocketMessage.Executing(promptId, node)
-                    }
-                }
-                "progress" -> {
-                    val data = message.optJSONObject("data")
-                    val value = data?.optInt("value", 0) ?: 0
-                    val max = data?.optInt("max", 0) ?: 0
-                    if (max > 0) WebSocketMessage.Progress(value, max) else null
-                }
+                     if (isComplete && !promptId.isNullOrEmpty()) {
+                         DebugLogger.i(TAG, "WS: executing complete (promptId: ${Obfuscator.promptId(promptId)})")
+                         // Notify JobRegistry of completion (JobRegistry handles gallery refresh)
+                         JobRegistry.markCompleted(promptId)
+                         WebSocketMessage.ExecutionComplete(promptId)
+                     } else {
+                         if (!promptId.isNullOrEmpty()) lastExecutingPromptId = promptId
+                         WebSocketMessage.Executing(promptId, node)
+                     }
+                 }
+                 "progress" -> {
+                     val data = message.optJSONObject("data")
+                     val value = data?.optInt("value", 0) ?: 0
+                     val max = data?.optInt("max", 0) ?: 0
+                     // Newer servers echo the prompt id; older ones do not, so fall back to the
+                     // job that is currently executing rather than guessing from any queued job.
+                     val owner = data?.optString("prompt_id")?.takeIf { it.isNotBlank() }
+                         ?: lastExecutingPromptId
+                     if (max > 0) WebSocketMessage.Progress(value, max, owner) else null
+                 }
                 "execution_start" -> {
                     val data = message.optJSONObject("data")
                     val promptId = data?.optString("prompt_id") ?: ""
@@ -733,6 +792,10 @@ object ConnectionManager {
                     // Notify JobRegistry that this job is now executing
                     if (promptId.isNotEmpty()) {
                         JobRegistry.markExecuting(promptId)
+                        // Claim the step stream here rather than on the first `executing`: when a
+                        // queued job starts, any step still in flight belongs to this job, and a
+                        // stale id from the previous run made every update look foreign.
+                        lastExecutingPromptId = promptId
                     }
                     WebSocketMessage.ExecutionStart(promptId)
                 }
@@ -857,8 +920,9 @@ object ConnectionManager {
         reconnectAttempts++
         _webSocketState.value = WebSocketState.Reconnecting(reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
 
-        // Linear delay: 2s, 4s, 6s for attempts 1, 2, 3
-        val delayMs = (reconnectAttempts * 2000).toLong()
+        // Linear, capped: 2s, 4s, 6s ... 16s. The cap matters now that attempts run to eight --
+        // without it the last wait would be a pointless sixteen seconds plus.
+        val delayMs = (reconnectAttempts * 2000L).coerceAtMost(16_000L)
         val sessionId = reconnectionSessionId  // Capture current session
 
         pendingReconnectJob = scope.launch {
@@ -915,7 +979,7 @@ object ConnectionManager {
             if (queueJson != null) {
                 val running = queueJson.optJSONArray("queue_running")
                 val pending = queueJson.optJSONArray("queue_pending")
-                JobRegistry.updateFromServerQueue(running, pending)
+                JobRegistry.updateFromServerQueue(running, pending, queueJson.optJSONObject("prompts"))
             }
         }
     }

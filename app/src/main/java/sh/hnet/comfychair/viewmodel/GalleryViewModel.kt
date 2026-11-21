@@ -50,7 +50,13 @@ data class GalleryItem(
     val sizeBytes: Long = 0L,
     val width: Int = 0,
     val height: Int = 0,
-    val durationMs: Long = 0L
+    val durationMs: Long = 0L,
+    /**
+     * Absolute path of a file this app wrote itself (extracted frames). Such an entry is never
+     * fetched from the server: it renders from this path, and disappears only when the file does.
+     * Not persisted — the scan refills it on every refresh.
+     */
+    val localPath: String? = null
 ) {
     /** Create a cache key for this item */
     fun toCacheKey() = MediaCacheKey(promptId, filename)
@@ -170,11 +176,10 @@ class GalleryViewModel : ViewModel() {
      */
     fun loadGallery() {
         DebugLogger.d(TAG, "Loading gallery")
-        // Repository already has data from background preload, no need to reload
-        // unless explicitly refreshed by user
-        if (!repository.hasData()) {
-            repository.refresh()
-        }
+        // Entering the gallery always asks once. It used to load only when the list was empty, so
+        // a generation was invisible until the completion signal happened to land or the five
+        // minute sweep came round; the repository folds this into any request already running.
+        if (repository.hasData()) repository.refreshQuietly() else repository.refresh()
     }
 
     /**
@@ -203,6 +208,11 @@ class GalleryViewModel : ViewModel() {
     fun refresh() {
         DebugLogger.d(TAG, "Background refresh")
         repository.refresh()
+    }
+
+    /** Drops entries that only existed because their file was cached, after a cache clear. */
+    fun pruneLocalOnly() {
+        repository.pruneLocalOnlyWithoutCopy()
     }
 
     fun deleteItem(item: GalleryItem) {
@@ -426,6 +436,15 @@ class GalleryViewModel : ViewModel() {
         _selectedItems.value = emptySet()
         _isSelectionMode.value = false
     }
+
+    /** Replaces the selection with exactly these items: 全选 and 选这一天 both come through here. */
+    fun selectItems(items: List<GalleryItem>) {
+        _selectedItems.value = items.map { getItemKey(it) }.toSet()
+        _isSelectionMode.value = items.isNotEmpty()
+    }
+
+    fun isEverythingSelected(items: List<GalleryItem>): Boolean =
+        items.isNotEmpty() && items.all { _selectedItems.value.contains(getItemKey(it)) }
 
     fun enterSelectionMode() {
         _isSelectionMode.value = true

@@ -24,6 +24,10 @@ import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.storage.H3SourceStore
 import sh.hnet.comfychair.workflow.H3DiffPreview
 import sh.hnet.comfychair.workflow.H3PromptCompiler
+import sh.hnet.comfychair.storage.MetadataStore
+import sh.hnet.comfychair.util.GenerationMetadata
+import sh.hnet.comfychair.util.LoraInfo
+import sh.hnet.comfychair.workflow.H3Seed
 import sh.hnet.comfychair.workflow.H3Resolution
 import sh.hnet.comfychair.workflow.H3StepsRouting
 import sh.hnet.comfychair.workflow.H3WorkflowAdapter
@@ -73,6 +77,8 @@ fun H3ParameterContent(
     var selection by remember { mutableStateOf<Int?>(null) }
     var previewRevision by remember { mutableStateOf(0) }
     var advanced by remember { mutableStateOf(false) }
+    // The seed switch is global; hold it once here so both the control and the dialog agree.
+    val seedAuto = remember(workflowId) { mutableStateOf(H3Seed.autoRandom(context)) }
     val localContext = androidx.compose.ui.platform.LocalContext.current
     var review by remember { mutableStateOf<PreparedPrompt?>(null) }
     var reviewedClient by remember { mutableStateOf<sh.hnet.comfychair.ComfyUIClient?>(null) }
@@ -137,6 +143,11 @@ fun H3ParameterContent(
         check(!busy)
         check(client!=null && client===ConnectionManager.clientOrNull) { "请先连接服务器" }
         check(models.nodeDefinitionsRevision>0 || ConnectionManager.nodeTypeRegistry.getNodeDefinition("MiniMaxH3ImageToVideo")!=null || ConnectionManager.nodeTypeRegistry.getNodeDefinition("MiniMaxH3ReferenceToVideo")!=null) { "节点定义尚未加载，请等待 /object_info 完成" }
+        // Rolled into the working copy before the merge: the merge reads that file, and the
+        // confirmation dialog then shows the number that is actually sent.
+        if (H3Seed.autoRandom(context)) {
+            H3Seed.randomize(source, H3Seed.autoRandom(context))?.let { rolled -> runCatching { save(rolled) } }
+        }
         var exported=WorkflowManager.exportWorkflowToComfyUIFormat(workflowId).getOrThrow()
         exported=JSONObject().put("nodes",JSONObject(exported)).toString()
         val nodesBefore=H3WorkflowAdapter.nodes(JSONObject(exported)).length()
@@ -294,11 +305,29 @@ fun H3ParameterContent(
                     "lora_name" -> models.loras
                     else -> emptyList()
                 }
-                H3Field(binding,options,files,!busy,
-                    floating = ConnectionManager.nodeTypeRegistry.getInputDefinition(node.getString("class_type"),binding.input)?.type=="FLOAT" || node.getString("class_type")=="PrimitiveFloat" || binding.input=="strength_model") { value ->
-                    runCatching { save(H3WorkflowAdapter.change(source,binding,value)) }.onFailure { message="修改失败：${it.message}" }
-                }
-            }
+                 if (binding.input in H3Seed.INPUTS) {
+                     // Same control as the workspace page: roll, nudge, or pin it.
+                     H3SeedField(
+                         value = binding.value.toString(),
+                         auto = seedAuto.value,
+                         enabled = !busy,
+                         onAutoChange = { on -> H3Seed.setAutoRandom(context, on); seedAuto.value = on },
+                         onRoll = {
+                             runCatching { save(H3WorkflowAdapter.change(source, binding, H3Seed.next())) }
+                                 .onFailure { message = "修改失败：${it.message}" }
+                         },
+                         onValueChange = { text ->
+                             text.toLongOrNull()?.let { seed ->
+                                 runCatching { save(H3WorkflowAdapter.change(source, binding, seed)) }
+                                     .onFailure { message = "修改失败：${it.message}" }
+                             }
+                         }
+                     )
+                 } else H3Field(binding,options,files,!busy,
+                     floating = ConnectionManager.nodeTypeRegistry.getInputDefinition(node.getString("class_type"),binding.input)?.type=="FLOAT" || node.getString("class_type")=="PrimitiveFloat" || binding.input=="strength_model") { value ->
+                     runCatching { save(H3WorkflowAdapter.change(source,binding,value)) }.onFailure { message="修改失败：${it.message}" }
+                 }
+             }
             if(!ambiguous) item {
                 TextButton(enabled=!busy,onClick={exportOriginal=false;exporter.launch("H3_${analysis.mode}_working.json")}) {Text("导出 H3 工作副本")}
                 TextButton(enabled=!busy,onClick={exportOriginal=true;exporter.launch("H3_${analysis.mode}_original.json")}) {Text("导出 H3 原始导入")}
@@ -337,10 +366,44 @@ fun H3ParameterContent(
                     if(selectedClient!==ConnectionManager.clientOrNull) message="服务器已切换，请在原服务器查看已提交任务"
                     else if(ok && id!=null) {
                         if(generationViewModel==null) {
-                            JobRegistry.registerJob(id,if(analysis.mode==H3WorkflowAdapter.Mode.T2V) "TEXT_TO_VIDEO" else "IMAGE_TO_VIDEO",ContentType.VIDEO)
+                            JobRegistry.registerJob(id,if(analysis.mode==H3WorkflowAdapter.Mode.T2V) "TEXT_TO_VIDEO" else "IMAGE_TO_VIDEO",ContentType.VIDEO,sh.hnet.comfychair.queue.JobPrompts.extract(runCatching{org.json.JSONObject(prompt)}.getOrNull()))
                             JobRegistry.saveState(context)
                         }
-                                                // PENDING-SAVE: remember the job so a restart or a dropped WebSocket
+                                                // H3 saves through SaveVideo, which embeds no prompt, so capture the run
+                        // here — past this point the parameters no longer exist anywhere.
+                        runCatching {
+                            // The working copy holds the values that were actually sent, and the
+                            // panel no longer has the field list in this scope.
+                            fun valuesOf(input: String): List<String> = buildList {
+                                val root = runCatching { org.json.JSONObject(source) }.getOrNull()
+                                    ?: return@buildList
+                                root.keys().asSequence().forEach { nodeId ->
+                                    val inputs = root.optJSONObject(nodeId)
+                                        ?.optJSONObject("inputs") ?: return@forEach
+                                    val value = inputs.opt(input)
+                                    if (value is String && value.isNotBlank()) add(value)
+                                }
+                            }
+                            val unet = valuesOf("unet_name").firstOrNull()
+                                ?.substringAfterLast('\\')?.substringAfterLast('/')
+                            val seed = (valuesOf("noise_seed") + valuesOf("seed"))
+                                .firstOrNull()?.toLongOrNull()
+                            val loras = valuesOf("lora_name").map { name ->
+                                LoraInfo(name.substringAfterLast('\\').substringAfterLast('/'), 1.0)
+                            }
+                            MetadataStore.put(
+                                context,
+                                ConnectionManager.currentServerId ?: selectedClient.getBaseUrl().orEmpty(),
+                                id, MetadataStore.ANY_FILE,
+                                GenerationMetadata(
+                                    positivePrompt = prompt,
+                                    seed = seed,
+                                    unets = listOfNotNull(unet),
+                                    loras = loras
+                                )
+                            )
+                        }
+                        // PENDING-SAVE: remember the job so a restart or a dropped WebSocket
                         // can re-query /history for exactly this prompt.
                         runCatching {
                             sh.hnet.comfychair.workflow.PendingJobStore(localContext).save(

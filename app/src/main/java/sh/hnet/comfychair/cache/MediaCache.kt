@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.CancellationException
 import sh.hnet.comfychair.ComfyUIClient
 import sh.hnet.comfychair.connection.ConnectionManager
@@ -43,7 +45,8 @@ data class MediaCacheKey(
  */
 data class VideoDimensions(
     val width: Int,
-    val height: Int
+    val height: Int,
+    val durationMs: Long? = null
 )
 
 /**
@@ -176,14 +179,6 @@ object MediaCache {
         return File(context.cacheDir, DISK_CACHE_DIR).apply { mkdirs() }
     }
 
-    /**
-     * Get the disk cache file for a given key.
-     */
-    private fun getDiskCacheFile(context: Context, key: MediaCacheKey, isVideo: Boolean): File {
-        val ext = if (isVideo) "mp4" else "png"
-        return File(getDiskCacheDir(context), "${key.keyString}.$ext")
-    }
-
     /** Video containers seen in the wild; a `.webm` cached as `.mp4` would be downloaded twice. */
     private val VIDEO_EXTS = listOf("mp4", "webm", "mov", "m4v", "gif")
 
@@ -216,8 +211,10 @@ object MediaCache {
      * Check if an item exists in disk cache.
      */
     private fun existsInDiskCache(context: Context, key: MediaCacheKey, isVideo: Boolean): Boolean {
+        // Any container counts: a webm saved under its own extension used to look like a miss,
+        // so every refresh downloaded the whole video again.
         return if (isVideo) {
-            getDiskCacheFile(context, key, true).exists()
+            localFile(context, key, true) != null
         } else {
             existingImageFile(context, key) != null
         }
@@ -229,7 +226,7 @@ object MediaCache {
      */
     fun localPath(context: Context, key: MediaCacheKey, isVideo: Boolean): String? {
         return try {
-            val file = if (isVideo) getDiskCacheFile(context, key, true) else existingImageFile(context, key)
+            val file = if (isVideo) localFile(context, key, true) else existingImageFile(context, key)
             if (file != null && file.exists()) file.absolutePath else null
         } catch (_: Exception) {
             null
@@ -438,6 +435,16 @@ object MediaCache {
     /** A warm-up request that has not finished by then is not worth waiting for. */
     private const val PREFETCH_TIMEOUT_MS = 30_000L
 
+    /**
+     * A grid tile is a small preview, not the thing the player is waiting for. Thirty seconds of
+     * spinner per tile is how a whole gallery ends up blank, so tiles give up early and fall back
+     * to the placeholder icon.
+     */
+    private const val TILE_TIMEOUT_MS = 8_000L
+
+    /** Tiles bypassed the prefetch queue, so a full screen fired one request each. */
+    private val tileGate = Semaphore(MAX_CONCURRENT_PREFETCH)
+
     // Active view tracking - MediaViewer takes precedence when open
     private var activeView = ActiveView.GALLERY
 
@@ -523,25 +530,30 @@ object MediaCache {
         subfolder: String,
         type: String,
         maxPx: Int
-    ): Bitmap? {
-        thumbnailOrNull(key, maxPx)?.let { return it }
-        val context = applicationContext ?: return null
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        thumbnailOrNull(key, maxPx)?.let { return@withContext it }
+        val context = applicationContext ?: return@withContext null
         if (!isVideo) {
             var path = localPath(context, key, false)
-            if (path == null && prefetchImage(key, subfolder, type)) {
-                path = localPath(context, key, false)
+            if (path == null) {
+                val fetched = tileGate.withPermit {
+                    prefetchImage(key, subfolder, type, TILE_TIMEOUT_MS)
+                }
+                if (fetched) path = localPath(context, key, false)
             }
             if (path != null) {
-                val sampled = decodeSampled(path, maxPx) ?: return null
+                val sampled = decodeSampled(path, maxPx) ?: return@withContext null
                 bitmapCache.put(thumbKey(key, maxPx), sampled)
-                return sampled
+                return@withContext sampled
             }
-            return null
+            return@withContext null
         }
-        val frame = fetchBitmap(key, true, subfolder, type) ?: return null
+        val frame = tileGate.withPermit {
+            fetchBitmap(key, true, subfolder, type)
+        } ?: return@withContext null
         val scaled = scaleDown(frame, maxPx)
         bitmapCache.put(thumbKey(key, maxPx), scaled)
-        return scaled
+        return@withContext scaled
     }
 
     /**
@@ -549,6 +561,26 @@ object MediaCache {
      */
     fun putBitmap(key: MediaCacheKey, bitmap: Bitmap, priority: Int = PriorityLruCache.PRIORITY_DEFAULT) {
         bitmapCache.put(key.keyString, bitmap, priority)
+    }
+
+    /**
+     * Bitmap of a file this app wrote itself (an extracted frame), decoded straight from disk —
+     * never fetched. Also fills the tile's size-keyed slot so the grid paints without a spinner.
+     * Returns null only when the file is gone or unreadable.
+     */
+    suspend fun bitmapFromLocalFile(
+        key: MediaCacheKey,
+        path: String,
+        maxPx: Int = 0
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        val cached = if (maxPx > 0) thumbnailOrNull(key, maxPx) else getBitmap(key)
+        if (cached != null) return@withContext cached
+        if (!File(path).exists()) return@withContext null
+        val decoded = (if (maxPx > 0) decodeSampled(path, maxPx) else BitmapFactory.decodeFile(path))
+            ?: return@withContext null
+        bitmapCache.put(key.keyString, decoded)
+        if (maxPx > 0) bitmapCache.put(thumbKey(key, maxPx), decoded)
+        return@withContext decoded
     }
 
     // Navigation priorities
@@ -600,7 +632,14 @@ object MediaCache {
 
         val priorityMap = mutableMapOf<String, Int>()
 
-        for ((index, item) in allItems.withIndex()) {
+        // Only the window around the viewport matters. Walking the whole library here used to
+        // cost one iteration per item on every scroll stop while holding the cache lock, which
+        // stalled the thumbnail reads serving the visible tiles.
+        val windowStart = (firstVisibleIndex - columnsInGrid * 4).coerceAtLeast(0)
+        val windowEnd = (lastVisibleIndex + columnsInGrid * 4).coerceAtMost(allItems.size - 1)
+
+        for (index in windowStart..windowEnd) {
+            val item = allItems[index]
             val distanceFromCenter = kotlin.math.abs(index - centerIndex)
             val rowDistance = distanceFromCenter / columnsInGrid
 
@@ -913,14 +952,19 @@ object MediaCache {
      * on disk; decoding a full-resolution bitmap just to throw it away competes with scrolling.
      * Returns true when the file is now on disk.
      */
-    suspend fun prefetchImage(key: MediaCacheKey, subfolder: String, type: String = "output"): Boolean {
+    suspend fun prefetchImage(
+        key: MediaCacheKey,
+        subfolder: String,
+        type: String = "output",
+        timeoutMs: Long = PREFETCH_TIMEOUT_MS
+    ): Boolean {
         val context = applicationContext ?: return false
         if (hasLocalCopy(context, key, false)) return true
         val client = comfyUIClient ?: return false
         // A prefetch that never returns blocks the whole warm-up loop, and one stuck request used
         // to leave the gallery unable to cache anything else for the rest of the session.
         val bytes = try {
-            withTimeoutOrNull(PREFETCH_TIMEOUT_MS) {
+            withTimeoutOrNull(timeoutMs) {
                 suspendCancellableCoroutine<ByteArray?> { continuation ->
                     client.fetchRawBytes(key.filename, subfolder, type) { data, _ ->
                         if (continuation.isActive) continuation.resume(data)
@@ -1077,6 +1121,9 @@ object MediaCache {
         return videoDimensionsCache[key.keyString]
     }
 
+    /** A video's length once its thumbnail was made, for its duration badge; null if unknown. */
+    fun getVideoDurationMs(key: MediaCacheKey): Long? = videoDimensionsCache[key.keyString]?.durationMs
+
     /**
      * Get video URI for ExoPlayer playback.
      * In memory-first mode, creates a temp file from cached bytes.
@@ -1115,8 +1162,10 @@ object MediaCache {
             // Disk-first: return URI directly to the cached file
             return withContext(Dispatchers.IO) {
                 try {
-                    val file = getDiskCacheFile(context, key, true)
-                    if (file.exists()) {
+                    // Same reason as existsInDiskCache: disk-first playback found nothing for a
+                    // webm and showed a spinner over a file that was sitting right there.
+                    val file = localFile(context, key, true)
+                    if (file != null && file.exists()) {
                         FileProvider.getUriForFile(
                             context,
                             "${context.packageName}.fileprovider",
@@ -1358,7 +1407,7 @@ object MediaCache {
         applicationContext?.let { context ->
             try {
                 for (ext in IMAGE_EXTS) File(getDiskCacheDir(context), "$keyStr.$ext").delete()
-                getDiskCacheFile(context, key, true).delete()
+                for (ext in VIDEO_EXTS) File(getDiskCacheDir(context), "$keyStr.$ext").delete()
                 LocalCachePolicy.tombstone(context, listOf(keyStr))
             } catch (_: Exception) {
                 // Ignore deletion failures
@@ -1378,16 +1427,18 @@ object MediaCache {
         inProgressKeys.clear()
         completionCallbacks.clear()
 
-        // Also clear disk cache. Every file is tombstoned first, so the gallery refresh that
-        // follows an explicit clear does not immediately download the same items back.
+        // Also clear disk cache. Every deleted file is tombstoned first, so the gallery refresh
+        // that follows an explicit clear does not immediately download the same items back.
+        // Favorites are the one thing an explicit clear keeps: automatic eviction already spares
+        // them, and blowing them away here made the two policies disagree.
         applicationContext?.let { context ->
             try {
                 val dir = getDiskCacheDir(context)
-                LocalCachePolicy.tombstone(
-                    context,
-                    dir.listFiles()?.map { it.name.substringBeforeLast('.') }.orEmpty()
-                )
-                dir.deleteRecursively()
+                val favorites = LocalCachePolicy.favorites(context)
+                val victims = dir.listFiles().orEmpty()
+                    .filter { it.name.substringBeforeLast('.') !in favorites }
+                LocalCachePolicy.tombstone(context, victims.map { it.name.substringBeforeLast('.') })
+                victims.forEach { runCatching { it.delete() } }
             } catch (_: Exception) {
                 // Ignore deletion failures
             }
@@ -1466,8 +1517,9 @@ object MediaCache {
                 ?: thumbnail?.width ?: 0
             val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
                 ?: thumbnail?.height ?: 0
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
             retriever.release()
-            Pair(VideoDimensions(width, height), thumbnail)
+            Pair(VideoDimensions(width, height, durationMs), thumbnail)
         } catch (_: Exception) {
             Pair(null, null)
         } finally {

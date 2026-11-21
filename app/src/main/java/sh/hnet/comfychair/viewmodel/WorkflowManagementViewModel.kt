@@ -41,6 +41,19 @@ enum class ExportFormat {
 }
 
 /**
+ * Which sections the workflows page shows. The H3 library is a space rather than a type, so it is
+ * its own choice.
+ */
+enum class WorkflowFilter(val types: Set<WorkflowType>, val includeH3: Boolean) {
+    ALL(WorkflowType.entries.toSet(), true),
+    TTI(setOf(WorkflowType.TTI), false),
+    ITI(setOf(WorkflowType.ITI_EDITING, WorkflowType.ITI_INPAINTING), false),
+    TTV(setOf(WorkflowType.TTV), false),
+    ITV(setOf(WorkflowType.ITV), false),
+    H3(emptySet(), true)
+}
+
+/**
  * UI state for the Workflow Management screen
  */
 data class WorkflowManagementUiState(
@@ -52,6 +65,10 @@ data class WorkflowManagementUiState(
     val itvWorkflows: List<WorkflowManager.Workflow> = emptyList(),
     /** H3 templates and user H3 workflows, shown in their own section. */
     val h3Workflows: List<WorkflowManager.Workflow> = emptyList(),
+    /** Workflows switched off by the user (not offered on the generation screens). */
+    val disabledWorkflowIds: Set<String> = emptySet(),
+    /** Types shown; kept while the app runs (the view model belongs to the activity), not saved. */
+    val filter: WorkflowFilter = WorkflowFilter.ALL,
 
     // Import dialog state
     val showImportDialog: Boolean = false,
@@ -150,22 +167,43 @@ class WorkflowManagementViewModel : ViewModel() {
      * Load all workflows and organize by type
      */
     fun loadWorkflows() {
-        val ctx = applicationContext ?: return
-        val showBuiltIn = AppSettings.isShowBuiltInWorkflows(ctx)
-
         _uiState.value = _uiState.value.copy(
-            ttiWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.TTI)
-                .filter { showBuiltIn || !it.isBuiltIn },
-            itiInpaintingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_INPAINTING)
-                .filter { showBuiltIn || !it.isBuiltIn },
-            itiEditingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_EDITING)
-                .filter { showBuiltIn || !it.isBuiltIn },
-            ttvWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.TTV)
-                .filter { showBuiltIn || !it.isBuiltIn },
+            // The page lists everything, switched off or not; only the generation screens filter
+            disabledWorkflowIds = WorkflowManager.getDisabledWorkflowIds(),
+            ttiWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.TTI),
+            itiInpaintingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_INPAINTING),
+            itiEditingWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITI_EDITING),
+            ttvWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.TTV),
             itvWorkflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITV),
             h3Workflows = WorkflowManager.getAllWorkflows(WorkflowManager.WorkflowSpace.H3)
-                .filter { showBuiltIn || !it.isBuiltIn }
         )
+    }
+
+    /**
+     * Switch a workflow on or off; switched-off workflows stay in this list but are not offered
+     * on the generation screens.
+     */
+    fun onWorkflowEnabledChange(workflow: WorkflowManager.Workflow, enabled: Boolean) {
+        WorkflowManager.setWorkflowEnabled(workflow.id, enabled)
+        _uiState.value = _uiState.value.copy(disabledWorkflowIds = WorkflowManager.getDisabledWorkflowIds())
+    }
+
+    /** Switch all workflows of a type on or off (built-in and own). */
+    fun onSectionEnabledChange(type: WorkflowType, enabled: Boolean) {
+        WorkflowManager.setWorkflowsEnabled(WorkflowManager.getWorkflowsByType(type).map { it.id }, enabled)
+        _uiState.value = _uiState.value.copy(disabledWorkflowIds = WorkflowManager.getDisabledWorkflowIds())
+    }
+
+    /** Switch every workflow of the H3 library on or off; H3 has its own section on the page. */
+    fun onH3SectionEnabledChange(enabled: Boolean) {
+        WorkflowManager.setWorkflowsEnabled(
+            WorkflowManager.getAllWorkflows(WorkflowManager.WorkflowSpace.H3).map { it.id }, enabled
+        )
+        _uiState.value = _uiState.value.copy(disabledWorkflowIds = WorkflowManager.getDisabledWorkflowIds())
+    }
+
+    fun onFilterChange(filter: WorkflowFilter) {
+        _uiState.value = _uiState.value.copy(filter = filter)
     }
 
     /**

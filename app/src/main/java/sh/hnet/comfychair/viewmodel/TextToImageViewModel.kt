@@ -22,7 +22,6 @@ import sh.hnet.comfychair.model.LoraSelection
 import sh.hnet.comfychair.model.WorkflowCapabilities
 import sh.hnet.comfychair.ui.components.config.CommonGenerationState
 import sh.hnet.comfychair.model.WorkflowValues
-import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.ui.components.shared.WorkflowItemBase
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.LoraChainManager
@@ -198,29 +197,18 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
         viewModelScope.launch {
             ConnectionManager.modelCache.collect { cache ->
                 _uiState.update { state ->
-                    // Apply deferred selections first, then validate or fall back to first available
-                    val checkpoint = state.deferredCheckpoint?.takeIf { it in cache.checkpoints }
-                        ?: validateModelSelection(state.selectedCheckpoint, cache.checkpoints)
-                    val unet = state.deferredUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedUnet, cache.unets)
-                    val vae = state.deferredVae?.takeIf { it in cache.vaes }
-                        ?: validateModelSelection(state.selectedVae, cache.vaes)
-                    val clip = state.deferredClip?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip, cache.clips)
-                    val clip1 = state.deferredClip1?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip1, cache.clips)
-                    val clip2 = state.deferredClip2?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip2, cache.clips)
-                    val clip3 = state.deferredClip3?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip3, cache.clips)
-                    val clip4 = state.deferredClip4?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip4, cache.clips)
-                    val textEncoder = state.deferredTextEncoder?.takeIf { it in cache.textEncoders }
-                        ?: validateModelSelection(state.selectedTextEncoder, cache.textEncoders)
-                    val latentUpscaleModel = state.deferredLatentUpscaleModel?.takeIf { it in cache.latentUpscaleModels }
-                        ?: validateModelSelection(state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
-                    val loraName = state.deferredLoraName?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedLoraName, cache.loras)
+                    // Apply deferred selections first; an empty folder list must not wipe a saved pick
+                    val (checkpoint, deferredCheckpointNext) = resolveModelSelection(state.deferredCheckpoint, state.selectedCheckpoint, cache.checkpoints)
+                    val (unet, deferredUnetNext) = resolveModelSelection(state.deferredUnet, state.selectedUnet, cache.unets)
+                    val (vae, deferredVaeNext) = resolveModelSelection(state.deferredVae, state.selectedVae, cache.vaes)
+                    val (clip, deferredClipNext) = resolveModelSelection(state.deferredClip, state.selectedClip, cache.clips)
+                    val (clip1, deferredClip1Next) = resolveModelSelection(state.deferredClip1, state.selectedClip1, cache.clips)
+                    val (clip2, deferredClip2Next) = resolveModelSelection(state.deferredClip2, state.selectedClip2, cache.clips)
+                    val (clip3, deferredClip3Next) = resolveModelSelection(state.deferredClip3, state.selectedClip3, cache.clips)
+                    val (clip4, deferredClip4Next) = resolveModelSelection(state.deferredClip4, state.selectedClip4, cache.clips)
+                    val (textEncoder, deferredTextEncoderNext) = resolveModelSelection(state.deferredTextEncoder, state.selectedTextEncoder, cache.textEncoders)
+                    val (latentUpscaleModel, deferredLatentUpscaleModelNext) = resolveModelSelection(state.deferredLatentUpscaleModel, state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
+                    val (loraName, deferredLoraNameNext) = resolveModelSelection(state.deferredLoraName, state.selectedLoraName, cache.loras)
 
                     state.copy(
                         availableCheckpoints = cache.checkpoints,
@@ -247,18 +235,18 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
                         selectedTextEncoder = textEncoder,
                         selectedLatentUpscaleModel = latentUpscaleModel,
                         selectedLoraName = loraName,
-                        // Clear deferred values once applied
-                        deferredCheckpoint = null,
-                        deferredUnet = null,
-                        deferredVae = null,
-                        deferredClip = null,
-                        deferredClip1 = null,
-                        deferredClip2 = null,
-                        deferredClip3 = null,
-                        deferredClip4 = null,
-                        deferredTextEncoder = null,
-                        deferredLatentUpscaleModel = null,
-                        deferredLoraName = null,
+                        // Deferrals now hold whatever is still waiting for a later cache emit
+                        deferredCheckpoint = deferredCheckpointNext,
+                        deferredUnet = deferredUnetNext,
+                        deferredVae = deferredVaeNext,
+                        deferredClip = deferredClipNext,
+                        deferredClip1 = deferredClip1Next,
+                        deferredClip2 = deferredClip2Next,
+                        deferredClip3 = deferredClip3Next,
+                        deferredClip4 = deferredClip4Next,
+                        deferredTextEncoder = deferredTextEncoderNext,
+                        deferredLatentUpscaleModel = deferredLatentUpscaleModelNext,
+                        deferredLoraName = deferredLoraNameNext,
                         loraChain = LoraChainManager.filterUnavailable(state.loraChain, cache.loras)
                     )
                 }
@@ -293,14 +281,11 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
      * Load available workflows from WorkflowManager and create unified list
      */
     private fun loadWorkflows() {
-        val ctx = applicationContext ?: run {
-            DebugLogger.w(TAG, "loadWorkflows: Context not available")
-            return
-        }
+        // Reached once on a cold start, before initialize() hands over the context;
+        // the load there is the real one. Logging it only added noise to every start-up.
+        val ctx = applicationContext ?: return
 
-        val showBuiltIn = AppSettings.isShowBuiltInWorkflows(ctx)
-        val workflows = WorkflowManager.getWorkflowsByType(WorkflowType.TTI)
-            .filter { showBuiltIn || !it.isBuiltIn }
+        val workflows = WorkflowManager.getEnabledWorkflowsByType(WorkflowType.TTI)
 
         // Create workflow list
         val unifiedWorkflows = workflows.map { workflow ->
@@ -404,57 +389,57 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
     // Unified model selection callbacks
 
     fun onCheckpointChange(checkpoint: String) {
-        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint)
+        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint, deferredCheckpoint = null)
         saveConfiguration()
     }
 
     fun onUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedUnet = unet, deferredUnet = null)
         saveConfiguration()
     }
 
     fun onVaeChange(vae: String) {
-        _uiState.value = _uiState.value.copy(selectedVae = vae)
+        _uiState.value = _uiState.value.copy(selectedVae = vae, deferredVae = null)
         saveConfiguration()
     }
 
     fun onClipChange(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip = clip)
+        _uiState.value = _uiState.value.copy(selectedClip = clip, deferredClip = null)
         saveConfiguration()
     }
 
     fun onClip1Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip1 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip1 = clip, deferredClip1 = null)
         saveConfiguration()
     }
 
     fun onClip2Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip2 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip2 = clip, deferredClip2 = null)
         saveConfiguration()
     }
 
     fun onClip3Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip3 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip3 = clip, deferredClip3 = null)
         saveConfiguration()
     }
 
     fun onClip4Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip4 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip4 = clip, deferredClip4 = null)
         saveConfiguration()
     }
 
     fun onTextEncoderChange(textEncoder: String) {
-        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder)
+        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder, deferredTextEncoder = null)
         saveConfiguration()
     }
 
     fun onLatentUpscaleModelChange(model: String) {
-        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model)
+        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model, deferredLatentUpscaleModel = null)
         saveConfiguration()
     }
 
     fun onMandatoryLoraChange(loraName: String) {
-        _uiState.value = _uiState.value.copy(selectedLoraName = loraName)
+        _uiState.value = _uiState.value.copy(selectedLoraName = loraName, deferredLoraName = null)
         saveConfiguration()
     }
 
@@ -668,11 +653,7 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
             is GenerationEvent.ImageGenerated -> {
                 val promptId = event.promptId
                 DebugLogger.i(TAG, "ImageGenerated: ${Obfuscator.promptId(promptId)}")
-                fetchGeneratedImage(promptId) { success ->
-                    if (success) {
-                        generationViewModelRef?.completeGeneration(promptId)
-                    }
-                }
+                fetchResultWithRetry(promptId, 0)
             }
             is GenerationEvent.ConnectionLostDuringGeneration -> {
                 DebugLogger.w(TAG, "ConnectionLostDuringGeneration")
@@ -776,6 +757,37 @@ class TextToImageViewModel : BaseGenerationViewModel<TextToImageUiState, TextToI
      * @param promptId The prompt ID to fetch
      * @param onComplete Callback with success boolean (true if image was fetched and set)
      */
+    /**
+     * Pulls the finished image down, retrying a couple of times, then ends the run regardless.
+     *
+     * A failure used to be swallowed: the completion event was already consumed, so nothing ever
+     * asked again and the page kept its progress bar until the user left the screen.
+     */
+    private fun fetchResultWithRetry(promptId: String, attempt: Int) {
+        fetchGeneratedImage(promptId) { success ->
+            if (success) {
+                generationViewModelRef?.completeGeneration(promptId)
+                return@fetchGeneratedImage
+            }
+            if (attempt < ResultFetch.RETRIES) {
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(ResultFetch.RETRY_DELAY_MS)
+                    fetchResultWithRetry(promptId, attempt + 1)
+                }
+            } else {
+                DebugLogger.w(TAG, "Giving up on the result, ending the run")
+                generationViewModelRef?.completeGeneration(promptId)
+                viewModelScope.launch {
+                    _events.emit(
+                        TextToImageEvent.ShowToastMessage(
+                            applicationContext?.getString(R.string.msg_result_fetch_failed).orEmpty()
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     fun fetchGeneratedImage(promptId: String, onComplete: (success: Boolean) -> Unit) {
         val client = comfyUIClient ?: run {
             onComplete(false)

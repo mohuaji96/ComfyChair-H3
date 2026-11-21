@@ -2,6 +2,9 @@ package sh.hnet.comfychair.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -256,6 +259,8 @@ fun TextToVideoScreen(
             title = { Text(stringResource(R.string.title_text_to_video)) },
             windowInsets = WindowInsets(0, 0, 0, 0),
             actions = {
+                sh.hnet.comfychair.ui.components.QueueIndicatorPill()
+                Spacer(Modifier.width(6.dp))
                 ServerStatusLamp()
                 // Save to gallery button (only when video exists)
                 if (videoUri != null) {
@@ -282,11 +287,17 @@ fun TextToVideoScreen(
         )
 
         // Progress indicator - below app bar, only show if THIS screen's job is executing
-        if (isThisScreenExecuting && generationState.maxProgress > 0) {
+        AnimatedVisibility(
+            visible = isThisScreenExecuting,
+            // Same 150ms as the H3 workspace, so the header does not jump between pages.
+            enter = expandVertically(tween(150)) + fadeIn(tween(150)),
+            exit = shrinkVertically(tween(150)) + fadeOut(tween(120))
+        ) {
             GenerationProgressBar(
+                stage = generationState.stage,
                 progress = generationState.progress,
                 maxProgress = generationState.maxProgress,
-                modifier = Modifier.fillMaxWidth()
+                startedAt = generationState.startedAt
             )
         }
 
@@ -398,8 +409,7 @@ fun TextToVideoScreen(
                 .padding(bottom = 16.dp)
         ) {
             GenerationButton(
-                queueSize = queueState.totalQueueSize,
-                isExecuting = queueState.isExecuting,
+                isExecuting = queueState.isOwnJobExecuting,
                 isEnabled = h3Workflow!=null || (textToVideoViewModel.hasValidConfiguration() && uiState.positivePrompt.isNotBlank()),
                 isOfflineMode = isOfflineMode,
                 isFetching = uiState.isFetching,

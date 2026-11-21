@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,11 +45,15 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,10 +69,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.text.format.Formatter
 import androidx.compose.ui.Alignment
@@ -91,6 +98,7 @@ import sh.hnet.comfychair.cache.LocalCachePolicy
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.storage.AppSettings
+import sh.hnet.comfychair.storage.GalleryMetadataCache
 import sh.hnet.comfychair.ui.components.rememberLazyBitmap
 import sh.hnet.comfychair.viewmodel.ConnectionStatus
 import sh.hnet.comfychair.viewmodel.GalleryEvent
@@ -109,9 +117,15 @@ fun GalleryScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val cacheScope = rememberCoroutineScope()
     val uiState by galleryViewModel.uiState.collectAsState()
     val favorites by galleryViewModel.favorites.collectAsState()
     var showCacheSheet by remember { mutableStateOf(false) }
+    // Emptying the cache also drops the dates and prompts recorded for those files; that is not
+    // something to do on a stray tap.
+    var showClearConfirm by remember { mutableStateOf(false) }
+    // Deleting a batch is irreversible and takes every output of the task with it.
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     // The filter survives configuration changes and page switches; a gallery that silently jumps
     // back to "all" is worse than no filter at all.
     var categoryName by rememberSaveable { mutableStateOf(GalleryCategory.ALL.name) }
@@ -133,14 +147,18 @@ fun GalleryScreen(
     LaunchedEffect(Unit) { galleryViewModel.reloadSequences(context) }
 
     val visibleItems = remember(uiState.items, categoryName, favorites, sequenceIds) {
+        val isFrame = { it: sh.hnet.comfychair.viewmodel.GalleryItem ->
+            it.filename.startsWith("frame_") || it.filename.startsWith("extract_") || it.subfolder.equals("frames", ignoreCase = true)
+        }
         when (category) {
-            GalleryCategory.ALL -> uiState.items
-            GalleryCategory.IMAGE -> uiState.items.filter { !it.isVideo }
-            GalleryCategory.VIDEO -> uiState.items.filter { it.isVideo }
+            GalleryCategory.ALL -> uiState.items.filter { !isFrame(it) }
+            GalleryCategory.IMAGE -> uiState.items.filter { !it.isVideo && !isFrame(it) }
+            GalleryCategory.VIDEO -> uiState.items.filter { it.isVideo && !isFrame(it) }
+            GalleryCategory.FRAME -> uiState.items.filter { isFrame(it) }
             GalleryCategory.FAVORITE -> uiState.items.filter {
-                it.toCacheKey().keyString in favorites
+                !isFrame(it) && it.toCacheKey().keyString in favorites
             }
-            GalleryCategory.SEQUENCE -> uiState.items.filter { it.promptId in sequenceIds }
+            GalleryCategory.SEQUENCE -> uiState.items.filter { !isFrame(it) && it.promptId in sequenceIds }
         }
     }
 
@@ -199,7 +217,9 @@ fun GalleryScreen(
                 subfolder = item.subfolder,
                 type = item.type,
                 isVideo = item.isVideo,
-                index = item.index
+                index = item.index,
+                localOnly = item.localOnly,
+                localPath = item.localPath
             )
         }
     }
@@ -227,6 +247,7 @@ fun GalleryScreen(
 
     // Grid state for scroll tracking
     val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
 
     // Create prefetch items list from gallery items
     val prefetchItems = remember(visibleItems) {
@@ -263,7 +284,10 @@ fun GalleryScreen(
     LaunchedEffect(itemsKey) {
         if (visibleItems.isNotEmpty()) {
             // Base prefetch on current scroll position instead of always starting from 0
-            val startIndex = gridState.firstVisibleItemIndex.coerceAtLeast(0)
+            // The grid keeps its scroll position when a filter swaps in a shorter list, so the
+            // start index can point past the end -- subList() then throws and the app closes.
+            val startIndex = gridState.firstVisibleItemIndex
+                .coerceIn(0, (visibleItems.size - 1).coerceAtLeast(0))
             val endIndex = (startIndex + 24).coerceAtMost(visibleItems.size)
             val initialItems = visibleItems.subList(startIndex, endIndex).map { item ->
                 MediaCache.PrefetchItem(
@@ -282,18 +306,112 @@ fun GalleryScreen(
             CacheManagementSheet(
                 usedBytes = cacheUsedBytes,
                 limitGb = cacheLimitGb,
+                // Both of these walk the cache directory and delete files; on a phone holding
+                // hundreds of videos that is long enough to freeze the screen if it runs here.
                 onSelectLimit = { gb ->
                     LocalCachePolicy.setLimitGb(context, gb)
                     cacheLimitGb = gb
-                    MediaCache.trimToLimit(context)
-                    cacheUsedBytes = MediaCache.diskUsageBytes(context)
+                    cacheScope.launch {
+                        withContext(Dispatchers.IO) { MediaCache.trimToLimit(context) }
+                        cacheUsedBytes = withContext(Dispatchers.IO) { MediaCache.diskUsageBytes(context) }
+                    }
                 },
-                onClear = {
-                    MediaCache.clearAll()
-                    cacheUsedBytes = 0L
-                    Toast.makeText(context, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
-                },
+                onClear = { showClearConfirm = true },
                 onDismiss = { showCacheSheet = false }
+            )
+        }
+        if (showClearConfirm) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirm = false },
+                title = { Text("清空缓存") },
+                text = {
+                    val total = uiState.items.size
+                    val favoritesCount = LocalCachePolicy.favorites(context).size
+                    val megabytes = cacheUsedBytes / (1024.0 * 1024.0)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("只删除手机里的缓存图片和记录，已保存到相册的不受影响。")
+                        Text(
+                            "将删除 ${total - favoritesCount} 张（约 %.0f MB），已收藏 %d 张会保留。"
+                                .format(megabytes, favoritesCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "日期和提示词会一起清掉，清空后点开时才重新下载，离线时打不开。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showClearConfirm = false
+                            val removed = (uiState.items.size - LocalCachePolicy.favorites(context).size)
+                                .coerceAtLeast(0)
+                            val before = cacheUsedBytes
+                            cacheScope.launch {
+                                val kept = withContext(Dispatchers.IO) {
+                                    val favorites = LocalCachePolicy.favorites(context)
+                                    MediaCache.clearAll()
+                                    // Records outlive the files they describe; drop every entry whose
+                                    // bytes just went away, or the gallery keeps drawing empty tiles.
+                                    val serverId = ConnectionManager.currentServerId
+                                    if (serverId != null) {
+                                        val keptItems = GalleryMetadataCache
+                                            .loadMetadata(context, serverId).orEmpty()
+                                            .filter { it.toCacheKey().keyString in favorites }
+                                        if (keptItems.isEmpty()) {
+                                            GalleryMetadataCache.clearCache(context, serverId)
+                                        } else {
+                                            GalleryMetadataCache.saveMetadata(context, serverId, keptItems)
+                                        }
+                                    }
+                                    MediaCache.diskUsageBytes(context)
+                                }
+                                galleryViewModel.pruneLocalOnly()
+                                cacheUsedBytes = kept
+                                val freedMb = ((before - kept).coerceAtLeast(0)) / (1024.0 * 1024.0)
+                                Toast.makeText(
+                                    context,
+                                    "已清空 $removed 张 · 释放 %.0f MB".format(freedMb),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { Text("清空") }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showClearConfirm = false }) { Text("取消") }
+                }
+            )
+        }
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = {
+                    Text(stringResource(R.string.gallery_delete_confirm_title, uiState.selectedItems.size))
+                },
+                text = { Text(stringResource(R.string.gallery_delete_confirm_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirm = false
+                        galleryViewModel.deleteSelected()
+                    }) {
+                        Text(
+                            stringResource(R.string.gallery_delete_confirm_action),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) {
+                        Text(stringResource(R.string.button_cancel))
+                    }
+                }
             )
         }
         TopAppBar(
@@ -301,7 +419,12 @@ fun GalleryScreen(
                 if (uiState.isSelectionMode) {
                     Text(stringResource(R.string.gallery_selected_count, uiState.selectedItems.size))
                 } else {
-                    Text(stringResource(R.string.title_gallery))
+                    Text(
+                        stringResource(R.string.title_gallery),
+                        modifier = Modifier.clickable {
+                            scope.launch { gridState.animateScrollToItem(0) }
+                        }
+                    )
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -315,8 +438,23 @@ fun GalleryScreen(
             actions = {
                 ServerStatusLamp()
                 if (uiState.isSelectionMode) {
+                    val allPicked = galleryViewModel.isEverythingSelected(visibleItems)
+                    TextButton(
+                        onClick = {
+                            if (allPicked) galleryViewModel.clearSelection()
+                            else galleryViewModel.selectItems(visibleItems)
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            stringResource(
+                                if (allPicked) R.string.gallery_deselect_all else R.string.gallery_select_all
+                            ),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                     // Selection mode actions: Delete, Save, and Share
-                    IconButton(onClick = { galleryViewModel.deleteSelected() }) {
+                    IconButton(onClick = { if (uiState.selectedItems.isNotEmpty()) showDeleteConfirm = true }) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = stringResource(R.string.button_delete_history_item),
@@ -345,11 +483,15 @@ fun GalleryScreen(
             }
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        // Six categories no longer fit one screen: a plain Row squeezed the last chip into a
+        // two-line sliver. They scroll instead, and every label stays on one line.
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            GalleryCategory.values().forEach { option ->
+            items(GalleryCategory.values().size) { index ->
+                val option = GalleryCategory.values()[index]
                 FilterChip(
                     selected = category == option,
                     onClick = {
@@ -361,7 +503,9 @@ fun GalleryScreen(
                     label = {
                         Text(
                             stringResource(option.labelRes),
-                            style = MaterialTheme.typography.labelSmall
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 )
@@ -422,6 +566,7 @@ fun GalleryScreen(
                                     text = stringResource(
                                         when (category) {
                                             GalleryCategory.VIDEO -> R.string.msg_gallery_empty_video
+                                            GalleryCategory.FRAME -> R.string.msg_gallery_empty_frame
                                             GalleryCategory.FAVORITE -> R.string.msg_gallery_empty_favorite
                                             GalleryCategory.SEQUENCE -> R.string.msg_gallery_empty_sequence
                                             else -> R.string.msg_gallery_empty
@@ -439,12 +584,45 @@ fun GalleryScreen(
                     // metadata recording has no date and falls into one trailing block.
                     dayGroups.forEach { group ->
                         item(span = { GridItemSpan(2) }, key = "day-${group.first}") {
-                            Text(
-                                text = group.first,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp)
-                            )
+                            val dayKeys = remember(group.second) {
+                                group.second.map { "${it.promptId}_${it.filename}" }.toSet()
+                            }
+                            val dayPicked = galleryViewModel.isEverythingSelected(group.second)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 10.dp, bottom = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = group.first,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.weight(1f))
+                                if (uiState.isSelectionMode) {
+                                    TextButton(
+                                        onClick = {
+                                            if (dayPicked) {
+                                                galleryViewModel.selectItems(
+                                                    visibleItems.filter {
+                                                        "${it.promptId}_${it.filename}" !in dayKeys
+                                                    }
+                                                )
+                                            } else {
+                                                galleryViewModel.selectItems(group.second)
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                if (dayPicked) R.string.gallery_deselect_day
+                                                else R.string.gallery_select_day
+                                            ),
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+                                }
+                            }
                         }
                         items(group.second, key = { "${it.promptId}_${it.filename}" }) { item ->
                             GalleryItemCard(
@@ -537,13 +715,15 @@ private fun GalleryItemCard(
         isVideo = item.isVideo,
         subfolder = item.subfolder,
         type = item.type,
-        targetPx = tileTargetPx
+        targetPx = tileTargetPx,
+        localPath = item.localPath
     )
 
     // A local-only entry whose file the server no longer has would keep a blank tile forever.
     // Only pruned while actually connected, so an offline start never deletes a good record.
+    // A frame this app wrote is never pruned this way: its file is on the phone, not the server.
     if (item.localOnly) LaunchedEffect(bitmap, isLoading) {
-        if (bitmap == null && !isLoading && ConnectionManager.clientOrNull != null) {
+        if (bitmap == null && !isLoading && item.localPath == null && ConnectionManager.clientOrNull != null) {
             onMissing()
         }
     }
@@ -703,6 +883,26 @@ private fun GalleryItemCard(
                         modifier = Modifier.size(32.dp)
                     )
                 }
+
+                // Video duration badge at bottom end
+                val durationMs = item.durationMs.takeIf { it > 0 } ?: MediaCache.getVideoDurationMs(cacheKey)
+                if (durationMs != null && durationMs > 0) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp),
+                        color = Color.Black.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = formatPlaybackTime(durationMs, roundUp = true),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -774,7 +974,17 @@ private enum class GalleryCategory(@StringRes val labelRes: Int) {
     ALL(R.string.gallery_filter_all),
     IMAGE(R.string.gallery_filter_image),
     VIDEO(R.string.gallery_filter_video),
+    FRAME(R.string.gallery_filter_frame),
     FAVORITE(R.string.gallery_filter_favorite),
     /** Segments submitted while 连拍 was on; recognised by the phone's own record. */
     SEQUENCE(R.string.gallery_filter_sequence)
+}
+
+/** Formats a video's duration in ms as m:ss, or h:mm:ss. */
+private fun formatPlaybackTime(ms: Long, roundUp: Boolean = false): String {
+    val totalSeconds = if (roundUp) (ms + 999) / 1000 else ms / 1000
+    val hours = totalSeconds / 3600
+    val minutes = totalSeconds % 3600 / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%d:%02d".format(minutes, seconds)
 }

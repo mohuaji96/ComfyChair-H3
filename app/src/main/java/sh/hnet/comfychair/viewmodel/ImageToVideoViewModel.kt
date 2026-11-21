@@ -9,7 +9,6 @@ import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.WorkflowManager
@@ -21,7 +20,6 @@ import sh.hnet.comfychair.model.LoraSelection
 import sh.hnet.comfychair.model.WorkflowCapabilities
 import sh.hnet.comfychair.ui.components.config.CommonGenerationState
 import sh.hnet.comfychair.model.WorkflowValues
-import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.ui.components.shared.WorkflowItemBase
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.LoraChainManager
@@ -216,40 +214,25 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
         viewModelScope.launch {
             ConnectionManager.modelCache.collect { cache ->
                 _uiState.update { state ->
-                    // Apply deferred selections first, then validate or fall back to first available
+                    // Apply deferred selections first; an empty folder list must not wipe a saved pick
                     // Single-model patterns
-                    val checkpoint = state.deferredCheckpoint?.takeIf { it in cache.checkpoints }
-                        ?: validateModelSelection(state.selectedCheckpoint, cache.checkpoints)
-                    val unet = state.deferredUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedUnet, cache.unets)
-                    val loraName = state.deferredLoraName?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedLoraName, cache.loras)
+                    val (checkpoint, deferredCheckpointNext) = resolveModelSelection(state.deferredCheckpoint, state.selectedCheckpoint, cache.checkpoints)
+                    val (unet, deferredUnetNext) = resolveModelSelection(state.deferredUnet, state.selectedUnet, cache.unets)
+                    val (loraName, deferredLoraNameNext) = resolveModelSelection(state.deferredLoraName, state.selectedLoraName, cache.loras)
                     // Dual-model patterns
-                    val highnoiseUnet = state.deferredHighnoiseUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedHighnoiseUnet, cache.unets)
-                    val lownoiseUnet = state.deferredLownoiseUnet?.takeIf { it in cache.unets }
-                        ?: validateModelSelection(state.selectedLownoiseUnet, cache.unets)
-                    val highnoiseLora = state.deferredHighnoiseLora?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedHighnoiseLora, cache.loras)
-                    val lownoiseLora = state.deferredLownoiseLora?.takeIf { it in cache.loras }
-                        ?: validateModelSelection(state.selectedLownoiseLora, cache.loras)
+                    val (highnoiseUnet, deferredHighnoiseUnetNext) = resolveModelSelection(state.deferredHighnoiseUnet, state.selectedHighnoiseUnet, cache.unets)
+                    val (lownoiseUnet, deferredLownoiseUnetNext) = resolveModelSelection(state.deferredLownoiseUnet, state.selectedLownoiseUnet, cache.unets)
+                    val (highnoiseLora, deferredHighnoiseLoraNext) = resolveModelSelection(state.deferredHighnoiseLora, state.selectedHighnoiseLora, cache.loras)
+                    val (lownoiseLora, deferredLownoiseLoraNext) = resolveModelSelection(state.deferredLownoiseLora, state.selectedLownoiseLora, cache.loras)
                     // Common
-                    val vae = state.deferredVae?.takeIf { it in cache.vaes }
-                        ?: validateModelSelection(state.selectedVae, cache.vaes)
-                    val clip = state.deferredClip?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip, cache.clips)
-                    val clip1 = state.deferredClip1?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip1, cache.clips)
-                    val clip2 = state.deferredClip2?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip2, cache.clips)
-                    val clip3 = state.deferredClip3?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip3, cache.clips)
-                    val clip4 = state.deferredClip4?.takeIf { it in cache.clips }
-                        ?: validateModelSelection(state.selectedClip4, cache.clips)
-                    val textEncoder = state.deferredTextEncoder?.takeIf { it in cache.textEncoders }
-                        ?: validateModelSelection(state.selectedTextEncoder, cache.textEncoders)
-                    val latentUpscaleModel = state.deferredLatentUpscaleModel?.takeIf { it in cache.latentUpscaleModels }
-                        ?: validateModelSelection(state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
+                    val (vae, deferredVaeNext) = resolveModelSelection(state.deferredVae, state.selectedVae, cache.vaes)
+                    val (clip, deferredClipNext) = resolveModelSelection(state.deferredClip, state.selectedClip, cache.clips)
+                    val (clip1, deferredClip1Next) = resolveModelSelection(state.deferredClip1, state.selectedClip1, cache.clips)
+                    val (clip2, deferredClip2Next) = resolveModelSelection(state.deferredClip2, state.selectedClip2, cache.clips)
+                    val (clip3, deferredClip3Next) = resolveModelSelection(state.deferredClip3, state.selectedClip3, cache.clips)
+                    val (clip4, deferredClip4Next) = resolveModelSelection(state.deferredClip4, state.selectedClip4, cache.clips)
+                    val (textEncoder, deferredTextEncoderNext) = resolveModelSelection(state.deferredTextEncoder, state.selectedTextEncoder, cache.textEncoders)
+                    val (latentUpscaleModel, deferredLatentUpscaleModelNext) = resolveModelSelection(state.deferredLatentUpscaleModel, state.selectedLatentUpscaleModel, cache.latentUpscaleModels)
 
                     state.copy(
                         availableCheckpoints = cache.checkpoints,
@@ -279,22 +262,22 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
                         selectedClip4 = clip4,
                         selectedTextEncoder = textEncoder,
                         selectedLatentUpscaleModel = latentUpscaleModel,
-                        // Clear deferred values once applied
-                        deferredCheckpoint = null,
-                        deferredUnet = null,
-                        deferredLoraName = null,
-                        deferredHighnoiseUnet = null,
-                        deferredLownoiseUnet = null,
-                        deferredHighnoiseLora = null,
-                        deferredLownoiseLora = null,
-                        deferredVae = null,
-                        deferredClip = null,
-                        deferredClip1 = null,
-                        deferredClip2 = null,
-                        deferredClip3 = null,
-                        deferredClip4 = null,
-                        deferredTextEncoder = null,
-                        deferredLatentUpscaleModel = null,
+                        // Deferrals now hold whatever is still waiting for a later cache emit
+                        deferredCheckpoint = deferredCheckpointNext,
+                        deferredUnet = deferredUnetNext,
+                        deferredLoraName = deferredLoraNameNext,
+                        deferredHighnoiseUnet = deferredHighnoiseUnetNext,
+                        deferredLownoiseUnet = deferredLownoiseUnetNext,
+                        deferredHighnoiseLora = deferredHighnoiseLoraNext,
+                        deferredLownoiseLora = deferredLownoiseLoraNext,
+                        deferredVae = deferredVaeNext,
+                        deferredClip = deferredClipNext,
+                        deferredClip1 = deferredClip1Next,
+                        deferredClip2 = deferredClip2Next,
+                        deferredClip3 = deferredClip3Next,
+                        deferredClip4 = deferredClip4Next,
+                        deferredTextEncoder = deferredTextEncoderNext,
+                        deferredLatentUpscaleModel = deferredLatentUpscaleModelNext,
                         // Filter LoRA chains
                         highnoiseLoraChain = LoraChainManager.filterUnavailable(state.highnoiseLoraChain, cache.loras),
                         lownoiseLoraChain = LoraChainManager.filterUnavailable(state.lownoiseLoraChain, cache.loras)
@@ -325,19 +308,21 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
     /**
      * Load the last generated video from cache.
      * This restores the video preview when the screen is recreated.
-     * Uses runBlocking to ensure synchronous restoration like TTI/ITI.
+     * Restored off the main thread so the first frame does not wait on the file read.
      */
     private fun loadLastGeneratedVideo() {
         val context = applicationContext ?: return
         val promptId = MediaStateHolder.getCurrentItvPromptId() ?: return
 
         val key = MediaStateHolder.MediaKey.ItvVideo(promptId)
-        if (MediaStateHolder.hasVideoBytes(key, context)) {
-            val uri = runBlocking {
-                MediaStateHolder.getVideoUri(context, key)
-            }
-            if (uri != null) {
-                _uiState.value = _uiState.value.copy(currentVideoUri = uri)
+        // Off the main thread: restoring a video reads tens of megabytes and used to stall
+        // the first frame of this screen.
+        viewModelScope.launch {
+            if (MediaStateHolder.hasVideoBytes(key, context)) {
+                val uri = MediaStateHolder.getVideoUri(context, key)
+                if (uri != null) {
+                    _uiState.value = _uiState.value.copy(currentVideoUri = uri)
+                }
             }
         }
     }
@@ -345,9 +330,7 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
     private fun loadWorkflows() {
         val ctx = applicationContext ?: return
 
-        val showBuiltIn = AppSettings.isShowBuiltInWorkflows(ctx)
-        val workflows = WorkflowManager.getWorkflowsByType(WorkflowType.ITV)
-            .filter { showBuiltIn || !it.isBuiltIn }
+        val workflows = WorkflowManager.getEnabledWorkflowsByType(WorkflowType.ITV)
 
         val unifiedWorkflows = workflows.map { workflow ->
             ItvWorkflowItem(
@@ -622,78 +605,78 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
     }
 
     fun onHighnoiseUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedHighnoiseUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedHighnoiseUnet = unet, deferredHighnoiseUnet = null)
         savePreferences()
     }
 
     fun onLownoiseUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedLownoiseUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedLownoiseUnet = unet, deferredLownoiseUnet = null)
         savePreferences()
     }
 
     fun onHighnoiseLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedHighnoiseLora = lora)
+        _uiState.value = _uiState.value.copy(selectedHighnoiseLora = lora, deferredHighnoiseLora = null)
         savePreferences()
     }
 
     fun onLownoiseLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedLownoiseLora = lora)
+        _uiState.value = _uiState.value.copy(selectedLownoiseLora = lora, deferredLownoiseLora = null)
         savePreferences()
     }
 
     // Single-model callbacks
     fun onCheckpointChange(checkpoint: String) {
-        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint)
+        _uiState.value = _uiState.value.copy(selectedCheckpoint = checkpoint, deferredCheckpoint = null)
         savePreferences()
     }
 
     fun onUnetChange(unet: String) {
-        _uiState.value = _uiState.value.copy(selectedUnet = unet)
+        _uiState.value = _uiState.value.copy(selectedUnet = unet, deferredUnet = null)
         savePreferences()
     }
 
     fun onMandatoryLoraChange(lora: String) {
-        _uiState.value = _uiState.value.copy(selectedLoraName = lora)
+        _uiState.value = _uiState.value.copy(selectedLoraName = lora, deferredLoraName = null)
         savePreferences()
     }
 
     fun onVaeChange(vae: String) {
-        _uiState.value = _uiState.value.copy(selectedVae = vae)
+        _uiState.value = _uiState.value.copy(selectedVae = vae, deferredVae = null)
         savePreferences()
     }
 
     fun onClipChange(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip = clip)
+        _uiState.value = _uiState.value.copy(selectedClip = clip, deferredClip = null)
         savePreferences()
     }
 
     fun onClip1Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip1 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip1 = clip, deferredClip1 = null)
         savePreferences()
     }
 
     fun onClip2Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip2 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip2 = clip, deferredClip2 = null)
         savePreferences()
     }
 
     fun onClip3Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip3 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip3 = clip, deferredClip3 = null)
         savePreferences()
     }
 
     fun onClip4Change(clip: String) {
-        _uiState.value = _uiState.value.copy(selectedClip4 = clip)
+        _uiState.value = _uiState.value.copy(selectedClip4 = clip, deferredClip4 = null)
         savePreferences()
     }
 
     fun onTextEncoderChange(textEncoder: String) {
-        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder)
+        _uiState.value = _uiState.value.copy(selectedTextEncoder = textEncoder, deferredTextEncoder = null)
         savePreferences()
     }
 
     fun onLatentUpscaleModelChange(model: String) {
-        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model)
+        _uiState.value = _uiState.value.copy(selectedLatentUpscaleModel = model, deferredLatentUpscaleModel = null)
         savePreferences()
     }
 
@@ -1219,7 +1202,7 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
      * Fetch the generated video from the server and update the UI state.
      * Called when VideoGenerated event is received.
      */
-    private fun fetchGeneratedVideo(promptId: String) {
+    private fun fetchGeneratedVideo(promptId: String, attempt: Int = 0) {
         val context = applicationContext ?: return
         val client = comfyUIClient ?: return
 
@@ -1237,8 +1220,22 @@ class ImageToVideoViewModel : BaseGenerationViewModel<ImageToVideoUiState, Image
                 _uiState.value = _uiState.value.copy(currentVideoUri = uri, previewBitmap = null)
                 deleteLastPreviewImage()
                 generationViewModelRef?.completeGeneration(promptId)
+            } else if (attempt < ResultFetch.RETRIES) {
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(ResultFetch.RETRY_DELAY_MS)
+                    fetchGeneratedVideo(promptId, attempt + 1)
+                }
+            } else {
+                DebugLogger.w(TAG, "Video fetch failed, ending the run")
+                generationViewModelRef?.completeGeneration(promptId)
+                viewModelScope.launch {
+                    _events.emit(
+                        ImageToVideoEvent.ShowToastMessage(
+                            applicationContext?.getString(R.string.msg_result_fetch_failed).orEmpty()
+                        )
+                    )
+                }
             }
-            // If uri is null, don't complete generation - will retry on next return
         }
     }
 

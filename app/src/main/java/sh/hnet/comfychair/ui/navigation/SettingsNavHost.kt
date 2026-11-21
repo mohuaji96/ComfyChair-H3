@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.FilledIconButton
@@ -22,7 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -30,9 +34,15 @@ import androidx.navigation.compose.rememberNavController
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.SettingsRoute
 import sh.hnet.comfychair.ui.screens.AboutSettingsScreen
+import sh.hnet.comfychair.ui.screens.ApiProviderEditScreen
+import sh.hnet.comfychair.ui.screens.ApiProviderListScreen
 import sh.hnet.comfychair.ui.screens.ApplicationSettingsScreen
+import sh.hnet.comfychair.ui.screens.PromptSettingsScreen
 import sh.hnet.comfychair.ui.screens.ServerSettingsScreen
+import sh.hnet.comfychair.ui.screens.TemplateDetailScreen
+import sh.hnet.comfychair.ui.screens.TemplateLibraryScreen
 import sh.hnet.comfychair.ui.screens.WorkflowsSettingsScreen
+import sh.hnet.comfychair.viewmodel.PromptOptimizerViewModel
 import sh.hnet.comfychair.viewmodel.SettingsViewModel
 import sh.hnet.comfychair.viewmodel.WorkflowManagementViewModel
 
@@ -46,6 +56,10 @@ fun SettingsNavHost(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // One instance for the whole optimiser section, so the home page and the edit pages observe
+    // the same state instead of each reloading a private copy on entry.
+    val promptViewModel: PromptOptimizerViewModel = viewModel()
 
     Scaffold(
         bottomBar = {
@@ -150,6 +164,38 @@ fun SettingsNavHost(
                         }
                     }
 
+                    // Prompt Settings (stays lit on its sub-pages)
+                    if (currentRoute?.startsWith("prompt_") == true) {
+                        FilledIconButton(
+                            onClick = { },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.Psychology,
+                                contentDescription = "提示词优化"
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            navController.navigate(SettingsRoute.Prompt.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.Psychology,
+                                contentDescription = "提示词优化",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     // About Settings
                     if (currentRoute == SettingsRoute.About.route) {
                         FilledIconButton(
@@ -203,7 +249,7 @@ fun SettingsNavHost(
             startDestination = SettingsRoute.Workflows.route,
             modifier = Modifier.padding(paddingValues)
         ) {
-            // Order matches BottomAppBar: Workflows → Application → Server → About
+            // Order matches BottomAppBar: Workflows → Application → Server → Prompt → About
             composable(SettingsRoute.Workflows.route) {
                 WorkflowsSettingsScreen(
                     viewModel = workflowManagementViewModel,
@@ -230,6 +276,55 @@ fun SettingsNavHost(
                 )
             }
 
+            composable(SettingsRoute.Prompt.route) {
+                PromptSettingsScreen(
+                    onOpenProviders = { navController.navigate(SettingsRoute.PromptProviders.route) },
+                    onOpenTemplates = { navController.navigate(SettingsRoute.PromptTemplates.route) },
+                    onNavigateToGeneration = onNavigateToGeneration,
+                    onLogout = onLogout,
+                    viewModel = promptViewModel
+                )
+            }
+
+            composable(SettingsRoute.PromptProviders.route) {
+                ApiProviderListScreen(
+                    onBack = { navController.popBackStack() },
+                    onEdit = { id -> navController.navigate(SettingsRoute.PromptProviderEdit.of(id)) },
+                    viewModel = promptViewModel
+                )
+            }
+
+            composable(
+                route = SettingsRoute.PromptProviderEdit.route,
+                arguments = listOf(navArgument("providerId") { type = NavType.StringType })
+            ) { entry ->
+                ApiProviderEditScreen(
+                    providerId = entry.arguments?.getString("providerId").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onDeleted = { navController.popBackStack() },
+                    viewModel = promptViewModel
+                )
+            }
+
+            composable(SettingsRoute.PromptTemplates.route) {
+                TemplateLibraryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDetail = { id ->
+                        navController.navigate(SettingsRoute.PromptTemplateDetail.of(id))
+                    }
+                )
+            }
+
+            composable(
+                route = SettingsRoute.PromptTemplateDetail.route,
+                arguments = listOf(navArgument("templateId") { type = NavType.StringType })
+            ) { entry ->
+                TemplateDetailScreen(
+                    templateId = entry.arguments?.getString("templateId").orEmpty(),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable(SettingsRoute.About.route) {
                 AboutSettingsScreen(
                     onNavigateToGeneration = onNavigateToGeneration,
@@ -239,3 +334,4 @@ fun SettingsNavHost(
         }
     }
 }
+

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -291,7 +292,7 @@ fun MediaViewerScreen(
             }
         }
 
-        // Floating Toolbar
+        // Bottom controls: playback card (videos only) + toolbar
         AnimatedVisibility(
             visible = uiState.isUiVisible,
             enter = fadeIn(animationSpec = tween(250)),
@@ -301,13 +302,28 @@ fun MediaViewerScreen(
                 .navigationBarsPadding()
                 .padding(bottom = toolbarBottomPadding)
         ) {
-            MediaViewerFloatingToolbar(
-                isGalleryMode = uiState.mode == ViewerMode.GALLERY,
-                onDelete = { viewModel.deleteCurrentItem() },
-                onSave = { viewModel.saveCurrentItem() },
-                onShare = { viewModel.shareCurrentItem() },
-                onInfo = { showMetadataSheet = true }
-            )
+            androidx.compose.foundation.layout.Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (uiState.currentItem?.isVideo == true) {
+                    sh.hnet.comfychair.ui.components.ViewerPlaybackCard(
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                MediaViewerFloatingToolbar(
+                    isGalleryMode = uiState.mode == ViewerMode.GALLERY,
+                    isVideo = uiState.currentItem?.isVideo ?: false,
+                    onDelete = { viewModel.deleteCurrentItem() },
+                    onSave = { viewModel.saveCurrentItem() },
+                    onExtractFrame = {
+                        val pos = sh.hnet.comfychair.ui.components.SharedVideoPlayer.getPlayer(context).currentPosition
+                        viewModel.extractAndSaveCurrentFrame(context, pos)
+                    },
+                    onShare = { viewModel.shareCurrentItem() },
+                    onInfo = { showMetadataSheet = true }
+                )
+            }
         }
 
         // Back FAB
@@ -349,8 +365,10 @@ fun MediaViewerScreen(
 @Composable
 private fun MediaViewerFloatingToolbar(
     isGalleryMode: Boolean,
+    isVideo: Boolean = false,
     onDelete: () -> Unit,
     onSave: () -> Unit,
+    onExtractFrame: () -> Unit = {},
     onShare: () -> Unit,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier
@@ -388,6 +406,16 @@ private fun MediaViewerFloatingToolbar(
                         Icons.Default.Save,
                         contentDescription = stringResource(R.string.media_viewer_save)
                     )
+                }
+
+                // Extract frame button (video only)
+                if (isVideo) {
+                    IconButton(onClick = onExtractFrame) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Default.CameraAlt,
+                            contentDescription = stringResource(R.string.media_viewer_extract_frame)
+                        )
+                    }
                 }
 
                 // Share button

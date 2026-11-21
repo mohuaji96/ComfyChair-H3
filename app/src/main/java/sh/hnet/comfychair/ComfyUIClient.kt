@@ -20,6 +20,7 @@ import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
 import sh.hnet.comfychair.util.ProgressTrackingRequestBody
 import sh.hnet.comfychair.util.ProgressTrackingResponseBody
+import sh.hnet.comfychair.workflow.NodeTypeIndex
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -338,7 +339,8 @@ class ComfyUIClient(
         val wsProtocol = if (protocol == "https") "wss" else "ws"
         val wsUrl = "$wsProtocol://$hostname:$port/ws?clientId=$clientIdOverride"
 
-        DebugLogger.i(TAG, "Opening WebSocket connection")
+        // The port is part of the usual failure: 443 on an https tunnel, 8188 on a direct link.
+        DebugLogger.i(TAG, "Opening WebSocket: $wsProtocol://$hostname:$port/ws (protocol=$protocol)")
 
         // Create WebSocket request
         val request = Request.Builder()
@@ -921,6 +923,8 @@ class ComfyUIClient(
                             val json = JSONObject(responseBody)
                             val promptId = json.optString("prompt_id")
                             DebugLogger.i(TAG, "Prompt submitted (promptId: ${Obfuscator.promptId(promptId)})")
+                            // The graph is only in hand here; the socket reports nodes by id later.
+                            runCatching { NodeTypeIndex.record(promptId, workflowJson) }
                             callback(true, promptId, null, ConnectionFailure.NONE)
                         } catch (e: Exception) {
                             DebugLogger.e(TAG, "Failed to parse submit response: ${e.message}")
@@ -1536,6 +1540,73 @@ class ComfyUIClient(
                 }
             }
         })
+    }
+
+    /**
+     * Free memory or unload models on the server via ComfyUI's /free endpoint.
+     */
+    fun freeMemory(unloadModelsOnly: Boolean, callback: (success: Boolean) -> Unit) {
+        val baseUrl = getBaseUrl() ?: run {
+            callback(false)
+            return
+        }
+
+        val requestBody = JSONObject().apply {
+            if (unloadModelsOnly) put("unload_models", true) else put("free_memory", true)
+        }.toString().toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$baseUrl/free")
+            .post(requestBody)
+            .build()
+
+        httpClient.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) {
+                callback(false)
+            }
+
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                response.use { callback(it.isSuccessful) }
+            }
+        })
+    }
+
+    sealed interface TextResult {
+        data class Ok(val text: String) : TextResult
+        data class HttpError(val code: Int) : TextResult
+        data object TooLarge : TextResult
+        data class Failed(val message: String?) : TextResult
+    }
+
+    suspend fun getText(pathAndQuery: String, maxBytes: Long): TextResult {
+        val baseUrl = getBaseUrl() ?: return TextResult.Failed(null)
+        val request = Request.Builder().url(baseUrl + pathAndQuery).get().build()
+        val call = httpClient.newCall(request)
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWith(Result.success(TextResult.Failed(e.message)))
+                }
+
+                override fun onResponse(call: okhttp3.Call, response: Response) {
+                    val result = response.use {
+                        val body = response.body
+                        when {
+                            !response.isSuccessful -> TextResult.HttpError(response.code)
+                            body == null -> TextResult.Failed("Empty response")
+                            else -> try {
+                                val source = body.source()
+                                if (source.request(maxBytes + 1)) TextResult.TooLarge else TextResult.Ok(source.readUtf8())
+                            } catch (e: IOException) {
+                                TextResult.Failed(e.message)
+                            }
+                        }
+                    }
+                    if (continuation.isActive) continuation.resumeWith(Result.success(result))
+                }
+            })
+        }
     }
 
     /**

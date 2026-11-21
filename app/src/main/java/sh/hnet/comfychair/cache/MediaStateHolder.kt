@@ -5,10 +5,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import sh.hnet.comfychair.util.DebugLogger
@@ -28,6 +33,24 @@ import java.util.concurrent.ConcurrentHashMap
  * Media files are scoped per-server using the format: {serverId}_{filename}
  */
 object MediaStateHolder {
+
+    /**
+     * Outlives any Activity, so a background write started from onStop still finishes after the
+     * screen is gone. Blocking the caller here used to freeze the app on the way out.
+     */
+    private val writeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Writes are serialised. persistToDisk() snapshots the dirty sets and then writes each
+     * item, so two overlapping calls would both write the same file and race on the remove.
+     */
+    private val writeMutex = Mutex()
+
+    /** Fire-and-forget variant of [persistToDisk] for lifecycle callbacks. */
+    fun persistInBackground(context: Context) {
+        writeScope.launch { persistToDisk(context) }
+    }
+
 
     private const val TAG = "MediaState"
 
@@ -344,6 +367,10 @@ object MediaStateHolder {
      * Called from MainContainerActivity.onStop().
      */
     suspend fun persistToDisk(context: Context) {
+        writeMutex.withLock { persistToDiskLocked(context) }
+    }
+
+    private suspend fun persistToDiskLocked(context: Context) {
         val serverId = currentServerId
         if (serverId == null) {
             DebugLogger.w(TAG, "persistToDisk SKIPPED - currentServerId is null! (dirty: ${dirtyBitmaps.size} bitmaps, ${dirtyVideos.size} videos)")

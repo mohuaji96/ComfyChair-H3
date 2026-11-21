@@ -6,6 +6,7 @@ import org.json.JSONObject
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.NodeAttributeEdits
 import sh.hnet.comfychair.model.WorkflowDefaults
+import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.WorkflowValuesStorage
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.BypassNodeResolver
@@ -152,6 +153,41 @@ object WorkflowManager {
         loadBuiltInWorkflows()
         loadUserWorkflows()
         retagSpaces()
+        disabledWorkflowIds = AppSettings.getDisabledWorkflowIds(
+            applicationContext,
+            workflows.filter { it.isBuiltIn }.map { it.id }
+        )
+    }
+
+    // Workflows switched off by the user (see AppSettings.getDisabledWorkflowIds)
+    @Volatile
+    private var disabledWorkflowIds: Set<String> = emptySet()
+
+    /** IDs of the workflows switched off by the user. */
+    fun getDisabledWorkflowIds(): Set<String> = disabledWorkflowIds
+
+    /** Whether a workflow is offered on the generation screens. */
+    fun isWorkflowEnabled(workflowId: String): Boolean = workflowId !in disabledWorkflowIds
+
+    /**
+     * Switches a workflow on or off. The generation screens refresh their lists through
+     * [workflowsVersion] and fall back to another workflow if the selected one was switched off.
+     */
+    fun setWorkflowEnabled(workflowId: String, enabled: Boolean) {
+        val updated = if (enabled) disabledWorkflowIds - workflowId else disabledWorkflowIds + workflowId
+        if (updated == disabledWorkflowIds) return
+        disabledWorkflowIds = updated
+        AppSettings.setDisabledWorkflowIds(applicationContext, updated)
+        _workflowsVersion.value++
+    }
+
+    /** Switches several workflows on or off at once (a section of the workflows page), with one write. */
+    fun setWorkflowsEnabled(workflowIds: Collection<String>, enabled: Boolean) {
+        val updated = if (enabled) disabledWorkflowIds - workflowIds.toSet() else disabledWorkflowIds + workflowIds
+        if (updated == disabledWorkflowIds) return
+        disabledWorkflowIds = updated
+        AppSettings.setDisabledWorkflowIds(applicationContext, updated)
+        _workflowsVersion.value++
     }
 
     /** H3 is decided by content, never by where the file happens to live. */
@@ -1225,6 +1261,12 @@ object WorkflowManager {
             // Update preferences
             prefs.edit().putString(USER_WORKFLOWS_KEY, newArray.toString()).apply()
 
+            // A gone workflow must not leave its id behind in the disabled set
+            if (workflowId in disabledWorkflowIds) {
+                disabledWorkflowIds = disabledWorkflowIds - workflowId
+                AppSettings.setDisabledWorkflowIds(applicationContext, disabledWorkflowIds)
+            }
+
             _workflowsVersion.value++
             return true
         } catch (e: Exception) {
@@ -1316,6 +1358,15 @@ object WorkflowManager {
         return workflows.filter { it.type == type && it.space == space }
             .sortedBy { it.name.lowercase() }
     }
+
+    /**
+     * The workflows of a type the user hasn't switched off, i.e. those offered on the
+     * generation screens
+     */
+    fun getEnabledWorkflowsByType(
+        type: WorkflowType,
+        space: WorkflowSpace = WorkflowSpace.NORMAL
+    ): List<Workflow> = getWorkflowsByType(type, space).filter { isWorkflowEnabled(it.id) }
 
     /**
      * Check if a workflow can be deleted (not built-in)

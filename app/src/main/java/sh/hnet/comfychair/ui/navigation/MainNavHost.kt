@@ -17,6 +17,8 @@ import sh.hnet.comfychair.ui.screens.ImageToImageScreen
 import sh.hnet.comfychair.ui.screens.TextToVideoScreen
 import sh.hnet.comfychair.ui.screens.ImageToVideoScreen
 import sh.hnet.comfychair.ui.screens.H3WorkspaceScreen
+import sh.hnet.comfychair.ui.screens.StoryComposerScreen
+import sh.hnet.comfychair.ui.screens.TagComposerScreen
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import sh.hnet.comfychair.viewmodel.TextToImageViewModel
 import sh.hnet.comfychair.viewmodel.ImageToImageViewModel
@@ -39,15 +41,19 @@ fun MainNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController()
 ) {
-    Scaffold(
-        bottomBar = {
-            MainNavigationBar(
-                navController = navController,
-                onNavigateToGallery = onNavigateToGallery
-            )
-        },
-        modifier = modifier.imePadding()
-    ) { paddingValues ->
+    val tabReselects = androidx.compose.runtime.remember { kotlinx.coroutines.flow.MutableSharedFlow<MainRoute>(extraBufferCapacity = 1) }
+
+    androidx.compose.runtime.CompositionLocalProvider(sh.hnet.comfychair.navigation.LocalTabReselects provides tabReselects) {
+        Scaffold(
+            bottomBar = {
+                MainNavigationBar(
+                    navController = navController,
+                    onNavigateToGallery = onNavigateToGallery,
+                    onTabReselect = { route -> tabReselects.tryEmit(route) }
+                )
+            },
+            modifier = modifier.imePadding()
+        ) { paddingValues ->
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -97,6 +103,20 @@ fun MainNavHost(
                     onOpenWorkflowSettings = onNavigateToSettings
                 )
             }
+
+            composable(MainRoute.TagComposer.route) {
+                TagComposerScreen(onOpenStory = { navController.navigate(MainRoute.StoryComposer.route) })
+            }
+
+            composable(MainRoute.StoryComposer.route) {
+                StoryComposerScreen(onBack = { navController.popBackStack() })
+            }
+        }
+
+        // One host for every screen's queue chip: the sheet is the same queue, wherever it was opened
+        if (sh.hnet.comfychair.ui.components.QueueSheetController.visible) {
+            sh.hnet.comfychair.ui.components.QueueSheet()
         }
     }
+}
 }

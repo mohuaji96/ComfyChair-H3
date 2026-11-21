@@ -27,7 +27,15 @@ class H3RelayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        // A null intent means the system brought us back after the process was killed. The run
+        // it was protecting lived in memory, so there is nothing to resume -- rebuilding the
+        // banner produced a permanent "0 of 0" notification with no way to get rid of it.
+        if (intent == null) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        when (intent.action) {
             ACTION_PAUSE -> {
                 H3RelayStatus.setPaused(true)
                 startForeground(ID, buildNotification())
@@ -56,8 +64,11 @@ class H3RelayService : Service() {
         val paused = H3RelayStatus.paused.value
         val done = H3RelayStatus.done.value
         val remaining = H3RelayStatus.remaining.value
+        val detail = H3RelayStatus.detail.value
         val title = if (paused) "完整连拍已暂停 · 还剩 $remaining 段" else "完整连拍进行中"
-        val body = "已跑完 $done 段，还剩 $remaining 段"
+        // The segment counter says how far the run got; it says nothing about the segment that is
+        // actually costing the time. That line goes first, the tally moves to the sub-text.
+        val body = if (detail.isNotBlank()) detail else "已跑完 $done 段，还剩 $remaining 段"
 
         val toggle = PendingIntent.getService(
             this, 1,
@@ -70,6 +81,7 @@ class H3RelayService : Service() {
             .setSmallIcon(R.drawable.h3_24px)
             .setContentTitle(title)
             .setContentText(body)
+            .setSubText(if (detail.isNotBlank()) "已跑完 $done 段，还剩 $remaining 段" else null)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)

@@ -1,11 +1,19 @@
 package sh.hnet.comfychair.queue
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.repository.GalleryRepository
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
@@ -28,7 +36,9 @@ data class TrackedJob(
     val promptId: String,
     val ownerId: String,
     val contentType: ContentType,
-    val status: JobStatus
+    val status: JobStatus,
+    /** The job's positive prompt, recorded at submit; the sheet shows this before the server's copy. */
+    val prompt: String? = null
 )
 
 /**
@@ -60,10 +70,30 @@ data class QueueState(
     /** 1-based place of our first pending job in the server queue, null when unknown */
     val ownQueuePosition: Int? = null,
     /** Why the last job of ours died, kept until the next submit */
-    val lastFailure: JobFailure? = null
+    val lastFailure: JobFailure? = null,
+    /**
+     * Positive prompt of each queued job, by promptId — ours and other clients' alike, as the
+     * server shares the whole queue. Missing when the server's listing carried no workflow.
+     */
+    val prompts: Map<String, String> = emptyMap()
 ) {
+    /** The prompt of a queued job, or null when the server did not send one. */
+    /** Ours first (we recorded it at submit), then whatever the server shared. */
+    fun promptOf(promptId: String?): String? = promptId?.let { id ->
+        ownJobs[id]?.prompt?.takeIf(String::isNotBlank) ?: prompts[id]?.takeIf(String::isNotBlank)
+    }
     /** Whether any job is currently executing */
     val isExecuting: Boolean get() = executingPromptId != null
+
+    /**
+     * Whether the running job is one of ours.
+     *
+     * Interrupting is server-wide, so "cancel current" must key off this rather than
+     * [isExecuting]: with another device's job running, that menu item was enabled and stopped
+     * their work.
+     */
+    val isOwnJobExecuting: Boolean
+        get() = executingPromptId?.let { ownJobs.containsKey(it) } == true
 
     /** Number of our own jobs that are still pending or executing */
     val ownActiveJobCount: Int get() = ownJobs.values.count {
@@ -93,6 +123,29 @@ object JobRegistry {
     private val _queueState = MutableStateFlow(QueueState())
     val queueState: StateFlow<QueueState> = _queueState.asStateFlow()
 
+    private const val POLL_INTERVAL_MS = 3000L
+    private val watchdogScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var watchdog: Job? = null
+
+    /**
+     * Keeps asking the server what it still has queued while we believe a job of ours is alive.
+     *
+     * The completion notice arrives over the WebSocket, and a socket that drops mid-run takes it
+     * with it: the reconnect asks /queue once, the job finishes a minute later, and nothing ever
+     * asks again. The button then keeps saying 添加到队列 (1) until an unrelated refresh happens
+     * to poll. This used to live in the H3 screen only, so every other page had no safety net.
+     */
+    fun ensureWatchdog() {
+        if (watchdog?.isActive == true) return
+        watchdog = watchdogScope.launch {
+            while (isActive) {
+                if (_queueState.value.ownActiveJobCount == 0) break
+                ConnectionManager.pollQueueStatus()
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
     /**
      * Register a new job when a workflow is submitted.
      * Call this immediately after receiving a successful prompt submission response.
@@ -102,7 +155,7 @@ object JobRegistry {
      * @param contentType The type of content being generated
      */
     @Synchronized
-    fun registerJob(promptId: String, ownerId: String, contentType: ContentType) {
+    fun registerJob(promptId: String, ownerId: String, contentType: ContentType, prompt: String? = null) {
         DebugLogger.i(TAG, "Registering job: ${Obfuscator.promptId(promptId)} (owner: $ownerId, type: $contentType)")
 
         val currentState = _queueState.value
@@ -115,7 +168,8 @@ object JobRegistry {
             promptId = promptId,
             ownerId = ownerId,
             contentType = contentType,
-            status = initialStatus
+            status = initialStatus,
+            prompt = prompt
         )
 
         val newJobs = currentState.ownJobs + (promptId to job)
@@ -132,6 +186,7 @@ object JobRegistry {
         } else {
             _queueState.value = currentState.copy(ownJobs = newJobs)
         }
+        ensureWatchdog()
     }
 
     /**
@@ -219,9 +274,11 @@ object JobRegistry {
         )
 
         // Trigger gallery refresh - single source of truth for completion-triggered refreshes
-        // Handles both in-app jobs and external jobs (from other clients)
+        // Handles both in-app jobs and external jobs (from other clients). The history entry is
+        // written just after `execution_success`, so this asks for one retry if the first answer
+        // does not contain the new prompt.
         DebugLogger.d(TAG, "Triggering gallery refresh for job completion")
-        GalleryRepository.getInstance().refresh()
+        GalleryRepository.getInstance().refreshAfterCompletion(promptId)
     }
 
     /**
@@ -315,7 +372,7 @@ object JobRegistry {
      * @param pending The queue_pending array from /queue endpoint
      */
     @Synchronized
-    fun updateFromServerQueue(running: JSONArray?, pending: JSONArray?) {
+    fun updateFromServerQueue(running: JSONArray?, pending: JSONArray?, prompts: JSONObject? = null) {
         val runningCount = running?.length() ?: 0
         val pendingCount = pending?.length() ?: 0
         val totalCount = runningCount + pendingCount
@@ -394,9 +451,28 @@ object JobRegistry {
         }
 
         if (validJobs.size != newState.ownJobs.size) {
-            val removedCount = newState.ownJobs.size - validJobs.size
-            DebugLogger.d(TAG, "Removed $removedCount stale jobs not found in server queue")
+            val removed = newState.ownJobs.keys - validJobs.keys
+            DebugLogger.d(TAG, "Removed ${removed.size} stale jobs not found in server queue")
             newState = newState.copy(ownJobs = validJobs)
+            // When the socket drops, this poll is the only thing that notices a finished job. It
+            // used to clear the job and say nothing, so the button recovered while the gallery
+            // kept showing yesterday's list.
+            removed.lastOrNull()?.let { finished ->
+                DebugLogger.d(TAG, "Job left the queue while polling -> refreshing the gallery")
+                GalleryRepository.getInstance().refreshAfterCompletion(finished)
+            }
+        }
+
+        // The queue listing carries every job's workflow, so the sheet can say what each one is
+        if (prompts != null) {
+            val texts = prompts.keys().asSequence()
+                .mapNotNull { id ->
+                    // [number, promptId, prompt-graph, extra data, outputs]
+                    val workflow = prompts.optJSONArray(id)?.optJSONObject(2)
+                    JobPrompts.of(id, workflow)?.let { id to it }
+                }
+                .toMap()
+            if (texts != newState.prompts) newState = newState.copy(prompts = texts)
         }
 
         if (newState != currentState) {
@@ -419,6 +495,7 @@ object JobRegistry {
                 put("ownerId", job.ownerId)
                 put("contentType", job.contentType.name)
                 put("status", job.status.name)
+                job.prompt?.let { put("prompt", it) }
             }
             jobsArray.put(jobJson)
         }
@@ -466,7 +543,8 @@ object JobRegistry {
                         promptId = promptId,
                         ownerId = ownerId,
                         contentType = contentType,
-                        status = JobStatus.PENDING  // Reset to pending, will validate against server
+                        status = JobStatus.PENDING,  // Reset to pending, will validate against server
+                        prompt = jobObj.optString("prompt").takeIf { it.isNotBlank() }
                     )
                 }
             }
@@ -474,6 +552,7 @@ object JobRegistry {
             if (jobs.isNotEmpty()) {
                 _queueState.value = _queueState.value.copy(ownJobs = jobs)
                 DebugLogger.i(TAG, "Restored ${jobs.size} jobs from preferences")
+                ensureWatchdog()
             }
         } catch (e: Exception) {
             DebugLogger.w(TAG, "Failed to restore jobs: ${e.message}")

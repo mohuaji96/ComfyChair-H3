@@ -17,7 +17,7 @@
 - 最低 Android 13（API 33）
 - 需要你自己的 ComfyUI 服务器，手机能访问到（局域网或 VPN）
 
-**下载**：[最新 Release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) · APK 与两份示例工作流
+**下载**：[最新 Release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) · APK 与四份示例工作流
 
 ## 功能
 
@@ -32,6 +32,11 @@
 - 声明归 App 所有：关掉开关只撤它自己写的那行，你手打的字一个不动
 - 连拍模式自动循环，长片子变成几段短的
 
+**更新提醒**
+- 「关于」页可查有没有新版本：一天最多问一次 GitHub，失败静默，能手动重查、也能整体关掉
+- 只负责告诉你去哪下：点开跳到 Release 页面，App 自己不下包、不碰安装权限
+- 判新旧按版本号数字，公开版与个人版两条编号谱系不会互相误判
+
 **图库**
 - 两层缓存：`cacheDir` 是可丢弃副本（容量上限 + LRU + 收藏豁免），「保存到相册」才是永久的
 - ComfyUI 重启后不会变空：服务器历史存在内存里，重启即失，App 用本地元数据把条目补回来
@@ -41,36 +46,43 @@
 
 每个版本改了什么见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 工作流：内置两套，另附同款 JSON
+## 工作流：内置四套，另附同款 JSON
 
-App 内置两套手机端 H3 模板，装上就能跑：
+App 内置四套手机端 H3 模板，装上就能跑。前两套是单采，一次采样出片；后两套是**二采**，先按低分辨率跑一遍，再放大做第二遍细修，同样步数下细节更稳，代价是多花一次采样。
 
-| 内置模板 | 覆盖模式 |
-|---|---|
-| `ttv_h3_mobile_frames` | 文生 / 图生 / 首尾帧，同一个模板三种模式 |
-| `itv_h3_mobile_r2v` | 参考生视频（多参考图 + 三路参考音频） |
+| 内置模板 | 覆盖模式 | 采样 |
+|---|---|---|
+| `ttv_h3_mobile_frames` | 文生 / 图生 / 首尾帧，同一个模板三种模式 | 单采 |
+| `itv_h3_mobile_r2v` | 参考生视频（多参考图 + 三路参考音频） | 单采 |
+| `itv_h3_mobile_guide_turbo` | 文生 / 图生 / 首尾帧 | 二采 + Turbo |
+| `itv_h3_mobile_r2v_turbo` | 参考生视频 | 二采 + Turbo |
 
-**同样的两份 JSON 也放在仓库里**，可以先在电脑上打开，看自己缺哪个节点、缺哪个模型：
+**同样的四份 JSON 也放在仓库里**，可以先在电脑上打开，看自己缺哪个节点、缺哪个模型：
 
 | 文件 | 说明 |
 |---|---|
 | [`workflows/ttv_h3_mobile_frames.json`](workflows/ttv_h3_mobile_frames.json) | 可直接拖进 ComfyUI 打开 |
 | [`workflows/itv_h3_mobile_r2v.json`](workflows/itv_h3_mobile_r2v.json) | 可直接拖进 ComfyUI 打开 |
+| [`workflows/itv_h3_mobile_guide_turbo.json`](workflows/itv_h3_mobile_guide_turbo.json) | 可直接拖进 ComfyUI 打开，含子图 |
+| [`workflows/itv_h3_mobile_r2v_turbo.json`](workflows/itv_h3_mobile_r2v_turbo.json) | 可直接拖进 ComfyUI 打开，含子图 |
+
+二采两套的骨架取自 **LokkenJP** 的 TenEros 二采示例（[SampleWorkFlowTwoPassOptimized](https://huggingface.co/LokkenJP/TenEros_Max_optimized_learned/tree/main/SampleWorkFlowTwoPassOptimized) 里的 `H3_Turbo_2Pass_ErosMax_b7_simple_v7` 与 `advanced_refmods_v9`）：两段 `BasicScheduler` + `SamplerCustomAdvanced`，第一遍出低分辨率，`MiniMaxH3LatentUpscaleWithModel` 放大后再跑第二遍，`MiniMaxH3SigmaShift` 对齐噪声表，收尾用 `LokkenVideoPostProcessing`。模板按手机端重画过，两段采样收在子图里，节点和连线跟示例并不逐一对得上，用之前仍要按自己服务器重选模型。
 
 内置模板里的 UNET 和 LoRA 写的是开发机上的文件名，换台机器必然对不上。两条路：
 
 - 直接用内置模板，进「模型与 LoRA」按自己服务器上的文件重选一次；
 - 或把 `workflows/` 里的 JSON 拖进 ComfyUI 打开，缺节点会直接报错，缺模型在加载器里一眼能看到。
 
-`workflows/` 里放的是 **ComfyUI 界面格式**（`nodes` / `links`），拖进网页就能打开；App 内置的是同一套逻辑的
-**API 格式**，两种格式内容对应、节点一致，只是给不同地方用。
+四份都是 **ComfyUI 界面格式**（`nodes` / `links`），拖进网页就能打开；App 内置的是同一张图的
+**API 格式**，提交任务时用。二采两份把两段采样收进了子图，需要带子图支持的新版 ComfyUI——
+在 0.46.1 上验证过四份都能零报错打开。
 
 如果导入的是别人分享的工作流：App 内「工作流管理」→ 导入 JSON → 选中文件。无论内置还是导入，
 **都要按自己服务器上的文件重选 UNET / CLIP / VAE / LoRA**，否则会报模型不存在。
 
 ### 依赖的自定义节点
 
-这两个示例用到以下节点包，缺任何一个都会在导入或提交时报节点类型不存在：
+这几套模板用到以下节点包，缺任何一个都会在导入或提交时报节点类型不存在：
 
 | 节点包 | 示例里用到的节点 |
 |---|---|
@@ -80,6 +92,7 @@ App 内置两套手机端 H3 模板，装上就能跑：
 | ComfyUI-Easy-Use | `easy seed`、`easy cleanGpuUsed`、`easy clearCacheAll` |
 | VideoHelperSuite | `VHS_VideoCombine`、`VHS_LoadAudioUpload` |
 | 其他 | `ComfyMathExpression`、`ResolutionSelector`、`CR Text`、`VRAM_Debug`、`ApplyMiniMaxH3FirstBlockCache` |
+| 二采两套额外用到 | `MiniMaxH3LatentUpscaleWithModel`、`LatentUpscaleModelLoader`、`MiniMaxH3SigmaShift`、`LokkenVideoPostProcessing`、`RTXVideoSuperResolution` |
 
 ### 关于加速节点
 
@@ -131,6 +144,7 @@ GPL-3.0，继承自上游，见 [LICENSE](LICENSE)。本项目的修改同样以
 
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — 这个 App 连接的服务器
 - [legal-hkr/comfychair](https://github.com/legal-hkr/comfychair) — 本项目基于它修改
+- [LokkenJP / TenEros](https://huggingface.co/LokkenJP/TenEros_Max_optimized_learned) — 二采（两段采样）工作流的原作者，`LokkenVideoPostProcessing` 等节点也出自他
 
 ---
 
@@ -143,16 +157,22 @@ segment's last frame. Derived from [ComfyChair](https://github.com/legal-hkr/com
 - Package `com.comfychair.h3` — installs alongside upstream `sh.hnet.comfychair`
 - Android 13 (API 33) or newer; you need your own ComfyUI server reachable from the phone
 
-**Download**: [latest release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) — APK plus the two sample workflows.
+**Download**: [latest release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) — APK plus the bundled sample workflows.
 
 **Features**: H3 workspace (T2V / I2V / FL2V / reference-to-video) with phone-side tail-frame capture
 and burst capture; a two-tier media cache that survives a ComfyUI restart; gallery filters and day
-grouping.
+grouping; an update check that asks GitHub at most once a day (switchable off, browser hand-off only).
 
-**Two mobile workflows are bundled** (`ttv_h3_mobile_frames`, `itv_h3_mobile_r2v`), and the same
-JSON files live in [`workflows/`](workflows) in ComfyUI's UI format, so you can drag them into the
-web UI and see which nodes or models your machine is missing. The bundled copies use the API format
-the app submits; the two versions describe the same graph. Both carry the developer's UNET and LoRA filenames, so
+**Four mobile workflows are bundled**: `ttv_h3_mobile_frames` and `itv_h3_mobile_r2v` sample in one
+pass; `itv_h3_mobile_guide_turbo` and `itv_h3_mobile_r2v_turbo` are two-pass — a low-resolution pass,
+then a latent-upscaled refinement pass. The two-pass skeletons follow **LokkenJP**'s TenEros
+two-pass samples ([Hugging Face](https://huggingface.co/LokkenJP/TenEros_Max_optimized_learned/tree/main/SampleWorkFlowTwoPassOptimized)):
+two `BasicScheduler` + `SamplerCustomAdvanced` stages, `MiniMaxH3LatentUpscaleWithModel` between
+them, `MiniMaxH3SigmaShift` for the noise table, `LokkenVideoPostProcessing` to finish.
+The first two JSON files live in [`workflows/`](workflows) in ComfyUI's UI format, so you can drag
+them into the web UI and see which nodes or models your machine is missing; the two-pass files use
+the app's package format and go in through "Workflow manager → Import". Both formats describe the
+same graph. Both carry the developer's UNET and LoRA filenames, so
 reselect them once under "Model & LoRA" for your own server. Required node packs:
 MiniMax H3 nodes, ComfyUI-KJNodes, rgthree, ComfyUI-Easy-Use, VideoHelperSuite, plus
 `ComfyMathExpression`, `ResolutionSelector` and `CR Text`. The samples enable a 4-step turbo LoRA,

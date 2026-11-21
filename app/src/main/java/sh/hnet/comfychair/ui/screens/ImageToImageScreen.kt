@@ -3,6 +3,9 @@ package sh.hnet.comfychair.ui.screens
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -260,6 +263,8 @@ fun ImageToImageScreen(
             title = { Text(stringResource(R.string.title_image_to_image)) },
             windowInsets = WindowInsets(0, 0, 0, 0),
             actions = {
+                sh.hnet.comfychair.ui.components.QueueIndicatorPill()
+                Spacer(Modifier.width(6.dp))
                 ServerStatusLamp()
                 // Upload image button
                 IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
@@ -308,11 +313,17 @@ fun ImageToImageScreen(
         )
 
         // Progress indicator - below app bar, only show if THIS screen's job is executing
-        if (isThisScreenExecuting) {
+        AnimatedVisibility(
+            visible = isThisScreenExecuting,
+            // Same 150ms as the H3 workspace, so the header does not jump between pages.
+            enter = expandVertically(tween(150)) + fadeIn(tween(150)),
+            exit = shrinkVertically(tween(150)) + fadeOut(tween(120))
+        ) {
             GenerationProgressBar(
+                stage = generationState.stage,
                 progress = generationState.progress,
                 maxProgress = generationState.maxProgress,
-                modifier = Modifier.fillMaxWidth()
+                startedAt = generationState.startedAt
             )
         }
 
@@ -492,8 +503,7 @@ fun ImageToImageScreen(
                 .padding(bottom = 16.dp)
         ) {
             GenerationButton(
-                queueSize = queueState.totalQueueSize,
-                isExecuting = queueState.isExecuting,
+                isExecuting = queueState.isOwnJobExecuting,
                 isEnabled = imageToImageViewModel.hasValidConfiguration() &&
                     uiState.positivePrompt.isNotBlank() &&
                     uiState.sourceImage != null,
