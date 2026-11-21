@@ -26,6 +26,22 @@
 - 参考图（最多 9 张）、三路参考音频、画面比例、像素量、采样步数
 - 时长限制在官方文档的 4–15 秒
 
+**词库组合**
+- 40 个分类、2643 条词，分「单人 / 多人」两档：人物、身体、穿着、场景、光线、镜头各自成组
+- 点词即选，点分类名只重抽这一组；可分项锁、可忽略、可整段重抽
+- 规则互斥替你收拾冲突：一件式整身包住时上衣和下衣让位，外层衣物挡住时内衣不出现，
+  取景裁掉的部分整类跳过并在面板上标「本次已跳过」
+- 自带上色的款式（白衬衫、小白鞋）不再被颜色格叠成「黑色的白衬衫」，自带图案的同样不吃颜色
+- 「去重」压掉同义重复；「SFW」切到清水词库
+- 底部「优化」把这一盘词直接交给提示词优化，接着就能去生成，不用复制粘贴
+
+**剧情组合**
+- 四档人数：一男一女、一男两女、两女、单人；切档时分类跟着变
+- 一男两女档有独立的「女二」字段组：种族、地域、形象、发型发色、肤色、身材、胸部、配饰、眼镜、穿着、袜、鞋、状态、过程中
+- 37 个词池、1396 条词；分项可锁可忽略，可整段重抽
+- 成句顺序是「开始 → 过程中 → 姿势与动作链 → 结束」：过程中交代的是开始之后那一身，所以排在开始后面
+- 双女档两个人的动作轮流主位，各自写明是女一还是女二；开场就全裸的人不写「衣物已完全除尽」
+
 **尾帧续接**
 - 在手机上取视频最后一帧（`MediaMetadataRetriever`），也可以选一个视频文件由它来取
 - 取到的帧作为最后一个 `<Picture N>` 挂上去，同时把声明写进提示词
@@ -41,6 +57,11 @@
 - 两层缓存：`cacheDir` 是可丢弃副本（容量上限 + LRU + 收藏豁免），「保存到相册」才是永久的
 - ComfyUI 重启后不会变空：服务器历史存在内存里，重启即失，App 用本地元数据把条目补回来
 - 分类筛选（全部 / 图片 / 视频 / 收藏）、按日分组、缓存条目标识
+
+**成人向内容与 SFW**
+- 词库和剧情库各有 NSFW 与 SFW 两套，互斥切换：切档后抽取范围、面板分类、生成页可见项一起变
+- 新装默认 SFW，老用户沿用原来的 NSFW；导入词库时先看它声明的档位，档位不对直接拦下
+- 两档共用同一套组合逻辑，界面完全一样
 
 ## 更新记录
 
@@ -160,8 +181,10 @@ segment's last frame. Derived from [ComfyChair](https://github.com/legal-hkr/com
 **Download**: [latest release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) — APK plus the bundled sample workflows.
 
 **Features**: H3 workspace (T2V / I2V / FL2V / reference-to-video) with phone-side tail-frame capture
-and burst capture; a two-tier media cache that survives a ComfyUI restart; gallery filters and day
+and burst capture; a tag composer (40 categories, 2643 words, rule-driven mutexes, SFW switch) and a
+story composer (four cast shapes, 37 pools, a separate field group for the second woman); a two-tier media cache that survives a ComfyUI restart; gallery filters and day
 grouping; an update check that asks GitHub at most once a day (switchable off, browser hand-off only).
+Both word libraries ship side by side (NSFW and SFW), switched per profile.
 
 **Four mobile workflows are bundled**: `ttv_h3_mobile_frames` and `itv_h3_mobile_r2v` sample in one
 pass; `itv_h3_mobile_guide_turbo` and `itv_h3_mobile_r2v_turbo` are two-pass — a low-resolution pass,
