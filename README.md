@@ -1,7 +1,7 @@
 # ComfyChair H3
 
 一个非官方的 ComfyUI 安卓客户端，专注在手机上跑 **MiniMax H3 参考生视频**，包括把长视频拆成多段、
-用上一段的尾帧接着往下生成。
+用上一段的尾帧接着往下生成；另外带一个**词库组合**和一个**剧情组合**，用来在手机上直接攒提示词。
 
 派生自 [legal-hkr/comfychair](https://github.com/legal-hkr/comfychair)（GPL-3.0）。上游是通用 ComfyUI
 客户端，本项目在它的基础上加了 H3 工作区，**不在 F-Droid 发布**。
@@ -10,7 +10,10 @@
   <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/01-h3-studio.png" width="45%">
   <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/02-refs-tailframe.png" width="45%"><br>
   <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/03-params.png" width="45%">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/04-models-lora.png" width="45%">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/04-models-lora.png" width="45%"><br>
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-tag.jpg" width="31%" alt="词库组合">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-story.jpg" width="31%" alt="剧情组合 · 一男两女">
+  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-story-sfw.jpg" width="31%" alt="剧情组合 · 单人 SFW">
 </p>
 
 - 包名 `com.comfychair.h3`，可与上游 `sh.hnet.comfychair` 同时安装
