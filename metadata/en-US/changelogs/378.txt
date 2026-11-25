@@ -1,0 +1,9 @@
+v0.9.8.8382.618-h3
+- Centered aspect ratio chip labels for balanced layout
+- Compact second pass spacing with 1x/2x/3x interpolation
+- Removed redundant role subtitle in model picker
+- Hidden long model filenames in collapsed models card
+- Added explicit Strength label next to extra LoRA inputs
+- Removed redundant workflow group from advanced settings
+- Locked prompt input height to 112dp with internal scroll
+- Flat quick settings sheet with geometric icons on tiles

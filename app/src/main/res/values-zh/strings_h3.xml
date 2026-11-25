@@ -376,4 +376,27 @@
     <string name="h3_field_frame_gen">插帧倍数</string>
     <string name="h3_field_rtx_video_scale">RTX 视频超分倍率</string>
     <string name="h3_field_save_prefix">文件名前缀</string>
+    <string name="h3_group_unet">视频模型（UNET）</string>
+    <string name="h3_group_lora">工作流 LoRA</string>
+    <string name="h3_group_extra_lora">额外 LoRA</string>
+    <string name="h3_group_model_files">模型配置</string>
+    <string name="h3_group_workflow">工作流与结构</string>
+    <string name="h3_group_sampling">采样与优化</string>
+    <string name="h3_group_size">尺寸与预设</string>
+    <string name="h3_lora_count_short">%1$d/%2$d</string>
+    <string name="h3_turbo_summary">%1$s · %2$s MP · %3$s 步 · RTX %4$s×</string>
+    <string name="h3_second_pass_on">二采 开</string>
+    <string name="h3_advanced_summary">%1$s · %2$s · %3$d 项可调</string>
+    <string name="h3_panel_title">参数面板</string>
+    <string name="h3_panel_card_title">常用参数</string>
+    <string name="h3_panel_duration">视频时长</string>
+    <string name="h3_panel_seed">随机种子</string>
+    <string name="h3_panel_seed_auto">自动</string>
+    <string name="h3_hint_ratio_pick">常用 6 个比例，其余在下面</string>
+    <string name="h3_panel_sheet_title">常用参数设置</string>
+    <string name="h3_save_short">保存</string>
+    <string name="h3_custom_size_title">自定义尺寸</string>
+    <string name="h3_interp_toggle">插帧增强</string>
+    <string name="h3_presets_title">参数预设</string>
+    <string name="h3_second_pass_note">保留二采模型、Latent 放大模型及原有工作流参数映射。</string>
 </resources>

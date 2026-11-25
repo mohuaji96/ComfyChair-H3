@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.PlayArrow
@@ -57,6 +59,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.ui.components.shared.ModelDropdown
+import sh.hnet.comfychair.ui.components.shared.ChoiceMenu
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +132,6 @@ fun H3StudioContent(
     area: H3Plan.Area,
     generationViewModel: GenerationViewModel?,
     onOpenWorkflowSettings: () -> Unit,
-    onPickWorkflow: () -> Unit = {},
     isVisible: Boolean = true
 ) {
     val context = LocalContext.current
@@ -202,13 +210,16 @@ fun H3StudioContent(
     var showDeclareHelp by remember { mutableStateOf(false) }
     var showRelayHelp by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var showBasic by remember { mutableStateOf(true) }
-    var showModels by remember { mutableStateOf(false) }
-    var showAdvanced by remember { mutableStateOf(false) }
+    // 折叠状态是界面状态，不写进草稿、也不进预设。用 rememberSaveable 配
+    // H3WorkspaceScreen 的 SaveableStateHolder，切页签或换工作流回来才各记各的。
+    var showModels by rememberSaveable { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    // 参数面板：四项基础参数连同种子一起收进弹层，主屏只留四宫格。
+    var showPanel by rememberSaveable { mutableStateOf(false) }
+    var panelTab by rememberSaveable { mutableIntStateOf(0) }
+    var showTurbo by rememberSaveable { mutableStateOf(false) }
     // Reference audio is on almost no run, so the section stays a single line until tapped.
     var showAudio by remember(workflowId) { mutableStateOf(false) }
-    // 「更多比例」and the megapixel dialog are transient; neither is persisted with the draft.
-    var showMoreRatios by remember(workflowId) { mutableStateOf(false) }
     // Which number is being edited in the shared dialog; null closes it. The draft is only
     // touched on 确定, so 取消 is a true discard instead of a reverse patch.
     var editing by remember(workflowId) { mutableStateOf<H3NumberParam?>(null) }
@@ -1041,6 +1052,9 @@ fun H3StudioContent(
 
     val frames = draft.seconds.toDoubleOrNull()?.let { sec -> spec.duration?.expression?.let { ComfyFrames(it, sec) } }
     val stepsShown = draft.steps.ifBlank { spec.steps?.steps?.toString().orEmpty() }
+    // 种子原先长在基础参数展开体里，现在面板要用，提到函数级。
+    val seedExtras = spec.extras.filter { it.input in H3Seed.INPUTS }
+    val seedAutoState = remember(workflowId) { mutableStateOf(H3Seed.autoRandom(context)) }
 
     Column(Modifier.fillMaxSize()) {
 
@@ -1058,13 +1072,16 @@ fun H3StudioContent(
             }
         }
 
-        val cardTitleRes = listOf(
-            R.string.h3_prompt_title,
-            if (area == H3Plan.Area.R2V) R.string.h3_section_refs else R.string.h3_section_material,
-            R.string.h3_section_basic,
-            R.string.h3_section_models,
-            R.string.h3_section_advanced
-        )
+        // 索引必须和 LazyColumn 里的卡片一一对应：二采卡只在 Turbo 模板出现，
+        // 少算它一格，吸顶标题会在 Turbo 工作流上整体错位一位。
+        val cardTitleRes = buildList {
+            add(R.string.h3_prompt_title)
+            add(if (area == H3Plan.Area.R2V) R.string.h3_section_refs else R.string.h3_section_material)
+            add(R.string.h3_panel_title)
+            if (isTurbo) add(R.string.h3_second_pass_title)
+            add(R.string.h3_section_models)
+            add(R.string.h3_section_advanced)
+        }
         val cardTitles = cardTitleRes.map { stringResource(it) }
         // Reading the scroll position in composition would recompose the page every frame, so the
         // bar owns the read and nothing else here touches layoutInfo.
@@ -1089,15 +1106,16 @@ fun H3StudioContent(
                     title = stringResource(R.string.h3_prompt_title),
                     trailing = {
                         if (draft.prompt.isNotEmpty()) {
-                            IconButton(
+                            // 一个 28dp 的 × 太不起眼，问过两次「清空在哪」。改成有字的按钮，
+                            // 顺手把热区做到 48dp。
+                            TextButton(
                                 onClick = { update(draft.copy(prompt = "")) },
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.heightIn(min = 48.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Clear,
-                                    contentDescription = stringResource(R.string.h3_prompt_clear),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                                Text(
+                                    stringResource(R.string.h3_prompt_clear),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1166,9 +1184,9 @@ fun H3StudioContent(
                         OutlinedTextField(
                             value = draft.prompt,
                             onValueChange = { update(draft.copy(prompt = it)) },
-                            minLines = 5, maxLines = 14,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .height(112.dp)
                                 .padding(bottom = 4.dp)
                         )
                         IconButton(
@@ -1538,249 +1556,91 @@ fun H3StudioContent(
                 }
             }
 
-            // 3. 生成参数
+            // 3. 常用参数：四项常看的值以四宫格常驻主屏，卡头右上角的「参数面板」才是编辑入口。
             item {
-                // 基础参数 stays open by default: duration is re-read on almost every run, so
-                // hiding it behind a tap only makes the bottom bar the sole visible number.
-                H3Card(stringResource(R.string.h3_section_basic), trailing = {
-                    TextButton(onClick = { showBasic = !showBasic }) {
-                        Text(if (showBasic) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
-                    }
-                }) {
-                    if (!showBasic) Text(
-                        stringResource(R.string.h3_summary_params, draft.seconds, draft.ratio, draft.mp, stepsShown.ifBlank { stringResource(R.string.h3_default_value) }),
-                        style = MaterialTheme.typography.labelSmall
-                    ) else {
-                    val size = runCatching {
-                        H3Resolution.size(
-                            draft.ratio.substringBefore(':').toIntOrNull() ?: 16,
-                            draft.ratio.substringAfter(':').toIntOrNull() ?: 9,
-                            draft.mp.toDoubleOrNull() ?: 0.5
-                        )
-                    }.getOrNull()
-
-                    H3ParamBlock(
-                        label = stringResource(R.string.h3_duration_seconds),
-                        detail = if (draft.seconds.isBlank()) "" else stringResource(R.string.h3_seconds_value, draft.seconds),
-                        hint = when {
-                            frames == null -> ""
-                            else -> stringResource(R.string.h3_frames_value, frames, spec.fps)
-                        },
-                        presets = listOf("6", "10", "15"),
-                        value = draft.seconds,
-                        enabled = !busy && spec.duration != null,
-                        onPreset = { update(draft.copy(seconds = it)) },
-                        onCustom = { editText = draft.seconds; editing = H3NumberParam.SECONDS }
-                    )
-                    H3Divider()
-                    Text(stringResource(R.string.h3_aspect_ratio), style = MaterialTheme.typography.labelLarge)
-                    // Six everyday ratios stay visible; 21:9 and 2:3 live behind one text row so the
-                    // grid costs two rows instead of three. The selected one is named in that row
-                    // even when collapsed, so collapsing can never hide the current choice.
-                    H3ChipGrid(
-                        items = commonRatioPairs.map { H3Resolution.label(context, it.first) to it.first },
-                        selected = ratioOn,
-                        enabled = ratioEnabled
-                    ) { pickRatio(it) }
-                    if (showMoreRatios) H3ChipGrid(
-                        items = extraRatioPairs.map { H3Resolution.label(context, it.first) to it.first },
-                        selected = ratioOn,
-                        enabled = ratioEnabled
-                    ) { pickRatio(it) }
-                    val ratioTrail = extraRatioPairs.map { (value, _) ->
-                        val shown = H3Resolution.label(context, value)
-                        if (draft.ratio == value) stringResource(R.string.h3_current_suffix, shown) else shown
-                    }
-                    val moreRatioText = if (showMoreRatios) stringResource(R.string.h3_collapse_more)
-                    else stringResource(R.string.h3_more_ratios) + ratioTrail.joinToString(" · ") + "　\u25be"
-                    Text(
-                        moreRatioText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = ratioEnabled) { showMoreRatios = !showMoreRatios }
-                            .padding(vertical = 4.dp)
-                    )
-                    if (ratios.isEmpty()) Text(stringResource(R.string.h3_no_ratio_editor),
-                        style = MaterialTheme.typography.labelSmall)
-                    H3Divider()
-                    H3ParamBlock(
-                        label = stringResource(R.string.h3_megapixels),
-                        detail = "${draft.mp} MP",
-                        hint = when {
-                            draft.customW.isNotBlank() || draft.customH.isNotBlank() ->
-                                stringResource(R.string.h3_custom_wh, draft.customW, draft.customH)
-                            size != null -> "${size.width} × ${size.height}"
-                            else -> ""
-                        },
-                        presets = H3Resolution.megapixelPresets.map { "$it MP" },
-                        value = "${draft.mp} MP",
-                        enabled = ratioEnabled,
-                        onPreset = { picked ->
-                            update(draft.copy(
-                                mp = picked.removeSuffix(" MP"),
-                                customW = "", customH = "", mpOutOfRange = false
-                            ))
-                        },
-                        onCustom = { editText = draft.mp; editing = H3NumberParam.MEGAPIXELS }
-                    )
-                    H3Divider()
-                    H3ParamBlock(
-                        label = stringResource(R.string.h3_sampling_steps),
-                        detail = if (draft.steps.isBlank()) "" else stringResource(R.string.h3_steps_value, draft.steps),
-                        hint = "",
-                        presets = listOf("4", "8", "20"),
-                        value = draft.steps,
-                        enabled = !busy && spec.steps != null,
-                        onPreset = { update(draft.copy(steps = it)) },
-                        onCustom = { editText = draft.steps; editing = H3NumberParam.STEPS }
-                    )
-
-                    // The seed belongs with the sampling knobs, not behind the advanced fold: it is
-                    // the one value that decides whether two runs of the same prompt differ.
-                    val seedExtras = spec.extras.filter { it.input in H3Seed.INPUTS }
-                    if (seedExtras.isNotEmpty()) {
-                        H3Divider()
-                        val seedAuto = remember(workflowId) {
-                            mutableStateOf(H3Seed.autoRandom(context))
-                        }
-                        seedExtras.forEach { extra ->
-                            H3SeedField(
-                                value = draft.extras[extra.key] ?: extra.value.toString(),
-                                auto = seedAuto.value,
-                                enabled = !busy,
-                                onAutoChange = { on ->
-                                    H3Seed.setAutoRandom(context, on)
-                                    seedAuto.value = on
-                                },
-                                onRoll = {
-                                    update(draft.copy(
-                                        extras = draft.extras + (extra.key to H3Seed.next().toString())
-                                    ))
-                                },
-                                onValueChange = { text ->
-                                    update(draft.copy(extras = draft.extras + (extra.key to text)))
-                                }
-                            )
+                H3Card(
+                    title = "◇ " + stringResource(R.string.h3_panel_card_title),
+                    trailing = {
+                        TextButton(onClick = { showPanel = true }) {
+                            Text(stringResource(R.string.h3_panel_title) + " ›")
                         }
                     }
-
-                    when (editing) {
-                        H3NumberParam.SECONDS -> {
-                            val v = editText.toDoubleOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_duration), unit = stringResource(R.string.h3_unit_seconds),
-                                hint = stringResource(R.string.h3_hint_duration),
-                                value = editText,
-                                valid = v != null && v >= 4.0 && v <= 15.0,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(seconds = editText.trimEnd('.')))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        H3NumberParam.MEGAPIXELS -> {
-                            val v = editText.toDoubleOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_megapixels), unit = "MP",
-                                hint = stringResource(R.string.h3_hint_mp),
-                                value = editText,
-                                valid = v != null && v >= 0.1 && v <= 1.0,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(
-                                        mp = editText.trimEnd('.'), customW = "", customH = "",
-                                        mpOutOfRange = false
-                                    ))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        H3NumberParam.STEPS -> {
-                            val v = editText.toIntOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_steps), unit = stringResource(R.string.h3_unit_steps),
-                                hint = stringResource(R.string.h3_hint_steps),
-                                value = editText,
-                                valid = v != null && v in 1..100,
-                                wholeNumbers = true,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(steps = editText.trimEnd('.')))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        H3NumberParam.SECOND_PASS_MP -> {
-                            val v = editText.toDoubleOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_second_pass_mp), unit = "MP",
-                                hint = stringResource(R.string.h3_hint_second_pass_mp),
-                                value = editText,
-                                valid = v != null && v >= 0.1 && v <= 8.0,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(extras = draft.extras + ("23:value" to editText.trimEnd('.'))))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        H3NumberParam.SECOND_PASS_STEPS -> {
-                            val v = editText.toIntOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_second_pass_steps), unit = stringResource(R.string.h3_unit_steps),
-                                hint = stringResource(R.string.h3_hint_second_pass_steps),
-                                value = editText,
-                                valid = v != null && v in 1..50,
-                                wholeNumbers = true,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(extras = draft.extras + ("102:steps" to editText.trimEnd('.'))))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        H3NumberParam.RTX_SCALE -> {
-                            val v = editText.toDoubleOrNull()
-                            H3NumberDialog(
-                                title = stringResource(R.string.h3_custom_rtx_scale), unit = stringResource(R.string.h3_unit_times),
-                                hint = stringResource(R.string.h3_hint_rtx_scale),
-                                value = editText,
-                                valid = v != null && v >= 1.0 && v <= 4.0,
-                                onChange = { editText = it },
-                                onConfirm = {
-                                    update(draft.copy(extras = draft.extras + ("39:resize_type.scale" to editText.trimEnd('.'))))
-                                    editing = null
-                                },
-                                onDismiss = { editing = null }
-                            )
-                        }
-                        null -> Unit
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        H3PanelTile(
+                            label = stringResource(R.string.h3_panel_duration),
+                            value = stringResource(R.string.h3_seconds_value, draft.seconds.ifBlank { "—" }),
+                            icon = "◷",
+                            selected = false,
+                            modifier = Modifier.weight(1f)
+                        ) { showPanel = true }
+                        H3PanelTile(
+                            label = stringResource(R.string.h3_aspect_ratio),
+                            value = H3Resolution.label(context, draft.ratio),
+                            icon = "▣",
+                            selected = false,
+                            modifier = Modifier.weight(1f)
+                        ) { showPanel = true }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        H3PanelTile(
+                            label = stringResource(R.string.h3_megapixels),
+                            value = "${draft.mp} MP",
+                            icon = "▧",
+                            selected = false,
+                            modifier = Modifier.weight(1f)
+                        ) { showPanel = true }
+                        H3PanelTile(
+                            label = stringResource(R.string.h3_sampling_steps),
+                            value = stringResource(R.string.h3_steps_value, stepsShown.ifBlank { "—" }),
+                            icon = "◉",
+                            selected = false,
+                            modifier = Modifier.weight(1f)
+                        ) { showPanel = true }
                     }
                 }
             }
 
-            // 3.5 二采与 Turbo 增强流水线设置（仅在 Turbo 工作流存在 94:value 时智能显示）
+            // 3.5 二采与 Turbo 增强：只在含 94:value 的 Turbo 模板出现，默认折叠。
+            // 折叠摘要全从 draft 现算，二采开关的正反语义在下面 H3TurboPipelineBody 里照旧。
             if (isTurbo) {
                 item {
-                    H3TurboPipelineCard(
-                        spec = spec,
-                        draft = draft,
-                        busy = busy,
-                        onEditNumber = { param, current ->
-                            editText = current
-                            editing = param
-                        },
-                        onUpdate = { update(it) }
-                    )
+                    val passOn = draft.extras["94:value"]?.toBooleanStrictOrNull() != true
+                    val passMp = draft.extras["23:value"] ?: "1"
+                    val passSteps = draft.extras["102:steps"] ?: "3"
+                    val rtxScale = draft.extras["39:resize_type.scale"] ?: "1.2"
+                    val hasFrameGen = spec.extras.any { it.key == "173:value" }
+                    val frameGen = draft.extras["173:value"] ?: "1"
+                    val summary = listOfNotNull(
+                        stringResource(
+                            R.string.h3_turbo_summary,
+                            stringResource(if (passOn) R.string.h3_second_pass_on else R.string.h3_second_pass_off),
+                            passMp, passSteps, rtxScale
+                        ),
+                        if (!hasFrameGen) null
+                        else if (frameGen != "1") stringResource(R.string.h3_interp_on, frameGen)
+                        else stringResource(R.string.h3_interp_off)
+                    ).joinToString(" · ")
+                    H3Card(
+                        title = stringResource(R.string.h3_second_pass_title),
+                        subtitle = summary,
+                        trailing = {
+                            TextButton(onClick = { showTurbo = !showTurbo }) {
+                                Text(if (showTurbo) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
+                            }
+                        }
+                    ) {
+                        if (showTurbo) H3TurboPipelineBody(
+                            spec = spec,
+                            draft = draft,
+                            busy = busy,
+                            onEditNumber = { param, current ->
+                                editText = current
+                                editing = param
+                            },
+                            onUpdate = { update(it) }
+                        )
+                    }
                 }
             }
 
@@ -1791,104 +1651,132 @@ fun H3StudioContent(
                 }
                 H3Card(
                     stringResource(R.string.h3_section_models),
-                     subtitle = listOfNotNull(
-                         // The dropdown can hold a pick that differs from the template's own file;
-                      // the summary has to name what will actually be submitted.
-                      spec.unet?.let { ref ->
-                          (draft.extras[ref.key] ?: ref.value)
-                              .substringAfterLast('\\').substringAfterLast('/')
-                      } ?: stringResource(R.string.h3_model_unknown),
-                         if (spec.loras.isEmpty()) stringResource(R.string.h3_no_lora) else stringResource(R.string.h3_lora_enabled, loraOn, spec.loras.size)
-                     ).joinToString(" · "),
-                     trailing = {
-                         TextButton(onClick = { showModels = !showModels }) {
-                             Text(if (showModels) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
-                         }
-                     }
-                 ) {
-                     if (!showModels) {
-                         Text(stringResource(R.string.h3_only_base_lora),
-                             style = MaterialTheme.typography.labelSmall)
-                     } else {
-                         H3ModelDropdown("UNET", spec.unet, draft, models.unets, !busy) { update(it) }
-                         H3Divider()
-                        if (spec.loras.isEmpty()) Text(stringResource(R.string.h3_no_lora_loader),
-                            style = MaterialTheme.typography.labelSmall)
-                        spec.loras.forEach { slot ->
-                            val state = draft.loras[slot.id] ?: H3LoraDraft(slot.file, slot.strength, slot.enabled)
-                            val label = if (slot.isPowerSlot) "LoRA ${slot.entryKey}" else "LoRA"
-                            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Switch(checked = state.enabled, enabled = !busy, onCheckedChange = {
-                                        update(draft.copy(loras = draft.loras + (slot.id to state.copy(enabled = it))))
-                                    })
-                                    Text(label, style = MaterialTheme.typography.labelLarge)
-                                    Spacer(Modifier.weight(1f))
-                                    OutlinedTextField(
-                                        value = state.strength.toString(),
+                    subtitle = if (spec.loras.isEmpty()) stringResource(R.string.h3_no_lora)
+                               else stringResource(R.string.h3_lora_enabled, loraOn, spec.loras.size),
+                    trailing = {
+                        TextButton(onClick = { showModels = !showModels }) {
+                            Text(if (showModels) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
+                        }
+                    }
+                ) {
+                    if (showModels) {
+                        H3Group(stringResource(R.string.h3_group_unet)) {
+                            H3ModelDropdown("UNET", spec.unet, draft, models.unets, !busy) { update(it) }
+                        }
+                        H3Group(
+                            title = stringResource(R.string.h3_group_lora),
+                            hint = if (spec.loras.isEmpty()) null
+                            else stringResource(R.string.h3_lora_enabled, loraOn, spec.loras.size)
+                        ) {
+                            if (spec.loras.isEmpty()) Text(stringResource(R.string.h3_no_lora_loader),
+                                style = MaterialTheme.typography.labelSmall)
+                            spec.loras.forEach { slot ->
+                                val state = draft.loras[slot.id] ?: H3LoraDraft(slot.file, slot.strength, slot.enabled)
+                                val label = if (slot.isPowerSlot) "LoRA ${slot.entryKey}" else "LoRA"
+                                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Switch(checked = state.enabled, enabled = !busy, onCheckedChange = {
+                                            update(draft.copy(loras = draft.loras + (slot.id to state.copy(enabled = it))))
+                                        })
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(label, style = MaterialTheme.typography.labelLarge)
+                                        Spacer(Modifier.weight(1f))
+                                        H3CompactField(
+                                            value = state.strength.toString(),
+                                            onValueChange = {
+                                                val v = it.toDoubleOrNull() ?: return@H3CompactField
+                                                update(draft.copy(loras = draft.loras + (slot.id to state.copy(strength = v))))
+                                            },
+                                            placeholder = stringResource(R.string.h3_strength),
+                                            enabled = !busy,
+                                            keyboardType = KeyboardType.Decimal,
+                                            modifier = Modifier.width(92.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    H3ModelChoiceBox(
+                                        label = stringResource(R.string.h3_lora_file),
+                                        selectedValue = state.file,
+                                        options = models.loras,
                                         onValueChange = {
-                                            val v = it.toDoubleOrNull() ?: return@OutlinedTextField
-                                            update(draft.copy(loras = draft.loras + (slot.id to state.copy(strength = v))))
+                                            update(draft.copy(loras = draft.loras + (slot.id to state.copy(file = it))))
                                         },
-                                        label = { Text(stringResource(R.string.h3_strength)) }, singleLine = true, enabled = !busy,
-                                        modifier = Modifier.width(96.dp)
+                                        enabled = !busy,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
-                                ModelDropdown(
-                                    label = stringResource(R.string.h3_lora_file),
-                                    selectedValue = state.file,
-                                    options = models.loras,
-                                    onValueChange = {
-                                        update(draft.copy(loras = draft.loras + (slot.id to state.copy(file = it))))
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
                             }
                         }
-                        H3Divider()
                         // Extra LoRA chain: appended after the workflow's own loaders, only in the
                         // submission copy — same behaviour as ComfyChair's own LoRA injection.
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.h3_extra_lora_count, draft.extraLoras.size, H3Plan.LoraAdd.MAX_ENTRIES),
-                                style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                            TextButton(
-                                enabled = !busy && draft.extraLoras.size < H3Plan.LoraAdd.MAX_ENTRIES,
-                                onClick = { update(draft.copy(extraLoras = draft.extraLoras + H3LoraAdd())) }
-                            ) { Text("+ " + stringResource(R.string.h3_add)) }
-                        }
-                        Text(stringResource(R.string.h3_append_hint),
-                            style = MaterialTheme.typography.labelSmall)
-                        draft.extraLoras.forEachIndexed { index, entry ->
-                            Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                                ModelDropdown(
-                                    label = stringResource(R.string.h3_extra_lora_n, index + 1),
-                                    selectedValue = entry.name,
-                                    options = models.loras,
-                                    onValueChange = { chosen ->
-                                        val list = draft.extraLoras.toMutableList()
-                                        list[index] = entry.copy(name = chosen)
-                                        update(draft.copy(extraLoras = list))
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(
-                                        value = entry.strength,
-                                        onValueChange = { text ->
-                                            val list = draft.extraLoras.toMutableList()
-                                            list[index] = entry.copy(
-                                                strength = text.filter { c -> c.isDigit() || c == '.' })
-                                            update(draft.copy(extraLoras = list))
-                                        },
-                                        label = { Text(stringResource(R.string.h3_strength)) }, singleLine = true, enabled = !busy,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    TextButton(enabled = !busy, onClick = {
-                                        update(draft.copy(extraLoras = draft.extraLoras.filterIndexed { i, _ -> i != index }))
-                                    }) { Text(stringResource(R.string.h3_remove)) }
+                        H3Group(
+                            title = stringResource(R.string.h3_group_extra_lora),
+                            hint = stringResource(R.string.h3_lora_count_short,
+                                draft.extraLoras.size, H3Plan.LoraAdd.MAX_ENTRIES),
+                            action = {
+                                TextButton(
+                                    enabled = !busy && draft.extraLoras.size < H3Plan.LoraAdd.MAX_ENTRIES,
+                                    onClick = { update(draft.copy(extraLoras = draft.extraLoras + H3LoraAdd())) }
+                                ) { Text("+ " + stringResource(R.string.h3_add)) }
+                            }
+                        ) {
+                            Text(stringResource(R.string.h3_append_hint),
+                                style = MaterialTheme.typography.labelSmall)
+                            draft.extraLoras.forEachIndexed { index, entry ->
+                                Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Box(Modifier.weight(1f)) {
+                                            H3ModelChoiceBox(
+                                                label = stringResource(R.string.h3_extra_lora_n, index + 1),
+                                                selectedValue = entry.name,
+                                                options = models.loras,
+                                                onValueChange = { chosen ->
+                                                    val list = draft.extraLoras.toMutableList()
+                                                    list[index] = entry.copy(name = chosen)
+                                                    update(draft.copy(extraLoras = list))
+                                                },
+                                                enabled = !busy,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        TextButton(enabled = !busy, onClick = {
+                                            update(draft.copy(extraLoras = draft.extraLoras.filterIndexed { i, _ -> i != index }))
+                                        }) { Text(stringResource(R.string.h3_remove)) }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.h3_strength),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        H3CompactField(
+                                            value = entry.strength,
+                                            onValueChange = { text ->
+                                                val list = draft.extraLoras.toMutableList()
+                                                list[index] = entry.copy(
+                                                    strength = text.filter { c -> c.isDigit() || c == '.' })
+                                                update(draft.copy(extraLoras = list))
+                                            },
+                                            placeholder = "1.0",
+                                            enabled = !busy,
+                                            keyboardType = KeyboardType.Decimal,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
+                        // 模型列表刷新留在本卡底部：换的是这份工作流要用的文件，不该跑进系统设置页。
+                        H3Divider()
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = { ConnectionManager.refreshServerData() }) { Text(stringResource(R.string.h3_refresh_models)) }
                             Text(models.fileRefreshStatus, style = MaterialTheme.typography.labelSmall)
@@ -1904,157 +1792,402 @@ fun H3StudioContent(
 
             // 6. 高级
             item {
-                H3Card(stringResource(R.string.h3_section_advanced), trailing = {
-                    TextButton(onClick = { showAdvanced = !showAdvanced }) {
-                        Text(if (showAdvanced) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
+                // 摘要只报能可靠解析到的项：采样器与一采调度有就报，缺一个就只报字段数。
+                val visibleExtras = spec.extras.filter { !it.hidden && it.input !in H3Seed.INPUTS }
+                val samplerRef = visibleExtras.firstOrNull { it.input == "sampler_name" }
+                val schedulerRef = visibleExtras.firstOrNull { it.labelRes == R.string.h3_field_first_scheduler }
+                    ?: visibleExtras.firstOrNull { it.input == "scheduler" }
+                val samplerValue = samplerRef?.let { draft.extras[it.key] ?: it.value.toString() }
+                val schedulerValue = schedulerRef?.let { draft.extras[it.key] ?: it.value.toString() }
+                H3Card(
+                    title = stringResource(R.string.h3_section_advanced),
+                    subtitle = if (samplerValue != null && schedulerValue != null)
+                        stringResource(R.string.h3_advanced_summary, samplerValue, schedulerValue, visibleExtras.size)
+                    else stringResource(R.string.h3_extras_count, visibleExtras.size),
+                    trailing = {
+                        TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                            Text(if (showAdvanced) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
+                        }
                     }
-                }) {
+                ) {
                     if (showAdvanced) {
-                        // Encoders and VAEs rarely change, so they belong here rather than in the
-                        // model card, where three dropdowns buried the UNET and the LoRA chain.
-                        H3ModelDropdown(stringResource(R.string.h3_clip_encoder), spec.clip, draft,
-                            models.clips.ifEmpty { models.textEncoders }, !busy) { update(it) }
-                        H3ModelDropdown(stringResource(R.string.h3_video_vae), spec.videoVae, draft, models.vaes, !busy) { update(it) }
-                        H3ModelDropdown(stringResource(R.string.h3_audio_vae), spec.audioVae, draft, models.vaes, !busy) { update(it) }
-                        H3Divider()
-                        // 模板与结构：低频动作，从底栏搬到这里，仍然先于其它高级参数出现。
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.h3_section_workflow), style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.weight(1f))
-                            TextButton(onClick = onPickWorkflow) {
-                                Text("${workflow.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        // A. 模型配置：编码器与 VAE 极少换，放在这里，免得三只下拉把 UNET 和 LoRA 埋掉。
+                        H3Group(stringResource(R.string.h3_group_model_files)) {
+                            H3ModelDropdown(stringResource(R.string.h3_clip_encoder), spec.clip, draft,
+                                models.clips.ifEmpty { models.textEncoders }, !busy) { update(it) }
+                            H3ModelDropdown(stringResource(R.string.h3_video_vae), spec.videoVae, draft, models.vaes, !busy) { update(it) }
+                            H3ModelDropdown(stringResource(R.string.h3_audio_vae), spec.audioVae, draft, models.vaes, !busy) { update(it) }
+                        }
+
+                        // C. 采样与优化：字段全部来自 spec.extras，两列排，不再一项一行。
+                        H3Group(stringResource(R.string.h3_group_sampling)) {
+                            if (visibleExtras.isEmpty()) Text(stringResource(R.string.h3_no_scalar_params),
+                                style = MaterialTheme.typography.labelSmall)
+                            // 种子在主页面有自己的控件；在这里再放一份是两份 seed 打架的来源。
+                            visibleExtras.chunked(2).forEach { pair ->
+                                Row(Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    pair.forEach { extra ->
+                                        val text = draft.extras[extra.key] ?: extra.value.toString()
+                                        H3AdvancedField(
+                                            label = if (extra.labelRes != 0) stringResource(extra.labelRes) else extra.label,
+                                            value = text,
+                                            enabled = !busy,
+                                            modifier = Modifier.weight(1f),
+                                            onChange = { update(draft.copy(extras = draft.extras + (extra.key to it))) }
+                                        )
+                                    }
+                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                }
                             }
+                            Text(stringResource(R.string.h3_advanced_kept),
+                                style = MaterialTheme.typography.labelSmall)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.h3_section_structure), style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.weight(1f))
-                            TextButton(onClick = {
-                                context.startActivity(
-                                    sh.hnet.comfychair.WorkflowEditorActivity
-                                        .createIntentForEditingExisting(context, workflowId)
-                                )
-                            }) { Text(stringResource(R.string.h3_edit_structure)) }
-                        }
-                        H3Divider()
-                        if (spec.extras.isEmpty()) Text(stringResource(R.string.h3_no_scalar_params),
-                            style = MaterialTheme.typography.labelSmall)
-                        // The seed has its own control on the basic page; repeating it here as a
-                        // plain text cell was how two "seed" fields ended up disagreeing.
-                        spec.extras.filter { !it.hidden && it.input !in H3Seed.INPUTS }.forEach { extra ->
-                            val text = draft.extras[extra.key] ?: extra.value.toString()
-                            Row(verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    if (extra.labelRes != 0) stringResource(extra.labelRes) else extra.label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
+
+                        // D. 尺寸与预设：精确尺寸和对齐倍数绕过比例选择器，对齐图 5 排版。
+                        H3Group(stringResource(R.string.h3_custom_size_title)) {
+                            // 第一行：精确宽 + 精确高 + 清除
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                H3CompactField(
+                                    value = draft.customW,
+                                    onValueChange = { text ->
+                                        update(draft.copy(customW = text.filter(Char::isDigit), mpOutOfRange = false))
+                                    },
+                                    placeholder = stringResource(R.string.h3_exact_width),
+                                    enabled = !busy,
+                                    keyboardType = KeyboardType.Number,
                                     modifier = Modifier.weight(1f)
                                 )
-                                OutlinedTextField(
-                                    value = text,
-                                    onValueChange = { update(draft.copy(extras = draft.extras + (extra.key to it))) },
-                                    singleLine = true, enabled = !busy,
-                                    modifier = Modifier.width(150.dp)
+                                H3CompactField(
+                                    value = draft.customH,
+                                    onValueChange = { text ->
+                                        update(draft.copy(customH = text.filter(Char::isDigit), mpOutOfRange = false))
+                                    },
+                                    placeholder = stringResource(R.string.h3_exact_height),
+                                    enabled = !busy,
+                                    keyboardType = KeyboardType.Number,
+                                    modifier = Modifier.weight(1f)
                                 )
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { update(draft.copy(customW = "", customH = "")) },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        stringResource(R.string.h3_clear).chunked(1).joinToString("\n"),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
-                        }
-                        spec.warnings.forEach {
-                            Text(it.format(context), style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error)
-                        }
-                        Text(stringResource(R.string.h3_advanced_kept),
-                            style = MaterialTheme.typography.labelSmall)
-                        H3Divider()
-                        // Exact size and alignment bypass the ratio selector; both live here so the
-                        // everyday page stays a single MP control.
-                        Row(verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = draft.customW,
-                                onValueChange = { text ->
-                                    update(draft.copy(customW = text.filter(Char::isDigit), mpOutOfRange = false))
-                                },
-                                label = { Text(stringResource(R.string.h3_exact_width)) }, singleLine = true, enabled = !busy,
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = draft.customH,
-                                onValueChange = { text ->
-                                    update(draft.copy(customH = text.filter(Char::isDigit), mpOutOfRange = false))
-                                },
-                                label = { Text(stringResource(R.string.h3_exact_height)) }, singleLine = true, enabled = !busy,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(enabled = !busy, onClick = {
-                                update(draft.copy(customW = "", customH = ""))
-                            }) { Text(stringResource(R.string.h3_clear)) }
-                        }
-                        Text(stringResource(R.string.h3_exact_hint), style = MaterialTheme.typography.labelSmall)
-                        Row(verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
+                            Spacer(Modifier.height(4.dp))
+                            // 第二行：对齐倍数 (8-128)
+                            H3CompactField(
                                 value = draft.multiple,
                                 onValueChange = { text -> update(draft.copy(multiple = text.filter(Char::isDigit))) },
-                                label = { Text(stringResource(R.string.h3_align_multiple)) }, singleLine = true, enabled = !busy,
-                                modifier = Modifier.weight(1f)
+                                placeholder = stringResource(R.string.h3_align_multiple),
+                                enabled = !busy,
+                                keyboardType = KeyboardType.Number,
+                                modifier = Modifier.fillMaxWidth()
                             )
+
+                            H3Divider()
+
+                            // 第三行：参数预设
                             Text(
-                                spec.resolution?.multiple?.let { stringResource(R.string.h3_workflow_uses, it) } ?: stringResource(R.string.h3_workflow_undeclared),
-                                style = MaterialTheme.typography.labelSmall
+                                stringResource(R.string.h3_presets_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                H3CompactField(
+                                    value = presetName,
+                                    onValueChange = { presetName = it },
+                                    placeholder = stringResource(R.string.h3_preset_name),
+                                    enabled = !busy,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    enabled = !busy && presetName.isNotBlank(),
+                                    onClick = {
+                                        presetStore.save(presetName.trim(), draft)
+                                        presets = presetStore.list()
+                                        message = context.getString(R.string.h3_preset_saved, presetName.trim())
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(42.dp)
+                                ) {
+                                    Text(stringResource(R.string.h3_save_short), style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            presets.forEach { (name, snapshot) ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, style = MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier.weight(1f))
+                                    TextButton(enabled = !busy, onClick = {
+                                        update(snapshot.applyTo(draft))
+                                        message = context.getString(R.string.h3_preset_applied, name)
+                                    }) { Text(stringResource(R.string.h3_apply)) }
+                                    TextButton(enabled = !busy, onClick = {
+                                        presetStore.delete(name)
+                                        presets = presetStore.list()
+                                    }) { Text(stringResource(R.string.h3_delete)) }
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(enabled = !busy, onClick = {
+                                    val name = WorkflowManager.generateUniqueDuplicateName(workflow.name)
+                                    runCatching {
+                                        WorkflowManager.duplicateWorkflow(workflowId, name,
+                                            workflow.description.ifBlank { workflow.name } + context.getString(R.string.h3_copy_suffix, ""))
+                                    }.onSuccess { message = context.getString(R.string.h3_saved_as, name) }
+                                        .onFailure { message = context.getString(R.string.h3_save_failed, it.message.orEmpty()) }
+                                }) { Text(stringResource(R.string.h3_save_as_new)) }
+                                TextButton(onClick = onOpenWorkflowSettings) { Text(stringResource(R.string.h3_workflow_manage)) }
+                            }
                         }
-                    } else {
-                        Text(
-                            stringResource(R.string.h3_extras_count, spec.extras.count { !it.hidden && it.input !in H3Seed.INPUTS }),
-                            style = MaterialTheme.typography.labelSmall
-                        )
                     }
-                    H3Divider()
-                    // Parameter presets are workflow-independent: they only hold the four knobs
-                    // plus the extra LoRA chain, so they can be reused across templates.
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = presetName,
-                            onValueChange = { presetName = it },
-                            label = { Text(stringResource(R.string.h3_preset_name)) }, singleLine = true, enabled = !busy,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(enabled = !busy && presetName.isNotBlank(), onClick = {
-                            presetStore.save(presetName.trim(), draft)
-                            presets = presetStore.list()
-                            message = context.getString(R.string.h3_preset_saved, presetName.trim())
-                        }) { Text(stringResource(R.string.h3_save_preset)) }
-                    }
-                    presets.forEach { (name, snapshot) ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.weight(1f))
-                            TextButton(enabled = !busy, onClick = {
-                                update(snapshot.applyTo(draft))
-                                message = context.getString(R.string.h3_preset_applied, name)
-                            }) { Text(stringResource(R.string.h3_apply)) }
-                            TextButton(enabled = !busy, onClick = {
-                                presetStore.delete(name)
-                                presets = presetStore.list()
-                            }) { Text(stringResource(R.string.h3_delete)) }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(enabled = !busy, onClick = {
-                            val name = WorkflowManager.generateUniqueDuplicateName(workflow.name)
-                            runCatching {
-                                WorkflowManager.duplicateWorkflow(workflowId, name,
-                                    workflow.description.ifBlank { workflow.name } + context.getString(R.string.h3_copy_suffix, ""))
-                            }.onSuccess { message = context.getString(R.string.h3_saved_as, name) }
-                                .onFailure { message = context.getString(R.string.h3_save_failed, it.message.orEmpty()) }
-                        }) { Text(stringResource(R.string.h3_save_as_new)) }
-                        TextButton(onClick = onOpenWorkflowSettings) { Text(stringResource(R.string.h3_workflow_manage)) }
+                    // 告警不受折叠影响：它说的是这份工作流会出问题，收起时更该看得见。
+                    spec.warnings.forEach {
+                        Text(it.format(context), style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
+
+        if (showPanel) H3ParamPanel(
+            draft = draft,
+            ratioPairs = commonRatioPairs,
+            extraRatioPairs = extraRatioPairs,
+            ratioEnabled = ratioEnabled,
+            busy = busy,
+            seedPresent = seedExtras.isNotEmpty(),
+            seedAuto = seedAutoState.value,
+            seedKey = seedExtras.firstOrNull()?.key,
+            seedValue = seedExtras.firstOrNull()?.let { draft.extras[it.key] ?: it.value.toString() },
+            onUpdate = { update(it) },
+            onPickRatio = { pickRatio(it) },
+            onSeedAuto = { on -> H3Seed.setAutoRandom(context, on); seedAutoState.value = on },
+            onSeedRoll = {
+                seedExtras.forEach { e -> update(draft.copy(extras = draft.extras + (e.key to H3Seed.next().toString()))) }
+            },
+            onCustom = { param, current -> editText = current; editing = param },
+            onDismiss = { showPanel = false }
+        )
+
+        // 数值弹窗放在页面级：原来它长在基础参数展开体里，收起二采卡片后自定义框会静默失效。
+        when (editing) {
+            H3NumberParam.SECONDS -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_duration), unit = stringResource(R.string.h3_unit_seconds),
+                hint = stringResource(R.string.h3_hint_duration),
+                value = editText,
+                valid = v != null && v >= 4.0 && v <= 15.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(seconds = editText.trimEnd('.')))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.MEGAPIXELS -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_megapixels), unit = "MP",
+                hint = stringResource(R.string.h3_hint_mp),
+                value = editText,
+                valid = v != null && v >= 0.1 && v <= 1.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(
+                    mp = editText.trimEnd('.'), customW = "", customH = "",
+                    mpOutOfRange = false
+                    ))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.STEPS -> {
+                val v = editText.toIntOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_steps), unit = stringResource(R.string.h3_unit_steps),
+                hint = stringResource(R.string.h3_hint_steps),
+                value = editText,
+                valid = v != null && v in 1..100,
+                wholeNumbers = true,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(steps = editText.trimEnd('.')))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.SECOND_PASS_MP -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_second_pass_mp), unit = "MP",
+                hint = stringResource(R.string.h3_hint_second_pass_mp),
+                value = editText,
+                valid = v != null && v >= 0.1 && v <= 8.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("23:value" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.SECOND_PASS_STEPS -> {
+                val v = editText.toIntOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_second_pass_steps), unit = stringResource(R.string.h3_unit_steps),
+                hint = stringResource(R.string.h3_hint_second_pass_steps),
+                value = editText,
+                valid = v != null && v in 1..50,
+                wholeNumbers = true,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("102:steps" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.RTX_SCALE -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_rtx_scale), unit = stringResource(R.string.h3_unit_times),
+                hint = stringResource(R.string.h3_hint_rtx_scale),
+                value = editText,
+                valid = v != null && v >= 1.0 && v <= 4.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("39:resize_type.scale" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            null -> Unit
+        }
+
+        // 数值弹窗放在页面级：原来它长在基础参数展开体里，收起二采卡片后自定义框会静默失效。
+        when (editing) {
+            H3NumberParam.SECONDS -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_duration), unit = stringResource(R.string.h3_unit_seconds),
+                hint = stringResource(R.string.h3_hint_duration),
+                value = editText,
+                valid = v != null && v >= 4.0 && v <= 15.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(seconds = editText.trimEnd('.')))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.MEGAPIXELS -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_megapixels), unit = "MP",
+                hint = stringResource(R.string.h3_hint_mp),
+                value = editText,
+                valid = v != null && v >= 0.1 && v <= 1.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(
+                    mp = editText.trimEnd('.'), customW = "", customH = "",
+                    mpOutOfRange = false
+                    ))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.STEPS -> {
+                val v = editText.toIntOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_steps), unit = stringResource(R.string.h3_unit_steps),
+                hint = stringResource(R.string.h3_hint_steps),
+                value = editText,
+                valid = v != null && v in 1..100,
+                wholeNumbers = true,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(steps = editText.trimEnd('.')))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.SECOND_PASS_MP -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_second_pass_mp), unit = "MP",
+                hint = stringResource(R.string.h3_hint_second_pass_mp),
+                value = editText,
+                valid = v != null && v >= 0.1 && v <= 8.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("23:value" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.SECOND_PASS_STEPS -> {
+                val v = editText.toIntOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_second_pass_steps), unit = stringResource(R.string.h3_unit_steps),
+                hint = stringResource(R.string.h3_hint_second_pass_steps),
+                value = editText,
+                valid = v != null && v in 1..50,
+                wholeNumbers = true,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("102:steps" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            H3NumberParam.RTX_SCALE -> {
+                val v = editText.toDoubleOrNull()
+                H3NumberDialog(
+                title = stringResource(R.string.h3_custom_rtx_scale), unit = stringResource(R.string.h3_unit_times),
+                hint = stringResource(R.string.h3_hint_rtx_scale),
+                value = editText,
+                valid = v != null && v >= 1.0 && v <= 4.0,
+                onChange = { editText = it },
+                onConfirm = {
+                    update(draft.copy(extras = draft.extras + ("39:resize_type.scale" to editText.trimEnd('.'))))
+                    editing = null
+                },
+                onDismiss = { editing = null }
+                )
+            }
+            null -> Unit
+        }
+
 
         if (showRelayHelp) AlertDialog(
             onDismissRequest = { showRelayHelp = false },
@@ -2499,7 +2632,7 @@ private enum class H3NumberParam { SECONDS, MEGAPIXELS, STEPS, SECOND_PASS_MP, S
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun H3TurboPipelineCard(
+private fun H3TurboPipelineBody(
     spec: H3Plan.Spec,
     draft: H3Draft,
     busy: Boolean,
@@ -2515,61 +2648,18 @@ private fun H3TurboPipelineCard(
     val hasFrameGen = spec.extras.any { it.key == "173:value" }
     val frameGen = draft.extras["173:value"] ?: "1"
 
-    H3Card(
-        title = stringResource(R.string.h3_second_pass_title),
-        subtitle = stringResource(if (hasFrameGen) R.string.h3_second_pass_subtitle_frames else R.string.h3_second_pass_subtitle)
-    ) {
-        // 顶部流程指示条
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (secondPassEnabled) stringResource(R.string.h3_pipeline_full) else stringResource(R.string.h3_pipeline_draft),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (secondPassEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text("➔", style = MaterialTheme.typography.labelSmall)
-                Text(
-                    text = stringResource(R.string.h3_rtx_scale_value, rtxScale),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (rtxScale != "1" && rtxScale != "1.0") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (hasFrameGen) {
-                    Text("➔", style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        text = if (frameGen != "1") stringResource(R.string.h3_interp_on, frameGen) else stringResource(R.string.h3_interp_off),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (frameGen != "1") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text("➔", style = MaterialTheme.typography.labelSmall)
-                Text(stringResource(R.string.h3_save_video), style = MaterialTheme.typography.labelSmall)
-            }
-        }
-
-        H3Divider()
-
+    // 外层卡片和折叠壳由调用处持有，这里只出内容。
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // 1. 二采开关
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.h3_second_pass_label), style = MaterialTheme.typography.labelLarge)
-                Text(
-                    text = if (secondPassEnabled) stringResource(R.string.h3_second_pass_on_note)
-                           else stringResource(R.string.h3_second_pass_off_note),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                stringResource(R.string.h3_second_pass_label),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
             Switch(
                 checked = secondPassEnabled,
                 enabled = !busy,
@@ -2581,100 +2671,96 @@ private fun H3TurboPipelineCard(
 
         // 二采子参数（仅在二采开启时展示）
         if (secondPassEnabled) {
-            H3Divider()
-            H3ParamBlock(
-                label = stringResource(R.string.h3_second_pass_mp),
-                detail = "${secondPassMp} MP",
-                hint = stringResource(R.string.h3_hint_second_pass_mp2),
-                presets = listOf("0.5", "1", "1.5"),
-                value = secondPassMp,
-                enabled = !busy,
-                onPreset = { picked ->
-                    onUpdate(draft.copy(extras = draft.extras + ("23:value" to picked)))
-                },
-                onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_MP, secondPassMp) }
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.h3_second_pass_mp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                H3PanelChips(
+                    presets = listOf("0.5", "1", "1.5"),
+                    value = secondPassMp,
+                    enabled = !busy,
+                    onPreset = { picked ->
+                        onUpdate(draft.copy(extras = draft.extras + ("23:value" to picked)))
+                    },
+                    onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_MP, secondPassMp) }
+                )
+            }
 
-            H3Divider()
-            H3ParamBlock(
-                label = stringResource(R.string.h3_second_pass_steps),
-                detail = stringResource(R.string.h3_steps_count, secondPassSteps),
-                hint = stringResource(R.string.h3_hint_second_pass_denoise),
-                presets = listOf("3", "4", "5"),
-                value = secondPassSteps,
-                enabled = !busy,
-                onPreset = { picked ->
-                    onUpdate(draft.copy(extras = draft.extras + ("102:steps" to picked)))
-                },
-                onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_STEPS, secondPassSteps) }
-            )
-
-            H3Divider()
-            Column(Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.h3_second_pass_model), style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(8.dp)
-                            .background(Color(0xFF2E7D32), CircleShape)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.h3_latent_default),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.h3_second_pass_steps),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                H3PanelChips(
+                    presets = listOf("3", "4", "5"),
+                    value = secondPassSteps,
+                    enabled = !busy,
+                    onPreset = { picked ->
+                        onUpdate(draft.copy(extras = draft.extras + ("102:steps" to picked)))
+                    },
+                    onCustom = { onEditNumber(H3NumberParam.SECOND_PASS_STEPS, secondPassSteps) }
+                )
             }
         }
 
-        H3Divider()
+        // 2. RTX 超分倍率（五等分）
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.h3_rtx_scale),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val rtxPresets = listOf("1.0", "1.2", "1.5", "2.0")
+            val rtxCustomActive = rtxScale.isNotBlank() && rtxScale !in rtxPresets
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                rtxPresets.forEach { preset ->
+                    H3ParamChip(preset, preset == rtxScale, !busy, Modifier.weight(1f)) {
+                        onUpdate(draft.copy(extras = draft.extras + ("39:resize_type.scale" to preset)))
+                    }
+                }
+                H3ParamChip(
+                    if (rtxCustomActive) rtxScale else stringResource(R.string.h3_custom),
+                    rtxCustomActive, !busy, Modifier.weight(1f)
+                ) { onEditNumber(H3NumberParam.RTX_SCALE, rtxScale) }
+            }
+        }
 
-        // 2. RTX 超分倍率
-        H3ParamBlock(
-            label = stringResource(R.string.h3_rtx_scale),
-            detail = if (rtxScale == "1" || rtxScale == "1.0") "1.0×" else "${rtxScale}×",
-            hint = stringResource(R.string.h3_hint_rtx_ultra),
-            presets = listOf("1.0", "1.2", "1.5", "2.0"),
-            value = rtxScale,
-            enabled = !busy,
-            onPreset = { picked ->
-                onUpdate(draft.copy(extras = draft.extras + ("39:resize_type.scale" to picked)))
-            },
-            onCustom = { onEditNumber(H3NumberParam.RTX_SCALE, rtxScale) }
-        )
-
-        // 3. 插帧倍率 (#173, 若存在)
+        // 3. 插帧增强 (#173, 若存在：完整保留 1x 关、2x、3x 三档)
         if (hasFrameGen) {
-            H3Divider()
-            Column(Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.h3_interp_smooth), style = MaterialTheme.typography.labelLarge)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = when (frameGen) {
-                        "2" -> stringResource(R.string.h3_interp_2x)
-                        "3" -> stringResource(R.string.h3_interp_3x)
-                        else -> stringResource(R.string.h3_interp_none)
-                    },
-                    style = MaterialTheme.typography.labelSmall,
+                    stringResource(R.string.h3_interp_toggle),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("1" to stringResource(R.string.h3_interp_option_off), "2" to stringResource(R.string.h3_interp_option_2x), "3" to stringResource(R.string.h3_interp_option_3x)).forEach { (optVal, optLabel) ->
-                        val selected = frameGen == optVal
-                        FilterChip(
-                            selected = selected,
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val interpOptions = listOf(
+                        "1" to stringResource(R.string.h3_interp_option_off),
+                        "2" to stringResource(R.string.h3_interp_option_2x),
+                        "3" to stringResource(R.string.h3_interp_option_3x)
+                    )
+                    interpOptions.forEach { (optVal, optLabel) ->
+                        H3ParamChip(
+                            text = optLabel,
+                            selected = frameGen == optVal,
                             enabled = !busy,
-                            onClick = {
-                                onUpdate(draft.copy(extras = draft.extras + ("173:value" to optVal)))
-                            },
-                            label = { Text(optLabel) }
-                        )
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            onUpdate(draft.copy(extras = draft.extras + ("173:value" to optVal)))
+                        }
                     }
                 }
             }
         }
+
+        Text(
+            stringResource(R.string.h3_second_pass_note),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -2917,9 +3003,15 @@ private fun H3Card(
     title: String,
     subtitle: String? = null,
     trailing: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        shape = RoundedCornerShape(14.dp)
+    ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -2938,6 +3030,406 @@ private fun H3Card(
 private fun H3Divider() {
     Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp)
         .background(MaterialTheme.colorScheme.outlineVariant))
+}
+
+/**
+ * 参数面板：四项基础参数（有种子时再加一项）收进底部弹层。
+ *
+ * 主屏只留四宫格，想看细节才进来；但每一项的预设仍是一格点到位，
+ * 不因为进了弹层就退化成「先开数值弹窗再输入」。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun H3ParamPanel(
+    draft: H3Draft,
+    ratioPairs: List<Pair<String, Pair<Int, Int>>>,
+    extraRatioPairs: List<Pair<String, Pair<Int, Int>>>,
+    ratioEnabled: Boolean,
+    busy: Boolean,
+    seedPresent: Boolean,
+    seedAuto: Boolean,
+    seedKey: String?,
+    seedValue: String?,
+    onUpdate: (H3Draft) -> Unit,
+    onPickRatio: (String) -> Unit,
+    onSeedAuto: (Boolean) -> Unit,
+    onSeedRoll: () -> Unit,
+    onCustom: (H3NumberParam, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isPicked = { value: String ->
+        draft.customW.isBlank() && draft.customH.isBlank() && draft.ratio == value
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // 顶栏：标题 + 右上角关闭图标按钮
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    stringResource(R.string.h3_panel_sheet_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.content_description_close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // 1. 视频时长
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.h3_panel_duration),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                H3PanelChips(
+                    presets = listOf("6", "10", "15"),
+                    value = draft.seconds,
+                    enabled = !busy,
+                    onPreset = { onUpdate(draft.copy(seconds = it)) },
+                    onCustom = { onCustom(H3NumberParam.SECONDS, draft.seconds) }
+                )
+            }
+
+            // 2. 画面比例
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.h3_aspect_ratio),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (ratioPairs.isEmpty()) {
+                    Text(
+                        stringResource(R.string.h3_no_ratio_editor),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                } else {
+                    H3ChipGrid(
+                        items = ratioPairs.map { H3Resolution.label(context, it.first) to it.first },
+                        selected = isPicked,
+                        enabled = ratioEnabled
+                    ) { onPickRatio(it) }
+                    if (extraRatioPairs.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        H3ChipGrid(
+                            items = extraRatioPairs.map { H3Resolution.label(context, it.first) to it.first },
+                            selected = isPicked,
+                            enabled = ratioEnabled
+                        ) { onPickRatio(it) }
+                    }
+                }
+            }
+
+            // 3. 像素量
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.h3_megapixels),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                H3PanelChips(
+                    presets = H3Resolution.megapixelPresets.map { it.toString() },
+                    value = draft.mp,
+                    enabled = ratioEnabled,
+                    onPreset = { picked ->
+                        onUpdate(draft.copy(mp = picked, customW = "", customH = "", mpOutOfRange = false))
+                    },
+                    onCustom = { onCustom(H3NumberParam.MEGAPIXELS, draft.mp) }
+                )
+            }
+
+            // 4. 采样步数
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.h3_sampling_steps),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                H3PanelChips(
+                    presets = listOf("4", "8", "20"),
+                    value = draft.steps,
+                    enabled = !busy,
+                    onPreset = { onUpdate(draft.copy(steps = it)) },
+                    onCustom = { onCustom(H3NumberParam.STEPS, draft.steps) }
+                )
+            }
+
+            // 5. 随机种子（若存在）
+            if (seedPresent) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        stringResource(R.string.h3_panel_seed),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    H3SeedField(
+                        value = seedValue.orEmpty(),
+                        auto = seedAuto,
+                        enabled = !busy,
+                        onAutoChange = onSeedAuto,
+                        onRoll = onSeedRoll,
+                        onValueChange = { text ->
+                            if (seedKey != null) {
+                                onUpdate(draft.copy(extras = draft.extras + (seedKey to text)))
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 面板里的一行：左边名称、右边当前值，点一下展开它自己的设置。 */
+@Composable
+private fun H3PanelRow(
+    label: String,
+    value: String,
+    expanded: Boolean,
+    divider: Boolean = true,
+    onClick: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        if (divider) Box(
+            Modifier.fillMaxWidth().height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            Text(
+                value,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (expanded) "▴" else "▾",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** 四宫格里的一格：标签在上、当前值在下，主屏上只读，点开进面板。 */
+@Composable
+private fun H3PanelTile(
+    label: String,
+    value: String,
+    icon: String = "",
+    selected: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                else MaterialTheme.colorScheme.surfaceContainerLow
+            )
+            .border(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                else MaterialTheme.colorScheme.outlineVariant,
+                RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 9.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon.isNotBlank()) {
+                Text(
+                    icon,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                Spacer(Modifier.width(3.dp))
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** 三个预设 + 一格自定义，四格等宽。 */
+@Composable
+private fun H3PanelChips(
+    presets: List<String>,
+    value: String,
+    enabled: Boolean,
+    onPreset: (String) -> Unit,
+    onCustom: () -> Unit
+) {
+    val customActive = value.isNotBlank() && value !in presets
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        presets.forEach { preset ->
+            H3ParamChip(preset, preset == value, enabled, Modifier.weight(1f)) { onPreset(preset) }
+        }
+        H3ParamChip(
+            if (customActive) value else stringResource(R.string.h3_custom),
+            customActive, enabled, Modifier.weight(1f), onCustom
+        )
+    }
+}
+
+/**
+ * 卡片内部的一层分组：比外卡片更浅的底、一行小标题、右侧可带说明或一个动作。
+ *
+ * 字段多的时候靠它分层，而不是把每个字段都做成一张卡——后者会让一屏放不下三项。
+ */
+@Composable
+private fun H3Group(
+    title: String,
+    hint: String? = null,
+    action: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            if (hint != null) Text(
+                hint,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            action?.invoke()
+        }
+        content()
+    }
+}
+
+/**
+ * 双列用的紧凑字段：标签在上、值在下。
+ *
+ * 不用 OutlinedTextField 是因为它自带 56dp 的最小高度，两列排下来反而比一行一个更高；
+ * 这里用 BasicTextField 自己画边框，40dp 够手指点，六项能从六行压到三行。
+ */
+@Composable
+private fun H3AdvancedField(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onChange: (String) -> Unit
+) {
+    Column(modifier) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(3.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.labelLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 11.dp)
+        )
+    }
+}
+
+/** 紧凑单行输入框（42dp 高、10dp 圆角、浅底配细边框），消灭默认 56dp 的笨重感。 */
+@Composable
+private fun H3CompactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        decorationBox = { innerTextField ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+                innerTextField()
+            }
+        },
+        modifier = modifier
+    )
 }
 
 /**
@@ -3083,6 +3575,71 @@ private fun H3NumberDialog(
 
 /** One model file cell: shows the current file and lets the user pick from the server list. */
 @Composable
+private fun H3ModelChoiceBox(
+    label: String,
+    selectedValue: String,
+    options: List<String>,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val headline = remember(selectedValue) {
+        selectedValue.substringAfterLast('\\').substringAfterLast('/')
+    }
+    val density = LocalDensity.current
+    var rowWidth by remember { mutableStateOf<Dp?>(null) }
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "arrowRotation"
+    )
+
+    Box(
+        modifier = modifier
+            .onSizeChanged { rowWidth = with(density) { it.width.toDp() } }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                .clickable(enabled = enabled) { expanded = true }
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (headline.isNotBlank()) headline else label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (headline.isNotBlank()) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Rounded.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.rotate(arrowRotation)
+            )
+        }
+        ChoiceMenu(
+            expanded = expanded,
+            onDismiss = { expanded = false },
+            options = options,
+            selectedValue = selectedValue,
+            onSelect = {
+                expanded = false
+                onValueChange(it)
+            },
+            width = rowWidth
+        )
+    }
+}
+
+@Composable
 private fun H3ModelDropdown(
     label: String,
     ref: H3Plan.ModelRef?,
@@ -3096,13 +3653,14 @@ private fun H3ModelDropdown(
         return
     }
     val current = draft.extras[ref.key] ?: ref.value
-    ModelDropdown(
+    H3ModelChoiceBox(
         label = label,
         selectedValue = current,
         options = options,
         onValueChange = { chosen ->
             onDraft(draft.copy(extras = draft.extras + (ref.key to chosen)))
         },
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth()
     )
     // Known options that do not contain the current file: flag it before generation, not after.
@@ -3269,7 +3827,15 @@ private fun H3ChipGrid(
                     FilterChip(
                         selected = selected(value),
                         onClick = { onClick(value) },
-                        label = { Text(label, maxLines = 1, softWrap = false) },
+                        label = {
+                            Text(
+                                label,
+                                maxLines = 1,
+                                softWrap = false,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
                         enabled = enabled,
                         modifier = Modifier.weight(1f)
                     )

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,6 +65,8 @@ fun H3WorkspaceScreen(
 ) {
     val version by WorkflowManager.workflowsVersion.collectAsState()
     var tabIndex by rememberSaveable { mutableStateOf(0) }
+    // 折叠状态按「工作流 + 页签」各存一份：切页签回来还是刚才的样子，换模板不继承别人的。
+    val sectionState = rememberSaveableStateHolder()
     var pickerFor by remember { mutableStateOf<H3Plan.Area?>(null) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -272,14 +275,15 @@ fun H3WorkspaceScreen(
                     onSwitch = { pickerFor = tab },
                     onOpenSettings = onOpenWorkflowSettings
                 )
-                H3StudioContent(
-                    workflowId = selected.id,
-                    area = tab,
-                    generationViewModel = generationViewModel,
-                    onOpenWorkflowSettings = onOpenWorkflowSettings,
-                    onPickWorkflow = { pickerFor = tab },
-                    isVisible = isVisible
-                )
+                sectionState.SaveableStateProvider("${selected.id}|${tab.name}") {
+                    H3StudioContent(
+                        workflowId = selected.id,
+                        area = tab,
+                        generationViewModel = generationViewModel,
+                        onOpenWorkflowSettings = onOpenWorkflowSettings,
+                        isVisible = isVisible
+                    )
+                }
             }
         }
     }

@@ -13,8 +13,8 @@ plugins {
  * hand. Checking it here turns a typo into a build error instead of a version that has to be
  * skipped afterwards.
  */
-val appVersionCode = 377
-val appVersionName = "0.9.8.8382.617-h3"
+val appVersionCode = 378
+val appVersionName = "0.9.8.8382.618-h3"
 require(!appVersionCode.toString().contains('4')) {
     "versionCode $appVersionCode 含 4，请跳到下一个数字"
 }

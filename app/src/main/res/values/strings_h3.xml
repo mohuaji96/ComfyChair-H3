@@ -376,4 +376,27 @@
     <string name="h3_field_frame_gen">Interpolation factor</string>
     <string name="h3_field_rtx_video_scale">RTX video upscale factor</string>
     <string name="h3_field_save_prefix">File name prefix</string>
+    <string name="h3_group_unet">Video model (UNET)</string>
+    <string name="h3_group_lora">Workflow LoRA</string>
+    <string name="h3_group_extra_lora">Extra LoRA</string>
+    <string name="h3_group_model_files">Model files</string>
+    <string name="h3_group_workflow">Workflow and structure</string>
+    <string name="h3_group_sampling">Sampling and quality</string>
+    <string name="h3_group_size">Size and presets</string>
+    <string name="h3_lora_count_short">%1$d/%2$d</string>
+    <string name="h3_turbo_summary">%1$s · %2$s MP · %3$s steps · RTX %4$s×</string>
+    <string name="h3_second_pass_on">Second pass on</string>
+    <string name="h3_advanced_summary">%1$s · %2$s · %3$d fields</string>
+    <string name="h3_panel_title">Parameters</string>
+    <string name="h3_panel_card_title">Common parameters</string>
+    <string name="h3_panel_duration">Duration</string>
+    <string name="h3_panel_seed">Seed</string>
+    <string name="h3_panel_seed_auto">Auto</string>
+    <string name="h3_hint_ratio_pick">Six common ratios, more below</string>
+    <string name="h3_panel_sheet_title">Quick Settings</string>
+    <string name="h3_save_short">Save</string>
+    <string name="h3_custom_size_title">Custom Size</string>
+    <string name="h3_interp_toggle">Frame Interpolation</string>
+    <string name="h3_presets_title">Presets</string>
+    <string name="h3_second_pass_note">Second pass and latent upscaler models are preserved.</string>
 </resources>
