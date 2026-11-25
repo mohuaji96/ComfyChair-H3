@@ -881,6 +881,9 @@ object H3Plan {
                 }
                 edit.enabled?.let { on ->
                     if (ins.has("strength_model")) ins.put("strength_model", if (on) (edit.strength ?: 1.0) else 0.0)
+                    // LoraLoader patches the text encoder as well; leaving that half alone would
+                    // keep part of the LoRA active while the switch reads off.
+                    if (!on && ins.has("strength_clip")) ins.put("strength_clip", 0.0)
                 }
             }
         }

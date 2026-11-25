@@ -312,7 +312,7 @@ App 内置四套手机端 H3 模板，装上就能跑。前两套是单采，一
 
 | 项目 | 内容 |
 | :--- | :--- |
-| 当前版本 | 0.9.8.8382.616-h3（版本号 376） |
+| 当前版本 | 0.9.8.8382.617-h3（版本号 377） |
 | 平台 | Android 13（API 33）及以上 |
 | 包名 | `com.comfychair.h3` |
 | 底座 | [ComfyChair](https://github.com/legal-hkr/comfychair)（GPL-3.0） |

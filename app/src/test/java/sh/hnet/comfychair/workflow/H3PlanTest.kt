@@ -198,6 +198,29 @@ class H3PlanTest {
     }
 
     @Test
+    fun switchingTheBuiltInLoraOffWritesZeroStrength() {
+        val spec = H3Plan.resolve(frames)!!
+        val plain = spec.loras.first { !it.isPowerSlot }
+
+        val off = H3Plan.build(frames, spec, H3Plan.Request(
+            mode = H3Plan.Mode.T2V,
+            loras = listOf(H3Plan.LoraEdit(plain.id, null, plain.strength, false))
+        ), emptyList())
+        assertTrue(off.errors.toString(), off.ok)
+        val offInputs = JSONObject(off.json).getJSONObject(plain.id).getJSONObject("inputs")
+        assertEquals("off must be written as zero, not left at the workflow value",
+            0.0, offInputs.getDouble("strength_model"), 0.0001)
+
+        val on = H3Plan.build(frames, spec, H3Plan.Request(
+            mode = H3Plan.Mode.T2V,
+            loras = listOf(H3Plan.LoraEdit(plain.id, null, plain.strength, true))
+        ), emptyList())
+        assertTrue(on.errors.toString(), on.ok)
+        val onInputs = JSONObject(on.json).getJSONObject(plain.id).getJSONObject("inputs")
+        assertEquals(plain.strength, onInputs.getDouble("strength_model"), 0.0001)
+    }
+
+    @Test
     fun extraLoraChainIsAppendedAfterTheWorkflowsOwnLoaders() {
         val spec = H3Plan.resolve(frames)!!
         val out = H3Plan.build(frames, spec, H3Plan.Request(

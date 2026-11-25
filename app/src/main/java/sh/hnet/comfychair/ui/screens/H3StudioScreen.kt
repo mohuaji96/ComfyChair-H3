@@ -846,6 +846,18 @@ fun H3StudioContent(
                         customWidth = customW,
                         customHeight = customH,
                         multiple = draft.multiple.toIntOrNull(),
+                        // The switch, the strength and the file picker all live in this draft;
+                        // without this the workflow kept its own LoRA whatever the panel said.
+                        loras = plan.loras.map { slot ->
+                            val state = draft.loras[slot.id] ?: H3LoraDraft(slot.file, slot.strength, slot.enabled)
+                            H3Plan.LoraEdit(
+                                id = slot.id,
+                                // Only a real change is written, or every run would add a note.
+                                file = state.file.takeIf { it.isNotBlank() && it != slot.file },
+                                strength = state.strength,
+                                enabled = state.enabled
+                            )
+                        },
                         extraLoras = draft.extraLoras
                             .filter { it.name.isNotBlank() }
                             .take(H3Plan.LoraAdd.MAX_ENTRIES)

@@ -1,0 +1,5 @@
+v0.9.8.8382.617-h3
+- Fixed the built-in LoRA that could not be switched off: the toggle, strength and file were only kept in the draft and never sent, so all four templates ran their LoRA regardless
+- Off is written as zero strength, and the text-encoder half is zeroed with it; on writes the draft strength back
+- The LoRA file name is only written when it actually changed, so runs stop adding a note each time
+- Added a regression test covering both switch states
