@@ -1,0 +1,8 @@
+v0.9.8.8382.578-h3
+
+New and fixed:
+- The size popup now shows the ratios in two rows, each with a shape, and says which side a pick keeps
+- New launcher icon: a director's chair with a film-frame back
+- New H3 tab icon: the same chair, outlined and filled
+- New prompt library icon: an open notebook
+- Restored the burst notification switch, so a burst shows progress in the shade and survives the lock screen

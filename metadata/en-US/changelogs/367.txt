@@ -1,0 +1,4 @@
+v0.9.8.8382.607-h3
+- Tag composer: the gaze row now holds only where she looks and what her eyes do. Posture, props and scene words were taken out, so a back view no longer offers "looking at the camera".
+- Tag composer: framing was split into four tidy rows. Shot size, camera angle, lens, and composition each keep their own words instead of repeating.
+- Framing went from 100 words to 65 without losing a single distinct look; the same idea is no longer written four times.

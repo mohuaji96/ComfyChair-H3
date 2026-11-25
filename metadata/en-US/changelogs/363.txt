@@ -1,0 +1,6 @@
+v0.9.8.8382.603-h3
+- Tag composer: the category list now reads in the order the prompt is written. Her body first, then what she wears, then what she does.
+- Outerwear no longer splits her appearance in two, and one family of clothes stays together instead of being scattered.
+- His four rows sit as one block, right ahead of the act.
+- SFW: the male feature row moved into the act block.
+- Release notes are now written in both English and Chinese.

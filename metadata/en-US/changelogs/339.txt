@@ -1,0 +1,4 @@
+v0.9.8.8382.589-h3
+- Upgraded TagComposer and StoryComposer templates for natural multi-paragraph readability.
+- Fixed StoryLibrary persistence for mutex and non-penetrating flags, plus full TagLibrary merge rules.
+- Resolved wording, pairing, and multi-character consistency across all 4 built-in NSFW/SFW catalogs.

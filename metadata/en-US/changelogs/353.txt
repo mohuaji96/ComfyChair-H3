@@ -1,0 +1,3 @@
+v0.9.8.8382.593-h3
+- A two-person cast no longer invents a third person: partner acts now require three bodies, and the second partner slot four.
+- Every partner act now carries a head-count instead of defaulting to "anyone may draw it".

@@ -1,1 +1,1 @@
-Native Android client for ComfyUI - generate AI images and videos on mobile
+Native Android client for ComfyUI, built around a MiniMax H3 video workspace

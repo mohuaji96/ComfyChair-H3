@@ -1,0 +1,7 @@
+v0.9.8.8382.580-h3
+
+Fixed:
+- The sampling preview no longer disappears after switching to another tab and back; frames that arrive while away are kept, so the card returns with the latest one
+
+New:
+- The preview card has its own switch: tap the eye to turn H3 sampling preview off without opening settings. It is the same switch as Settings > Generation, so both stay in step

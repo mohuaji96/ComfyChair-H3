@@ -1,0 +1,4 @@
+v0.9.8.8382.590-h3
+- Rewrote 32 TagComposer sexual acts that could not render as a single still image, and removed two outright.
+- Added 14 dual-woman and high-tension acts to the StoryComposer pool; 21 pull-out acts no longer claim a thrust.
+- Daily SFW mode now sections its own catalog, names regions naturally, and keeps outfit state in the sentence.

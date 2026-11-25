@@ -1,0 +1,7 @@
+v0.9.8.8382.581-h3
+
+Fixed:
+- Turning the sampling preview off no longer locks it off for the rest of the run: the strip folds into "preview off - tap to restore", and one tap brings the picture back
+- Frames keep arriving while it is off, so restoring shows the latest one instead of an empty card
+
+Note: the eye is the same switch as Settings > Generation; off means the next submission carries no preview node.

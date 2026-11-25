@@ -1,0 +1,4 @@
+v0.9.8.8382.591-h3
+- Fixed the progress bar staying hidden after returning from a long spell in the background.
+- Fixed our own job being listed as another client's after a cold start, because the queue poll could land before the local jobs were restored.
+- A single empty queue snapshot no longer drops a running job; two in a row are required.

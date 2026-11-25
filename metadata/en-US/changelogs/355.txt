@@ -1,0 +1,4 @@
+v0.9.8.8382.595-h3
+- H3 sampling preview: 1024 px at quality 85 (was 512/78); the zoom view no longer enlarges past the source, so previews look as sharp as on the desktop client.
+- Image and video workspaces: a new eye button hides the finished result (and live frames) from the preview area; a "hidden, tap to restore" line brings it back.
+- The choice is remembered per workspace and released by the next run; files, gallery and queue are untouched.

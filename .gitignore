@@ -47,5 +47,8 @@ CLAUDE.md
 
 # VSCodium
 .vscode/
-# Local release tooling (signing), not published
-tools/
+# Local release tooling (signing), not published — but the two word lists below
+# are the single source for the SFW check and are read by the app at runtime.
+tools/*
+!tools/allow_sfw.txt
+!tools/forbidden_nsfw.txt

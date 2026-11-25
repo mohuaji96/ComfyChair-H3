@@ -1,0 +1,4 @@
+v0.9.8.8382.598-h3
+- Tag composer: hand action, expression and gaze now read in the female clause, ahead of the male sentence, instead of trailing it and sounding like his.
+- Expression and compound mood merged into a single slot, one wording per shot.
+- Lighting merged into two slots (grade, light) and the prop-like lamp entries removed.

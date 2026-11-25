@@ -1,0 +1,12 @@
+v0.9.8.8382.583-h3
+
+Fixed:
+- Sampling preview moves now: the server sends short clips and the phone loops them
+- Preview survives a tab switch; the eye restores it in one tap
+- Burst chains keep submitting after a tab switch or a locked screen
+- "Stop burst" really stops: queued segments and the banner are cleared
+- A running H3 job shows a live thumbnail in the queue sheet
+
+Improved:
+- Queue pill on the prompt and gallery screens, one shared drawer
+- Removed leftover merge code

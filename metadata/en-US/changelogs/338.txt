@@ -1,0 +1,5 @@
+v0.9.8.8382.588-h3
+
+Changed:
+- Prompt entry icon is now the open notebook in both states; the fallback branch no longer drops back to the system bookmark, and its dead bookmark imports are gone
+- Launcher bitmaps regenerated at all five densities from the current adaptive icon, so Android 7 and older show the director's chair instead of the old mark

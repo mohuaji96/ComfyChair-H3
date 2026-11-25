@@ -1,0 +1,4 @@
+v0.9.8.8382.610-h3
+- Fixed the library version. It was stuck at 594, so upgrades kept the old copy on the phone and new words never arrived.
+- All four libraries now carry the current version; updating or resetting the library really swaps in the new content.
+- Everything from 369 takes effect too: environment props, period scenes and accessories, display actions, cover-state gating.

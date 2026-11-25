@@ -1,0 +1,4 @@
+v0.9.8.8382.612-h3
+- Fixed picking a past result as H3 reference: the name was passed straight through, but the file sits in the output folder, so preview and submit both failed.
+- Gallery images are now read from the cache and re-uploaded as input files; picking the same image twice reuses one copy.
+- Server files, extracted frames and past results now behave the same.

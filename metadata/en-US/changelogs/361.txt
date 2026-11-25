@@ -1,0 +1,7 @@
+v0.9.8.8382.601-h3
+- Tag composer: still-frame words rewritten. "Phone ringing" becomes a lit screen with an incoming call.
+- Patterned styles refuse a plain colour by name.
+- Story: solo pages got nine openings, seven endings, twelve poses.
+- Story: props are grouped by room. No more butt plugs in the kitchen.
+- Story: weather drops "outside" on outdoor scenes.
+- Mechanoids no longer get human skin tones or pores.

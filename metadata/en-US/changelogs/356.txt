@@ -1,0 +1,4 @@
+v0.9.8.8382.596-h3
+- Animated sampling preview can now actually animate: MiniMax H3 packs a 3-D, 24-channel latent that only a tiny VAE can decode, so the app reads the preview node's own option list and passes its H3 decoder (taeh3) when the server has one.
+- The same value is written into an existing preview node as well as an injected one.
+- The zoomed preview no longer draws a small picture inside a large black frame; the frame shrinks to the picture.

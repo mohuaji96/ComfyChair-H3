@@ -1,0 +1,6 @@
+v0.9.8.8382.579-h3
+
+New:
+- H3 video workspace shows the denoising frame above the generate bar while a run is going, with the step and the time per step
+- The preview folds into one thin line, opens into a small card, and enlarges for a closer look; a run can be stopped from the enlarged view
+- New "H3 sampling preview" switch in settings: only H3, and turning it off drops the preview node from the submission so the run costs no extra GPU time

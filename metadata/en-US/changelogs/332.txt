@@ -1,0 +1,9 @@
+v0.9.8.8382.582-h3
+
+New:
+- Sampling preview is animated now: each step plays a short looped clip instead of a single still, so movement is visible the way it is on the desktop UI (16 frames, 8 fps, 512px)
+
+Fixed:
+- The two-pass turbo templates preview during the first pass as well; the preview node used to be wired to the second pass only, which left the card waiting
+
+Note: the preview switch still works; with it off the next run carries no preview node and costs no extra GPU time.

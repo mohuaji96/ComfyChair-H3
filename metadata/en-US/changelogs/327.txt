@@ -1,0 +1,8 @@
+v0.9.8.8382.577-h3
+
+Fixes:
+- The size popup now fills in only the other side: type 1080 wide, pick 9:16, and the height becomes 1920 while the width stays 1080
+- The side typed last is the one kept; when only one side has a number, that side is used
+
+Note:
+- The previous build rescaled both numbers to keep the pixel count, which is corrected here

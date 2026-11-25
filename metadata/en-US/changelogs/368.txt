@@ -1,0 +1,5 @@
+v0.9.8.8382.608-h3
+- Tag composer: every block now ends on a full stop. A line break is just a space to the model, so two blocks used to run together.
+- Tag composer: the man gets his own sentence instead of hanging off her comma.
+- Tag composer: hand actions name their owner, so "palm on knee" no longer lands on everyone in frame.
+- Tag composer: shot size and composition are drawn only for a single woman.

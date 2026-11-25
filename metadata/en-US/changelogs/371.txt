@@ -1,0 +1,8 @@
+v0.9.8.8382.611-h3
+- Added an age slot for the man; body types trimmed from 18 to 11.
+- Split his wardrobe into clothing and wear-state.
+- Removed the penis category; acts describing it stay.
+- Added two first-person camera angles.
+- Added hand and headwear words such as ear headbands.
+- Removed "macro" from lenses and "barely any skin showing" from framing.
+- Framing is not drawn for groups, but can still be picked by hand.

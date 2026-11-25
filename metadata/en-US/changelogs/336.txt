@@ -1,0 +1,5 @@
+v0.9.8.8382.586-h3
+
+Fixed:
+- Fixed gallery multi-selection title "X selected" squeezed into vertical single-character wrap
+- Improved gallery scrolling: raised thumbnail prefetch concurrency from 3 to 8, eliminating spinner stalls when scrolling down to older history

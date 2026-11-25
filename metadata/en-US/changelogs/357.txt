@@ -1,0 +1,6 @@
+v0.9.8.8382.597-h3
+- H3 sampling preview: look for taeh3 under both optional and required inputs in the node schema, so animated previews can finally decode.
+- Zoomed preview: fixed upside-down aspect math that squashed portrait frames into a flat bar.
+- Gallery: video duration badges now survive app restarts; local video metadata is no longer skipped when refreshing history.
+- Reference materials: subtitle shows the true limit instead of "max 0".
+- Elapsed timer persists across restarts.

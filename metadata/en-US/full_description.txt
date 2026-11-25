@@ -1,40 +1,29 @@
-ComfyChair brings the power of ComfyUI to your Android device with a native Material 3 Expressive interface. Connect to your ComfyUI server and generate AI images and videos right from your phone.
+ComfyChair H3 is a native Android client for ComfyUI, built around a dedicated MiniMax H3 video workspace. You run your own ComfyUI server; the app puts the whole production loop on the phone.
 
-What you can do:
-- Generate images from text prompts with live progress updates
-- Transform existing images or use inpainting with a built-in mask editor
-- Pick a source from your device or one already on your server, without uploading it again
-- Create AI videos from text, animate still images, or restyle and upscale videos
-- Continue a video from its last frame, or send a result straight to another screen
-- Follow your jobs in the queue, cancel them, move them to the front, or clear the queue, and see what else the server is working on
-- Browse all your creations in the gallery, with Undo for every deletion
-- Work offline with cached data when your server is unavailable (with media stored on the device)
+H3 video workspace
 
-Flexible workflow support:
-- Works with both traditional Checkpoint and modern UNET workflows (Flux, Z-Image, Wan, LTX-2, MiniMax H3 and more)
-- Stack up to 5 LoRAs with individual strength controls
-- Create new workflows from scratch, import files, or pick a workflow saved on your ComfyUI server
-- Link values between nodes and disconnect them, as in ComfyUI
-- Add your own fields: any node value can appear in the generation options
-- Open, create and unpack ComfyUI subgraphs, and export workflows in ComfyUI's format
-- Full node graph visualization and editing with a searchable node browser, values and lists that take links as in ComfyUI, and an overview of large graphs when zoomed out
-- Organize nodes into groups and add notes with Markdown, tables and code blocks included
+Four phone-oriented H3 templates ship with the app, two of them single-pass and two of them two-pass with an upscale and a second refinement. Modes follow the material you place: a first frame gives image-to-video, adding a last frame gives first-and-last-frame video, text alone gives text-to-video, and references give reference-to-video. Slots hold a first frame, a last frame, up to nine references and up to three audio tracks.
 
-Built for mobile:
-- Image, Video, Gallery and Settings tabs with predictive back
-- A full-screen prompt editor and one-tap parameter chips
-- Manage multiple servers with per-server settings
-- HTTP Basic Auth, API key and browser SSO sign-in for secured servers
-- Private by default: generated media stays in memory, no analytics, no cloud backup
-- Pinch-to-zoom media viewer with swipe navigation
-- Video playback with sound, seeking and frame-by-frame stepping
-- Clear error messages, with the full details from the server one tap away
-- Batch operations for saving, sharing, or deleting multiple items
-- Backup and restore your configuration across devices, right from the welcome screen
-- Available in English, German, French, Polish, Spanish, and Chinese
+Relay takes queue several segments and start each one as the previous finishes. The auto-written last-frame declaration tells the model that the first image continues the previous segment, checks for an existing declaration first, and can be withdrawn with one tap. A second-pass panel adds an upscale run with its own target size, steps and model. Parameter presets, pre-flight checks and resumable jobs are included.
 
-Requirements:
-- A running ComfyUI server (local or remote)
-- Android 13 or higher
+Image and video
 
-ComfyChair is free, open source (GPL-3.0), and not affiliated with the official ComfyUI project.
+Text to image and image to image, with a style-transfer mode and an inpainting mode that has adjustable brush size and edge feather. Text to video, image to video and video to video, with separate high-noise and low-noise LoRA chains. Up to five LoRAs per chain at any strength from -100 to 100. Length, frame rate and frame count stay aligned to the frame grid the workflow declares.
+
+Prompt tools
+
+A tag library of 2625 words across 39 categories, split into separate SFW and NSFW libraries. Reroll a category, lock a slot, skip a slot for one round, or tap a word to complete it. A four-act story composer with four cast sizes arranges people, setting, action and dialogue into a scene. Prompts can optionally be rewritten by an external model you configure yourself.
+
+Progress you can watch
+
+A status lamp in the corner reports the connection and the model inventory at a glance. A progress bar names the stage and the elapsed time, and says when it is reconnecting instead of leaving you guessing. A sampling preview resolves out of noise while the clip renders, plays the intermediate frames as an animation, and can be cancelled on the spot.
+
+Privacy and storage
+
+Any result can be hidden from the screen with one tap without deleting it. Generated media stays in memory by default and is cleared on exit. The gallery cache keeps thumbnails and full images separately, never evicts favourites, and can clear everything except favourites. After a ComfyUI restart wipes its history, entries with a local copy remain usable, because picking one re-uploads it as a server input.
+
+Server and workflows
+
+Store several ComfyUI servers, confirm a self-signed certificate by its SHA-256 fingerprint once, and sign in with basic auth, a bearer token or browser single sign-on. Follow the queue, cancel or pin your jobs, see what other clients are running, and undo a deletion for a few seconds. A full workflow editor covers the node graph, node values, subgraphs, field mapping and custom fields, and imports and exports ComfyUI UI format, API format and ComfyChair's own format.
+
+ComfyChair H3 is based on ComfyChair and released under GPL-3.0. It is an independent community project with no affiliation with the ComfyUI team. Android 13 or newer is required.

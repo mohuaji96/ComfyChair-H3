@@ -1,0 +1,5 @@
+v0.9.8.8382.605-h3
+- Both composer pages now share one header: count, word total, library version, then a hint line.
+- Story composer: the prop slot is gone, with its pool and the take-a-prop wording.
+- His undress moved into the mid-scene line, so it no longer appears before the scene starts.
+- Story composer: what she wears now sits with her own rows; that section is just the scene.

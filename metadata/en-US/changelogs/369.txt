@@ -1,0 +1,9 @@
+v0.9.8.8382.609-h3
+- Renamed scene traces to "environment"; censers, screens and mirrors share the pool.
+- Added 14 Chinese period settings.
+- Added 26 period accessories, hairstyles and shoes.
+- Ancient costumes no longer clash with modern rooms; read them as cosplay.
+- Added new poses and self-held ankle hand actions.
+- Added 7 display actions that step aside when lower garments are worn.
+- Added 3 wardrobe-slip details.
+- "Bottomless" states no longer pair with skirts or trousers.

@@ -1,0 +1,5 @@
+v0.9.8.8382.585-h3
+
+Fixed:
+- Fixed H3 video workspace colliding directly into the phone system status bar (restored safe top padding)
+- Verified tab switching, window insets, and lifecycle padding

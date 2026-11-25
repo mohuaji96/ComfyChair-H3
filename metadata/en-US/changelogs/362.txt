@@ -1,0 +1,5 @@
+v0.9.8.8382.602-h3
+- Tag composer: outerwear and underwear are stated separately, so a slip dress and what sits under it keep their order.
+- Realistic medium now names camera, lens and aperture instead of praising itself.
+- Negative prompts separate 3D from photography: one blocks camera grain, the other blocks plastic CG sheen.
+- Environment traces stay with the scene layer; moving them to the last line read like an afterthought.

@@ -1,0 +1,7 @@
+v0.9.8.8382.587-h3
+
+Fixed:
+- Gallery thumbnails no longer reload after scrolling: background prefetch warms disk only instead of decoding full-size bitmaps into the shared LRU, thumbnails inherit window priority, and date headers no longer shift scroll indexing
+- Multi-select save and share now work for local extracted frames
+- Sending frames to H3 from Gallery works while H3 stays alive in background
+- H3 workflow details show the H3 workspace label

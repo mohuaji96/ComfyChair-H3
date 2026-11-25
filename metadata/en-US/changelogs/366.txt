@@ -1,0 +1,4 @@
+v0.9.8.8382.606-h3
+- Story composer: the mid-scene lead-in is now neutral. It no longer says the two were tussling, which made the model draw a fight, and it never mentions clothes or a second person, so a naked opening still reads right.
+- Story composer: with one man and one woman, her undress now says whose clothes they are.
+- The pronoun takes no possessive particle, so lines like "只剩丝袜了" still read naturally.
