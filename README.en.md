@@ -6,7 +6,7 @@ A native Android client for ComfyUI. Generate images and video, compose prompts,
 
 Android 13+ · GPL-3.0 · bring your own ComfyUI server
 
-> Built on ComfyChair and released under GPL-3.0. Not affiliated with the ComfyUI team.
+> Built on [ComfyChair](https://github.com/legal-hkr/comfychair) and released under GPL-3.0. Not affiliated with the ComfyUI team.
 
 ---
 

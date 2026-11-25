@@ -6,7 +6,7 @@
 
 Android 13 及以上 · GPL-3.0 · 服务端自备 ComfyUI
 
-> 本项目基于 ComfyChair 二次开发，遵循 GPL-3.0 协议发布，与 ComfyUI 官方团队无关。
+> 本项目基于 [ComfyChair](https://github.com/legal-hkr/comfychair) 二次开发，遵循 GPL-3.0 协议发布，与 ComfyUI 官方团队无关。
 
 ---
 
