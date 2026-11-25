@@ -5,9 +5,8 @@ import org.json.JSONObject
 import sh.hnet.comfychair.ComfyUIClient
 
 /**
- * The files in the server's input folder that a screen can use as its source: images or videos,
- * newest first where the server tells the order. A server file is used by its name, without
- * uploading it again.
+ * The files in the server's input folder that a screen can use as its source (spec §21): images or videos, newest
+ * first where the server tells the order. A server file is used by its name, without uploading it again.
  */
 object ServerInputs {
 
@@ -27,14 +26,14 @@ object ServerInputs {
     }
 
     /**
-     * The name prefix of the images inpainting uploads: the source with its mask in the alpha
-     * channel, of no use as a source (the masked part is cut out).
+     * The name prefix of the images inpainting uploads: the source with its mask in the alpha channel, of no use as
+     * a source (the masked part is cut out).
      */
     const val INPAINT_PREFIX = "inpaint_source"
 
-    // What ComfyUI's own mask editor saves (the web interface): four files per edit (the image
-    // painted and masked, painted, the paint layer alone, the mask), none of them a source; in the
-    // input folder as "clipspace-…", in a "clipspace" subfolder before
+    // What ComfyUI's own mask editor saves (the web interface): four files per edit (the image painted and masked,
+    // painted, the paint layer alone, the mask), none of them a source; in the input folder as "clipspace-…", in a
+    // "clipspace" subfolder before
     private const val MASK_EDITOR_PREFIX = "clipspace"
 
     private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff")
@@ -49,9 +48,8 @@ object ServerInputs {
     fun isVideoName(name: String): Boolean = name.substringAfterLast('.').lowercase() in VIDEO_EXTENSIONS
 
     /**
-     * The server's images ([video] = false) or videos. ComfyUI's file listing gives them newest
-     * first (an internal endpoint, so it may go); else the options of LoadImage's or LoadVideo's
-     * file input, by name descending.
+     * The server's [video] or image inputs. ComfyUI's file listing gives them newest first (an internal endpoint, so
+     * it may go); else the options of LoadImage's or LoadVideo's file input, by name descending.
      */
     suspend fun list(client: ComfyUIClient, video: Boolean): ListResult {
         val extensions = if (video) VIDEO_EXTENSIONS else IMAGE_EXTENSIONS
@@ -86,8 +84,7 @@ object ServerInputs {
     /** The options of [node]'s [input] in object_info: a plain list or the newer COMBO with "options". */
     internal fun parseOptions(text: String, node: String, input: String): List<String>? = try {
         val spec = JSONObject(text).getJSONObject(node).getJSONObject("input")
-        val entry = (spec.optJSONObject("required")?.optJSONArray(input)
-            ?: spec.optJSONObject("optional")?.optJSONArray(input))!!
+        val entry = (spec.optJSONObject("required")?.optJSONArray(input) ?: spec.optJSONObject("optional")?.optJSONArray(input))!!
         val first = entry.opt(0)
         val options = (first as? JSONArray) ?: entry.optJSONObject(1)?.optJSONArray("options")
         options?.let { list -> (0 until list.length()).mapNotNull { list.optString(it).takeIf(String::isNotEmpty) } }

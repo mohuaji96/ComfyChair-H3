@@ -88,9 +88,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
 import androidx.compose.ui.unit.dp
-import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.components.LocalMediaViewer
 import sh.hnet.comfychair.ui.components.ServerStatusLamp
+import sh.hnet.comfychair.ui.components.mediaOrigin
+import sh.hnet.comfychair.ui.components.mediaOriginKey
 import sh.hnet.comfychair.ui.components.AppMenuDropdown
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
 import sh.hnet.comfychair.cache.ActiveView
@@ -164,23 +166,7 @@ fun GalleryScreen(
 
     // Check offline mode
     val isOfflineMode = remember { AppSettings.isOfflineMode(context) }
-
-    // State and effects
-    // Activity result launcher for MediaViewerActivity
-    val mediaViewerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        // Restore active view to Gallery
-        MediaCache.setActiveView(ActiveView.GALLERY)
-
-        // Refresh gallery if item was deleted (silent refresh, no spinner)
-        if (result.resultCode == Activity.RESULT_OK) {
-            val itemDeleted = result.data?.getBooleanExtra(MediaViewerActivity.RESULT_ITEM_DELETED, false) ?: false
-            if (itemDeleted) {
-                galleryViewModel.refresh()
-            }
-        }
-    }
+    val mediaViewer = LocalMediaViewer.current
 
     // Initialize ViewModel
     LaunchedEffect(Unit) {
@@ -226,6 +212,7 @@ fun GalleryScreen(
 
     // Function to launch media viewer
     fun launchMediaViewer(clickedIndex: Int) {
+        if (clickedIndex !in visibleItems.indices) return
         // Set active view to MediaViewer
         MediaCache.setActiveView(ActiveView.MEDIA_VIEWER)
 
@@ -233,16 +220,10 @@ fun GalleryScreen(
         val allKeys = visibleItems.map { it.toCacheKey() }
         MediaCache.updateNavigationPriorities(clickedIndex, allKeys)
 
-        // Built once per tap, not per frame: no need to cache it.
         val viewerItems = galleryItemsToViewerItems(visibleItems)
-        val intent = MediaViewerActivity.createGalleryIntent(
-            context = context,
-            hostname = ConnectionManager.hostname,
-            port = ConnectionManager.port,
-            items = viewerItems,
-            initialIndex = clickedIndex
-        )
-        mediaViewerLauncher.launch(intent)
+        mediaViewer.openGallery(viewerItems, clickedIndex) {
+            MediaCache.setActiveView(ActiveView.GALLERY)
+        }
     }
 
     // Grid state for scroll tracking
@@ -732,6 +713,11 @@ private fun GalleryItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
+            .mediaOrigin(
+                key = mediaOriginKey(item.promptId, item.filename),
+                corner = 12.dp,
+                still = bitmap
+            )
             .then(
                 if (isSelected) {
                     Modifier.border(

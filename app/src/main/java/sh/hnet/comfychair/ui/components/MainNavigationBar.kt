@@ -1,309 +1,159 @@
 package sh.hnet.comfychair.ui.components
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.sp
+import sh.hnet.comfychair.ui.navigation.sources
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Collections
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.ui.unit.dp
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.MainRoute
-import sh.hnet.comfychair.repository.GalleryRepository
-import sh.hnet.comfychair.queue.JobRegistry
-import sh.hnet.comfychair.queue.JobStatus
-import sh.hnet.comfychair.viewmodel.TextToImageViewModel
-import sh.hnet.comfychair.viewmodel.ImageToImageViewModel
-import sh.hnet.comfychair.viewmodel.TextToVideoViewModel
-import sh.hnet.comfychair.viewmodel.ImageToVideoViewModel
+import sh.hnet.comfychair.ui.navigation.OutputTab
+import sh.hnet.comfychair.ui.navigation.mainRouteOf
+import sh.hnet.comfychair.ui.navigation.navigateToScreen
+import sh.hnet.comfychair.ui.navigation.outputTab
 
 /**
- * Main navigation bar for the app with 4 destinations:
- * - Text-to-Image (icon button)
- * - Image-to-Image (icon button)
- * - Text-to-Video (icon button)
- * - Image-to-Video (icon button)
- *
- * FAB launches Gallery activity.
- *
- * Uses BottomAppBar with navigation buttons on left and FAB on right.
+ * Five-tab bottom navigation: 生图 | 视频 | H3 | 提示词 | 图库.
+ * Settings is placed in the top app bar gear icon of each main screen.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MainNavigationBar(
     navController: NavController,
-    onNavigateToGallery: () -> Unit,
-    onTabReselect: (MainRoute) -> Unit = {}
+    lastImageRoute: MainRoute,
+    lastVideoRoute: MainRoute,
+    lastPromptRoute: MainRoute = MainRoute.TagComposer,
+    ownJobs: Map<OutputTab, Int>,
+    h3JobCount: Int = 0,
+    unseenResults: Set<OutputTab>,
+    /** Show a screen anew, as when first opened (its tab tapped again) */
+    onReopen: (MainRoute) -> Unit
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentRoute = mainRouteOf(navBackStackEntry?.destination?.route)
+    val currentTab = currentRoute?.outputTab
+    val promptSelected = currentRoute == MainRoute.TagComposer || currentRoute == MainRoute.StoryComposer
 
-    // Observe gallery items to show latest thumbnail in FAB
-    val galleryItems by GalleryRepository.getInstance().galleryItems.collectAsState()
-    val latestItem = galleryItems.firstOrNull()
-
-    // One badge per screen: the jobs that screen started, so the count answers what you are waiting on
-    val queueState by JobRegistry.queueState.collectAsState()
-    val activeJobs = queueState.ownJobs.values.filter {
-        it.status == JobStatus.PENDING || it.status == JobStatus.EXECUTING
-    }
-    val t2iCount = activeJobs.count { it.ownerId == TextToImageViewModel.OWNER_ID }
-    val i2iCount = activeJobs.count { it.ownerId == ImageToImageViewModel.OWNER_ID }
-    val t2vCount = activeJobs.count { it.ownerId == TextToVideoViewModel.OWNER_ID }
-    val i2vCount = activeJobs.count { it.ownerId == ImageToVideoViewModel.OWNER_ID }
-    val h3Count = activeJobs.count { it.ownerId == "H3_WORKSPACE" }
-
-    // Lazy load thumbnail for FAB - keep previous thumbnail until new one is ready
-    val displayedThumbnail = rememberRetainedBitmap(
-        cacheKey = latestItem?.toCacheKey(),
-        isVideo = latestItem?.isVideo ?: false,
-        subfolder = latestItem?.subfolder ?: "",
-        type = latestItem?.type ?: ""
-    )
-
-    BottomAppBar(
-        actions = {
-            // Add left padding to align with screen content (16dp - default 4dp = 12dp extra)
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Text to Image
-            if (currentRoute == MainRoute.TextToImage.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.TextToImage) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    NavIcon(painterResource(R.drawable.text_to_image_24px), stringResource(R.string.nav_text_to_image), t2iCount)
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.TextToImage.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    NavIcon(painterResource(R.drawable.text_to_image_24px), stringResource(R.string.nav_text_to_image), t2iCount, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            // Image to Image
-            if (currentRoute == MainRoute.ImageToImage.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.ImageToImage) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    NavIcon(painterResource(R.drawable.image_to_image_24px), stringResource(R.string.nav_image_to_image), i2iCount)
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.ImageToImage.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    NavIcon(painterResource(R.drawable.image_to_image_24px), stringResource(R.string.nav_image_to_image), i2iCount, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            // Text to Video
-            if (currentRoute == MainRoute.TextToVideo.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.TextToVideo) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    NavIcon(painterResource(R.drawable.text_to_video_24px), stringResource(R.string.nav_text_to_video), t2vCount)
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.TextToVideo.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    NavIcon(painterResource(R.drawable.text_to_video_24px), stringResource(R.string.nav_text_to_video), t2vCount, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            // Image to Video
-            if (currentRoute == MainRoute.ImageToVideo.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.ImageToVideo) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    NavIcon(painterResource(R.drawable.image_to_video_24px), stringResource(R.string.nav_image_to_video), i2vCount)
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.ImageToVideo.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    NavIcon(painterResource(R.drawable.image_to_video_24px), stringResource(R.string.nav_image_to_video), i2vCount, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            // H3 Workspace (independent four-mode entry)
-            if (currentRoute == MainRoute.H3Workspace.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.H3Workspace) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.h3_24px),
-                        contentDescription = stringResource(R.string.nav_h3_workspace)
-                    )
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.H3Workspace.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    Icon(
-                        painter = painterResource(R.drawable.h3_24px),
-                        contentDescription = stringResource(R.string.nav_h3_workspace),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            // Random tag combiner: builds a prompt line, never submits a workflow
-            if (currentRoute == MainRoute.TagComposer.route) {
-                FilledIconButton(
-                    onClick = { onTabReselect(MainRoute.TagComposer) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.tag_combo_24px),
-                        contentDescription = stringResource(R.string.nav_tag_composer)
-                    )
-                }
-            } else {
-                IconButton(onClick = {
-                    navController.navigate(MainRoute.TagComposer.route) {
-                        popUpTo(MainRoute.TextToImage.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }) {
-                    Icon(
-                        painter = painterResource(R.drawable.tag_combo_24px),
-                        contentDescription = stringResource(R.string.nav_tag_composer),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToGallery,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                if (displayedThumbnail != null) {
-                    Image(
-                        bitmap = displayedThumbnail.asImageBitmap(),
-                        contentDescription = stringResource(R.string.nav_gallery),
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(MaterialTheme.shapes.medium),
-                        contentScale = ContentScale.Crop
-                    )
+    ShortNavigationBar {
+        TabItem(
+            selected = currentTab == OutputTab.IMAGE,
+            label = stringResource(R.string.nav_tab_image),
+            selectedIcon = Icons.Filled.Image,
+            icon = Icons.Outlined.Image,
+            badgeCount = ownJobs[OutputTab.IMAGE] ?: 0,
+            badgeDot = OutputTab.IMAGE in unseenResults,
+            onClick = { navController.navigateToScreen(lastImageRoute) },
+            onReselect = { showFirstSource(navController, OutputTab.IMAGE, currentRoute) }
+        )
+        TabItem(
+            selected = currentTab == OutputTab.VIDEO,
+            label = stringResource(R.string.nav_tab_video),
+            selectedIcon = Icons.Filled.Movie,
+            icon = Icons.Outlined.Movie,
+            badgeCount = ownJobs[OutputTab.VIDEO] ?: 0,
+            badgeDot = OutputTab.VIDEO in unseenResults,
+            onClick = { navController.navigateToScreen(lastVideoRoute) },
+            onReselect = { showFirstSource(navController, OutputTab.VIDEO, currentRoute) }
+        )
+        TabItem(
+            selected = currentRoute == MainRoute.H3Workspace,
+            label = stringResource(R.string.nav_tab_h3),
+            selectedIcon = Icons.Filled.AutoAwesome,
+            icon = Icons.Outlined.AutoAwesome,
+            badgeCount = h3JobCount,
+            onClick = { navController.navigateToScreen(MainRoute.H3Workspace) },
+            onReselect = { onReopen(MainRoute.H3Workspace) }
+        )
+        TabItem(
+            selected = promptSelected,
+            label = stringResource(R.string.nav_tab_prompt),
+            selectedIcon = Icons.Filled.EditNote,
+            icon = Icons.Outlined.EditNote,
+            onClick = { navController.navigateToScreen(lastPromptRoute) },
+            onReselect = {
+                if (currentRoute != MainRoute.TagComposer) {
+                    navController.navigateToScreen(MainRoute.TagComposer)
                 } else {
-                    Icon(
-                        Icons.Filled.Collections,
-                        contentDescription = stringResource(R.string.nav_gallery),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    onReopen(MainRoute.TagComposer)
                 }
             }
-        }
-    )
+        )
+        TabItem(
+            selected = currentRoute == MainRoute.Gallery,
+            label = stringResource(R.string.nav_gallery),
+            selectedIcon = Icons.Filled.PhotoLibrary,
+            icon = Icons.Outlined.PhotoLibrary,
+            onClick = { navController.navigateToScreen(MainRoute.Gallery) },
+            onReselect = { onReopen(MainRoute.Gallery) }
+        )
+    }
 }
 
-/**
- * A navigation glyph with the screen's running job count. The badge only appears while that screen
- * has work in the queue, so the bar stays quiet when nothing is running.
- */
+/** A tab tapped again: its first source (Text), as the source switch shows it; nothing when that's already shown. */
+private fun showFirstSource(navController: NavController, tab: OutputTab, current: MainRoute?) {
+    val first = tab.sources.first().route
+    if (current != first) navController.navigateToScreen(first)
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NavIcon(
-    painter: androidx.compose.ui.graphics.painter.Painter,
-    description: String,
-    count: Int,
-    // Defaults to the content colour of the button it sits in. Color.Unspecified means "keep the
-    // drawable's own fill", and these glyphs are filled white — invisible on the light selected pill.
-    tint: androidx.compose.ui.graphics.Color = androidx.compose.material3.LocalContentColor.current
+private fun TabItem(
+    selected: Boolean,
+    label: String,
+    selectedIcon: ImageVector,
+    icon: ImageVector,
+    badgeCount: Int = 0,
+    badgeDot: Boolean = false,
+    /** Tapped while selected */
+    onReselect: (() -> Unit)? = null,
+    onClick: () -> Unit
 ) {
-    // The button clips to a circle, so the badge has to sit inside the glyph's own corners: a
-    // badge pushed past them came out as the sliver in the report.
-    // The button clips to a circle, so the badge must stay inside a 28dp box around the glyph: any
-    // further out it was cut down to the sliver in the report.
-    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-        Icon(
-            painter = painter,
-            contentDescription = description,
-            tint = tint,
-            modifier = Modifier.size(22.dp)
-        )
-        if (count > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .background(MaterialTheme.colorScheme.error, CircleShape)
-                    .padding(horizontal = 3.dp, vertical = 1.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (count > 9) "9+" else count.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 9.sp,
-                    color = MaterialTheme.colorScheme.onError,
-                    maxLines = 1
-                )
-            }
-        }
+    val badgeDescription = when {
+        badgeCount > 0 -> pluralStringResource(R.plurals.label_queue_own_jobs, badgeCount, badgeCount)
+        badgeDot -> stringResource(R.string.content_description_new_result)
+        else -> null
     }
+    ShortNavigationBarItem(
+        selected = selected,
+        onClick = { if (!selected) onClick() else onReselect?.invoke() },
+        icon = {
+            BadgedBox(
+                badge = {
+                    when {
+                        badgeCount > 0 -> Badge { Text(badgeCount.toString()) }
+                        badgeDot -> Badge()
+                    }
+                }
+            ) {
+                Icon(if (selected) selectedIcon else icon, contentDescription = null)
+            }
+        },
+        modifier = if (badgeDescription != null) Modifier.semantics { stateDescription = badgeDescription } else Modifier,
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    )
 }

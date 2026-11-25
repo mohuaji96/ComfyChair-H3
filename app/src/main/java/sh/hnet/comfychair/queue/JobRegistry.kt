@@ -1,19 +1,14 @@
 package sh.hnet.comfychair.queue
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
-import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.repository.GalleryRepository
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
@@ -53,6 +48,12 @@ data class JobFailure(
 )
 
 /**
+ * What the queue sheet shows about one of our jobs. Kept in memory only, never saved with the tracked jobs: the
+ * prompt is private, and after a restart the sheet simply shows less.
+ */
+data class JobDescription(val prompt: String, val workflow: String)
+
+/**
  * Represents the current state of the queue system.
  * This state is observable and updates in real-time based on WebSocket events.
  */
@@ -70,35 +71,37 @@ data class QueueState(
     /** 1-based place of our first pending job in the server queue, null when unknown */
     val ownQueuePosition: Int? = null,
     /** Why the last job of ours died, kept until the next submit */
-    val lastFailure: JobFailure? = null,
-    /**
-     * Positive prompt of each queued job, by promptId — ours and other clients' alike, as the
-     * server shares the whole queue. Missing when the server's listing carried no workflow.
-     */
-    val prompts: Map<String, String> = emptyMap()
+    val lastFailure: JobFailure? = null
 ) {
-    /** The prompt of a queued job, or null when the server did not send one. */
-    /** Ours first (we recorded it at submit), then whatever the server shared. */
-    fun promptOf(promptId: String?): String? = promptId?.let { id ->
-        ownJobs[id]?.prompt?.takeIf(String::isNotBlank) ?: prompts[id]?.takeIf(String::isNotBlank)
-    }
     /** Whether any job is currently executing */
     val isExecuting: Boolean get() = executingPromptId != null
 
-    /**
-     * Whether the running job is one of ours.
-     *
-     * Interrupting is server-wide, so "cancel current" must key off this rather than
-     * [isExecuting]: with another device's job running, that menu item was enabled and stopped
-     * their work.
-     */
-    val isOwnJobExecuting: Boolean
-        get() = executingPromptId?.let { ownJobs.containsKey(it) } == true
+    /** Whether the currently executing job belongs to this client */
+    val isOwnJobExecuting: Boolean get() = executingPromptId != null && ownJobs.containsKey(executingPromptId)
 
     /** Number of our own jobs that are still pending or executing */
     val ownActiveJobCount: Int get() = ownJobs.values.count {
         it.status == JobStatus.PENDING || it.status == JobStatus.EXECUTING
     }
+
+    /**
+     * Jobs of other clients in the server queue. The total and our own jobs arrive by different paths and may briefly
+     * disagree, so this never goes below zero.
+     */
+    val otherJobCount: Int get() = (totalQueueSize - ownActiveJobCount).coerceAtLeast(0)
+
+    /** Our own jobs waiting in the queue (not running yet). */
+    val ownWaitingJobCount: Int get() = ownJobs.values.count { it.status == JobStatus.PENDING }
+
+    /**
+     * Whether a job of this screen waits in the queue. Only waiting jobs count: finished ones stay tracked until they
+     * are cleaned up (also across an app restart) and must not make the screen look busy.
+     */
+    fun hasWaitingJob(ownerId: String): Boolean =
+        ownJobs.values.any { it.ownerId == ownerId && it.status == JobStatus.PENDING }
+
+    fun promptOf(promptId: String?): String? =
+        if (promptId == null) null else ownJobs[promptId]?.prompt
 }
 
 /**
@@ -123,27 +126,66 @@ object JobRegistry {
     private val _queueState = MutableStateFlow(QueueState())
     val queueState: StateFlow<QueueState> = _queueState.asStateFlow()
 
-    private const val POLL_INTERVAL_MS = 3000L
-    private val watchdogScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var watchdog: Job? = null
+    // Owners (screens) of our jobs that finished with results, for the "ready" notice and tab badges
+    private val _readyOwners = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val readyOwners: SharedFlow<String> = _readyOwners.asSharedFlow()
 
     /**
-     * Keeps asking the server what it still has queued while we believe a job of ours is alive.
-     *
-     * The completion notice arrives over the WebSocket, and a socket that drops mid-run takes it
-     * with it: the reconnect asks /queue once, the job finishes a minute later, and nothing ever
-     * asks again. The button then keeps saying 添加到队列 (1) until an unrelated refresh happens
-     * to poll. This used to live in the H3 screen only, so every other page had no safety net.
+     * One of our jobs finished successfully. Call before [markCompleted], which stops tracking it: completion alone
+     * also follows errors and interruptions, so it can't tell a ready result.
      */
-    fun ensureWatchdog() {
-        if (watchdog?.isActive == true) return
-        watchdog = watchdogScope.launch {
-            while (isActive) {
-                if (_queueState.value.ownActiveJobCount == 0) break
-                ConnectionManager.pollQueueStatus()
-                delay(POLL_INTERVAL_MS)
-            }
+    fun notifyReady(promptId: String) {
+        _queueState.value.ownJobs[promptId]?.let { _readyOwners.tryEmit(it.ownerId) }
+    }
+
+    // When each running job started (elapsed realtime), so the status card's timer survives leaving the screen
+    private val startTimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /** When a running job started; first asked counts as the start if the server's start wasn't seen. */
+    fun executionStartedAt(promptId: String): Long =
+        startTimes.getOrPut(promptId) { android.os.SystemClock.elapsedRealtime() }
+
+    // Descriptions of our jobs for the queue sheet, in memory only (see JobDescription)
+    private val descriptions = java.util.concurrent.ConcurrentHashMap<String, JobDescription>()
+
+    fun describeJob(promptId: String, description: JobDescription) {
+        descriptions[promptId] = description
+    }
+
+    fun description(promptId: String): JobDescription? = descriptions[promptId]
+
+    /**
+     * Track a job under a new id, e.g. after it was submitted again and the server assigned one. Keeps its owner,
+     * status and description.
+     */
+    @Synchronized
+    fun rekeyJob(oldPromptId: String, newPromptId: String) {
+        if (oldPromptId == newPromptId) return
+        val currentState = _queueState.value
+        val job = currentState.ownJobs[oldPromptId] ?: return
+        DebugLogger.d(TAG, "Job ${Obfuscator.promptId(oldPromptId)} now tracked as ${Obfuscator.promptId(newPromptId)}")
+        _queueState.value = currentState.copy(
+            ownJobs = currentState.ownJobs - oldPromptId + (newPromptId to job.copy(promptId = newPromptId))
+        )
+        descriptions.remove(oldPromptId)?.let { descriptions[newPromptId] = it }
+        startTimes.remove(oldPromptId)?.let { startTimes[newPromptId] = it }
+    }
+
+    /**
+     * Follow a job moved to the front (removed and submitted again) under its id after the move. If it was dropped in
+     * between (a queue poll didn't find it while it was off the server), it's tracked again as [job] was, with its
+     * [description].
+     */
+    @Synchronized
+    fun followMovedJob(job: TrackedJob, newPromptId: String, description: JobDescription?) {
+        if (_queueState.value.ownJobs.containsKey(job.promptId)) {
+            rekeyJob(job.promptId, newPromptId)
+            return
         }
+        DebugLogger.d(TAG, "Moved job ${Obfuscator.promptId(job.promptId)} tracked again as ${Obfuscator.promptId(newPromptId)}")
+        registerJob(newPromptId, job.ownerId, job.contentType)
+        descriptions.remove(job.promptId)
+        description?.let { descriptions[newPromptId] = it }
     }
 
     /**
@@ -169,24 +211,25 @@ object JobRegistry {
             ownerId = ownerId,
             contentType = contentType,
             status = initialStatus,
-            prompt = prompt
+            prompt = prompt?.takeIf(String::isNotBlank)
         )
 
-        val newJobs = currentState.ownJobs + (promptId to job)
+        // A new run supersedes the last failure notice
+        val baseState = if (currentState.lastFailure != null) currentState.copy(lastFailure = null) else currentState
+        val newJobs = baseState.ownJobs + (promptId to job)
 
         // If this job is already executing (execution_start came before registration),
         // update the executing owner info now that we know it
         if (isAlreadyExecuting) {
             DebugLogger.d(TAG, "Job was already executing, updating owner to: $ownerId")
-            _queueState.value = currentState.copy(
+            _queueState.value = baseState.copy(
                 ownJobs = newJobs,
                 executingOwnerId = ownerId,
                 executingContentType = contentType
             )
         } else {
-            _queueState.value = currentState.copy(ownJobs = newJobs)
+            _queueState.value = baseState.copy(ownJobs = newJobs)
         }
-        ensureWatchdog()
     }
 
     /**
@@ -216,6 +259,7 @@ object JobRegistry {
      */
     @Synchronized
     fun markExecuting(promptId: String) {
+        startTimes.putIfAbsent(promptId, android.os.SystemClock.elapsedRealtime())
         val currentState = _queueState.value
         val job = currentState.ownJobs[promptId]
 
@@ -264,6 +308,8 @@ object JobRegistry {
 
         // Remove the job from tracking
         val newJobs = currentState.ownJobs - promptId
+        descriptions.remove(promptId)
+        startTimes.remove(promptId)
 
         _queueState.value = currentState.copy(
             executingPromptId = if (isCurrentlyExecuting) null else currentState.executingPromptId,
@@ -274,17 +320,16 @@ object JobRegistry {
         )
 
         // Trigger gallery refresh - single source of truth for completion-triggered refreshes
-        // Handles both in-app jobs and external jobs (from other clients). The history entry is
-        // written just after `execution_success`, so this asks for one retry if the first answer
-        // does not contain the new prompt.
+        // Handles both in-app jobs and external jobs (from other clients)
         DebugLogger.d(TAG, "Triggering gallery refresh for job completion")
-        GalleryRepository.getInstance().refreshAfterCompletion(promptId)
+        GalleryRepository.getInstance().refresh()
     }
 
     /**
      * Mark a job as failed.
      *
      * @param promptId The prompt ID of the failed job
+     * @param failure What the server said about the failure, kept for the status line
      */
     @Synchronized
     fun markFailed(promptId: String, failure: JobFailure? = null) {
@@ -332,6 +377,8 @@ object JobRegistry {
             val newJobs = currentState.ownJobs - promptId
             _queueState.value = currentState.copy(ownJobs = newJobs, ownQueuePosition = null)
         }
+        descriptions.remove(promptId)
+        startTimes.remove(promptId)
     }
 
     /**
@@ -365,114 +412,52 @@ object JobRegistry {
     }
 
     /**
-     * Update state from server queue response.
-     * This provides detailed information about running and pending jobs.
-     *
-     * @param running The queue_running array from /queue endpoint
-     * @param pending The queue_pending array from /queue endpoint
+     * Bring the tracked jobs in line with the server queue: its size, the job running, and our jobs that left it
+     * (completed, removed) dropped, unless they're done and awaiting cleanup.
      */
-    @Synchronized
-    fun updateFromServerQueue(running: JSONArray?, pending: JSONArray?, prompts: JSONObject? = null) {
-        val runningCount = running?.length() ?: 0
-        val pendingCount = pending?.length() ?: 0
-        val totalCount = runningCount + pendingCount
-
+    fun updateFromServerQueue(snapshot: QueueSnapshot) {
         val currentState = _queueState.value
         var newState = currentState
 
-        // Update total queue size
+        val totalCount = snapshot.running.size + snapshot.pending.size
         if (newState.totalQueueSize != totalCount) {
             newState = newState.copy(totalQueueSize = totalCount)
         }
 
-        // Find currently executing job from server queue
-        if (running != null && running.length() > 0) {
-            val firstRunning = running.optJSONArray(0)
-            if (firstRunning != null && firstRunning.length() > 1) {
-                val runningPromptId = firstRunning.optString(1)
-                if (runningPromptId.isNotEmpty() && newState.executingPromptId != runningPromptId) {
-                    // Update executing job based on server state
-                    val job = newState.ownJobs[runningPromptId]
-                    newState = newState.copy(
-                        executingPromptId = runningPromptId,
-                        executingOwnerId = job?.ownerId,
-                        executingContentType = job?.contentType
-                    )
-                }
+        // The job running on the server
+        val runningPromptId = snapshot.running.firstOrNull()
+        if (runningPromptId != null) {
+            if (newState.executingPromptId != runningPromptId) {
+                val job = newState.ownJobs[runningPromptId]
+                newState = newState.copy(
+                    executingPromptId = runningPromptId,
+                    executingOwnerId = job?.ownerId,
+                    executingContentType = job?.contentType
+                )
             }
-        } else if (newState.executingPromptId != null && runningCount == 0) {
+        } else if (newState.executingPromptId != null) {
             // No running jobs on server but we thought something was executing
-            newState = newState.copy(
-                executingPromptId = null,
-                executingOwnerId = null,
-                executingContentType = null
-            )
+            newState = newState.copy(executingPromptId = null, executingOwnerId = null, executingContentType = null)
         }
 
-        // Validate our tracked jobs against server queue
-        val serverPromptIds = mutableSetOf<String>()
-        running?.let { arr ->
-            for (i in 0 until arr.length()) {
-                arr.optJSONArray(i)?.optString(1)?.takeIf { it.isNotEmpty() }?.let {
-                    serverPromptIds.add(it)
-                }
-            }
-        }
-        pending?.let { arr ->
-            for (i in 0 until arr.length()) {
-                arr.optJSONArray(i)?.optString(1)?.takeIf { it.isNotEmpty() }?.let {
-                    serverPromptIds.add(it)
-                }
-            }
-        }
-
-        // Where our own job sits in the pending list: the client cannot know this from the
-        // WebSocket status message, which only reports how many jobs the server holds.
-        var position: Int? = null
-        if (pending != null) {
-            for (i in 0 until pending.length()) {
-                val queued = pending.optJSONArray(i)?.optString(1).orEmpty()
-                if (queued.isNotEmpty() && newState.ownJobs.containsKey(queued)) {
-                    position = i + 1
-                    break
-                }
-            }
-        }
+        // Where our first waiting job sits in the pending list: the WebSocket status message only says how many jobs
+        // the server holds, never where ours is.
+        val position = newState.ownJobs.values
+            .filter { it.status == JobStatus.PENDING }
+            .mapNotNull { snapshot.positionOf(it.promptId) }
+            .minOrNull()
         if (newState.ownQueuePosition != position) {
             newState = newState.copy(ownQueuePosition = position)
         }
 
-        // Remove jobs that are no longer in the server queue (completed or removed)
-        val validJobs = newState.ownJobs.filter { (promptId, job) ->
-            val isInQueue = serverPromptIds.contains(promptId)
-            val isPendingOrExecuting = job.status == JobStatus.PENDING || job.status == JobStatus.EXECUTING
-            // Keep jobs that are in the queue OR are not pending/executing (completed/failed awaiting cleanup)
-            isInQueue || !isPendingOrExecuting
+        // Keep jobs that are in the queue OR are not pending/executing (completed/failed awaiting cleanup)
+        val (validJobs, staleJobs) = newState.ownJobs.entries.partition { (promptId, job) ->
+            promptId in snapshot || (job.status != JobStatus.PENDING && job.status != JobStatus.EXECUTING)
         }
-
-        if (validJobs.size != newState.ownJobs.size) {
-            val removed = newState.ownJobs.keys - validJobs.keys
-            DebugLogger.d(TAG, "Removed ${removed.size} stale jobs not found in server queue")
-            newState = newState.copy(ownJobs = validJobs)
-            // When the socket drops, this poll is the only thing that notices a finished job. It
-            // used to clear the job and say nothing, so the button recovered while the gallery
-            // kept showing yesterday's list.
-            removed.lastOrNull()?.let { finished ->
-                DebugLogger.d(TAG, "Job left the queue while polling -> refreshing the gallery")
-                GalleryRepository.getInstance().refreshAfterCompletion(finished)
-            }
-        }
-
-        // The queue listing carries every job's workflow, so the sheet can say what each one is
-        if (prompts != null) {
-            val texts = prompts.keys().asSequence()
-                .mapNotNull { id ->
-                    // [number, promptId, prompt-graph, extra data, outputs]
-                    val workflow = prompts.optJSONArray(id)?.optJSONObject(2)
-                    JobPrompts.of(id, workflow)?.let { id to it }
-                }
-                .toMap()
-            if (texts != newState.prompts) newState = newState.copy(prompts = texts)
+        if (staleJobs.isNotEmpty()) {
+            DebugLogger.d(TAG, "Removed ${staleJobs.size} stale jobs not found in server queue")
+            staleJobs.forEach { startTimes.remove(it.key) }
+            newState = newState.copy(ownJobs = validJobs.associate { it.key to it.value })
         }
 
         if (newState != currentState) {
@@ -495,7 +480,6 @@ object JobRegistry {
                 put("ownerId", job.ownerId)
                 put("contentType", job.contentType.name)
                 put("status", job.status.name)
-                job.prompt?.let { put("prompt", it) }
             }
             jobsArray.put(jobJson)
         }
@@ -543,8 +527,7 @@ object JobRegistry {
                         promptId = promptId,
                         ownerId = ownerId,
                         contentType = contentType,
-                        status = JobStatus.PENDING,  // Reset to pending, will validate against server
-                        prompt = jobObj.optString("prompt").takeIf { it.isNotBlank() }
+                        status = JobStatus.PENDING  // Reset to pending, will validate against server
                     )
                 }
             }
@@ -552,10 +535,9 @@ object JobRegistry {
             if (jobs.isNotEmpty()) {
                 _queueState.value = _queueState.value.copy(ownJobs = jobs)
                 DebugLogger.i(TAG, "Restored ${jobs.size} jobs from preferences")
-                ensureWatchdog()
             }
         } catch (e: Exception) {
-            DebugLogger.w(TAG, "Failed to restore jobs: ${e.message}")
+            DebugLogger.w(TAG, "Failed to restore jobs: ${Obfuscator.error(e)}")
         }
     }
 

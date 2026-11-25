@@ -423,7 +423,7 @@ fun H3ParameterContent(
                             .getInputDefinition(ct, key)?.options
                     }
                     if (!preflight.ok) result(false, null, "提交前检查未通过：${preflight.issues.joinToString("；") { it.toString() }}")
-                    else selectedClient.submitPrompt(preflight.prompt, front = front) { ok, id, error, _ -> result(ok, id, error) }
+                    else selectedClient.submitPrompt(preflight.prompt, front = front) { ok, id, error, _, _ -> result(ok, id, error) }
                 }
             }
         }) {Text("提交")}},dismissButton={TextButton(onClick={review=null}) {Text("取消")}})

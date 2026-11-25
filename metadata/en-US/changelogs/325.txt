@@ -1,0 +1,7 @@
+v0.9.8.8382.575-h3
+
+New & Improved:
+- Inline 3-line prompt field with top-right Clear and bottom-right Fullscreen expand on Generation and H3 screens
+- Added AI Prompt Optimizer to prompt bookmark menu and fullscreen editor with one-tap apply
+- Fused 2-in-1 Queue Sheet (live preview, move-to-front + H3 relay status and failure diagnostics)
+- Viewer frame extraction to Gallery and one-tap send to H3 slots; added H3 data to BackupManager

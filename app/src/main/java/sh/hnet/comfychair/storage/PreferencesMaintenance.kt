@@ -2,7 +2,9 @@ package sh.hnet.comfychair.storage
 
 import android.content.Context
 import sh.hnet.comfychair.WorkflowManager
+import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.Obfuscator
 
 /**
  * Performs maintenance on SharedPreferences to remove stale entries.
@@ -15,16 +17,18 @@ object PreferencesMaintenance {
 
     // SharedPreferences file names
     private const val PREFS_WORKFLOW_VALUES = "WorkflowValuesPrefs"
-    private const val PREFS_CREDENTIALS = "CredentialPrefs"
     private const val PREFS_TEXT_TO_IMAGE = "TextToImageFragmentPrefs"
     private const val PREFS_IMAGE_TO_IMAGE = "ImageToImageFragmentPrefs"
     private const val PREFS_TEXT_TO_VIDEO = "TextToVideoFragmentPrefs"
     private const val PREFS_IMAGE_TO_VIDEO = "ImageToVideoFragmentPrefs"
+    private const val PREFS_VIDEO_TO_VIDEO = "VideoToVideoFragmentPrefs"
 
-    // Credential key prefixes
-    private const val KEY_USERNAME_PREFIX = "username_"
-    private const val KEY_PASSWORD_PREFIX = "password_"
-    private const val KEY_TOKEN_PREFIX = "token_"
+    private const val PREFS_APP_SETTINGS = "AppSettings"
+
+    /** App settings that no longer exist; their stored values are removed. */
+    private val RETIRED_APP_SETTINGS = listOf(
+        "prompt_expand" // The prompt is now always edited full screen (0.9.0)
+    )
 
     /**
      * Perform full maintenance on all SharedPreferences.
@@ -45,8 +49,38 @@ object PreferencesMaintenance {
         totalRemoved += cleanCredentialPrefs(context, validServerIds)
         totalRemoved += cleanScreenPrefs(context, validServerIds, validWorkflowIds)
         totalRemoved += cleanFileCaches(context, validServerIds)
+        totalRemoved += cleanRetiredAppSettings(context)
+        totalRemoved += cleanClientIds(context, validServerIds)
 
         DebugLogger.i(TAG, "Maintenance complete. Removed $totalRemoved stale entries/files")
+    }
+
+    /**
+     * Remove the client IDs kept for deleted servers (ConnectionManager, key `client_id_{serverId}`).
+     *
+     * @return Number of entries removed
+     */
+    private fun cleanClientIds(context: Context, validServerIds: Set<String>): Int {
+        val prefs = context.getSharedPreferences(ConnectionManager.CLIENT_ID_PREFS, Context.MODE_PRIVATE)
+        val stale = prefs.all.keys.filter { it.removePrefix("client_id_") !in validServerIds }
+        if (stale.isNotEmpty()) prefs.edit().apply { stale.forEach { remove(it) } }.apply()
+        return stale.size
+    }
+
+    /**
+     * Remove stored values of app settings that no longer exist.
+     *
+     * @return Number of entries removed
+     */
+    private fun cleanRetiredAppSettings(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_APP_SETTINGS, Context.MODE_PRIVATE)
+        val stale = RETIRED_APP_SETTINGS.filter { prefs.contains(it) }
+        if (stale.isNotEmpty()) {
+            val editor = prefs.edit()
+            stale.forEach { editor.remove(it) }
+            editor.apply()
+        }
+        return stale.size
     }
 
     /**
@@ -56,7 +90,7 @@ object PreferencesMaintenance {
         return try {
             ServerStorage(context).getServers().map { it.id }.toSet()
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Failed to get valid server IDs: ${e.message}")
+            DebugLogger.e(TAG, "Failed to get valid server IDs: ${Obfuscator.error(e)}")
             emptySet()
         }
     }
@@ -68,9 +102,9 @@ object PreferencesMaintenance {
         return try {
             // Ensure WorkflowManager is initialized
             WorkflowManager.initialize(context)
-            WorkflowManager.getAllWorkflowsIncludingH3().map { it.id }.toSet()
+            WorkflowManager.getAllWorkflows().map { it.id }.toSet()
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Failed to get valid workflow IDs: ${e.message}")
+            DebugLogger.e(TAG, "Failed to get valid workflow IDs: ${Obfuscator.error(e)}")
             emptySet()
         }
     }
@@ -120,59 +154,9 @@ object PreferencesMaintenance {
         return keysToRemove.size
     }
 
-    /**
-     * Clean CredentialPrefs: remove credentials for deleted servers.
-     * Key format: {prefix}_{serverId} where prefix is username_, password_, or token_
-     *
-     * Note: CredentialPrefs may be encrypted, so we access it directly.
-     *
-     * @return Number of entries removed
-     */
-    private fun cleanCredentialPrefs(context: Context, validServerIds: Set<String>): Int {
-        // Use CredentialStorage's internal prefs access pattern
-        // We need to handle both encrypted and fallback prefs
-        val prefs = try {
-            val masterKey = androidx.security.crypto.MasterKey.Builder(context)
-                .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
-                .build()
-
-            androidx.security.crypto.EncryptedSharedPreferences.create(
-                context,
-                PREFS_CREDENTIALS,
-                masterKey,
-                androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            DebugLogger.w(TAG, "Using fallback prefs for credentials: ${e.message}")
-            context.getSharedPreferences(PREFS_CREDENTIALS, Context.MODE_PRIVATE)
-        }
-
-        val allKeys = prefs.all.keys.toList()
-        val keysToRemove = mutableListOf<String>()
-
-        for (key in allKeys) {
-            val serverId = when {
-                key.startsWith(KEY_USERNAME_PREFIX) -> key.removePrefix(KEY_USERNAME_PREFIX)
-                key.startsWith(KEY_PASSWORD_PREFIX) -> key.removePrefix(KEY_PASSWORD_PREFIX)
-                key.startsWith(KEY_TOKEN_PREFIX) -> key.removePrefix(KEY_TOKEN_PREFIX)
-                else -> continue
-            }
-
-            if (serverId !in validServerIds) {
-                keysToRemove.add(key)
-                DebugLogger.d(TAG, "Credentials: removing key for deleted server: $key")
-            }
-        }
-
-        if (keysToRemove.isNotEmpty()) {
-            val editor = prefs.edit()
-            keysToRemove.forEach { editor.remove(it) }
-            editor.apply()
-        }
-
-        return keysToRemove.size
-    }
+    /** Remove the credentials of deleted servers (all four kinds, [CredentialStorage]). */
+    private fun cleanCredentialPrefs(context: Context, validServerIds: Set<String>): Int =
+        CredentialStorage(context).deleteAllExcept(validServerIds)
 
     /**
      * Clean screen preferences (TTI, ITI, TTV, ITV): remove entries for deleted servers.
@@ -191,7 +175,8 @@ object PreferencesMaintenance {
             PREFS_TEXT_TO_IMAGE,
             PREFS_IMAGE_TO_IMAGE,
             PREFS_TEXT_TO_VIDEO,
-            PREFS_IMAGE_TO_VIDEO
+            PREFS_IMAGE_TO_VIDEO,
+            PREFS_VIDEO_TO_VIDEO
         )
 
         var totalRemoved = 0
@@ -271,7 +256,7 @@ object PreferencesMaintenance {
                 }
             }
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Failed to scan gallery metadata caches: ${e.message}")
+            DebugLogger.e(TAG, "Failed to scan gallery metadata caches: ${Obfuscator.error(e)}")
         }
 
         return removed

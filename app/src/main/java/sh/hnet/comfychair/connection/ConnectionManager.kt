@@ -3,7 +3,7 @@ package sh.hnet.comfychair.connection
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.widget.Toast
-import sh.hnet.comfychair.R
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,21 +26,21 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
 import sh.hnet.comfychair.ComfyUIClient
-import sh.hnet.comfychair.WorkflowManager
-import sh.hnet.comfychair.model.AuthCredentials
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaStateHolder
-import sh.hnet.comfychair.queue.JobFailure
+import sh.hnet.comfychair.cache.ResultThumbnails
+import sh.hnet.comfychair.model.AuthCredentials
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.queue.QueueSnapshot
 import sh.hnet.comfychair.repository.GalleryRepository
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.ObjectInfoCache
-import sh.hnet.comfychair.storage.OptimizeHistoryStore
+import sh.hnet.comfychair.util.AppErrors
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
 import sh.hnet.comfychair.workflow.NodeTypeRegistry
 import sh.hnet.comfychair.workflow.TemplateKeyRegistry
-import java.util.UUID
 
 /**
  * Connection state representing whether the app is connected to a ComfyUI server.
@@ -83,20 +83,9 @@ sealed class ConnectionState {
  */
 object ConnectionManager {
     private const val TAG = "Connection"
+    const val CLIENT_ID_PREFS = "ConnectionClientIds"
     private const val KEEPALIVE_INTERVAL_MS = 30000L
-    /**
- * A drop mid-job used to be fatal after three tries: the bar froze at whatever stage it reached
- * and stayed there until the user submitted again. Eight attempts cover a server restart or a
- * tunnel flapping, and still give up inside two minutes so a dead host is not hammered.
- */
-private const val MAX_RECONNECT_ATTEMPTS = 8
-
-    /**
-     * The job the server is running right now. `progress` does not say which prompt it belongs to,
-     * so stepping is attributed to whatever `executing` last announced.
-     */
-    @Volatile
-    private var lastExecutingPromptId: String? = null
+    private const val MAX_RECONNECT_ATTEMPTS = 8
 
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -274,14 +263,20 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         DebugLogger.i(TAG, "Connecting to ${Obfuscator.hostname(hostname)} (protocol: $protocol, serverId: $serverId)")
         val current = connectionState.value
 
-        // Check if already connected to the same server
+        // Check if already connected to the same server with unchanged settings. An edited server
+        // entry keeps its ID, so the connection parameters must match as well; otherwise the old
+        // client would keep sending requests to the previous host.
         if (current is ConnectionState.Connected &&
-            current.serverId == serverId) {
+            current.serverId == serverId &&
+            current.hostname == hostname &&
+            current.port == port &&
+            current.protocol == protocol &&
+            _client?.getCredentials() == credentials) {
             DebugLogger.d(TAG, "Already connected to same server, skipping")
             return
         }
 
-        // Disconnect from previous server if any
+        // Disconnect from previous server (or previous settings of the same server) if any
         if (current is ConnectionState.Connected) {
             DebugLogger.d(TAG, "Disconnecting from previous server")
             closeWebSocketInternal()
@@ -289,14 +284,9 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
             _client?.shutdown()
         }
 
-        // A fresh session gets a fresh retry budget. logout() deliberately exhausts it to stop
-        // reconnecting, and without this reset the next login answered its very first dropped
-        // socket with "connection failed" and never tried again.
-        reconnectAttempts = 0
-        _isConnecting.value = false
-
-        // Generate unique client ID for this session
-        _clientId = "comfychair_android_${UUID.randomUUID()}"
+        // The server sends a job's progress and completion only to the client ID that queued it: keep one per server, so
+        // jobs restored after a restart are still reported to this app
+        _clientId = clientIdFor(context, serverId)
 
         // Store application context for offline cache operations
         _applicationContext = context.applicationContext
@@ -324,6 +314,15 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         fetchServerData()
     }
 
+    /** This app's client ID for a server: random, kept across restarts (as ComfyUI's own frontend keeps it per tab). */
+    private fun clientIdFor(context: Context, serverId: String): String {
+        val prefs = context.getSharedPreferences(CLIENT_ID_PREFS, Context.MODE_PRIVATE)
+        val key = "client_id_$serverId"
+        return prefs.getString(key, null) ?: "comfychair_android_${UUID.randomUUID()}".also {
+            prefs.edit().putString(key, it).apply()
+        }
+    }
+
     /**
      * Disconnect from the current server and clear all caches.
      * Called on logout or when connection needs to be reset.
@@ -345,19 +344,6 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         _sessionExpired.value = false
         _connectionState.value = ConnectionState.Disconnected
         DebugLogger.i(TAG, "Disconnected")
-    }
-
-    /**
-     * Called when backup restore changes connection settings.
-     * Clears everything, reloads workflows, and returns to login.
-     */
-    fun invalidateForRestore() {
-        DebugLogger.i(TAG, "Invalidating for restore")
-        // A restored backup starts a new session: the rewrite log belongs to the old one.
-        _applicationContext?.let { OptimizeHistoryStore.clear(it) }
-        // Reload workflows to pick up restored user workflows
-        WorkflowManager.reloadWorkflows()
-        disconnect()
     }
 
     /**
@@ -413,6 +399,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         val hasCache = when {
             failureType == ConnectionFailure.STALLED -> false
             failureType == ConnectionFailure.AUTHENTICATION -> false
+            failureType == ConnectionFailure.CERTIFICATE -> false
             AppSettings.isMemoryFirstCache(context) -> false
             else -> hasOfflineCache(context, currentServerId ?: "")
         }
@@ -513,7 +500,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         val client = _client ?: run {
             DebugLogger.w(TAG, "retrySingleAttempt: aborting - client is null")
             _isReconnecting.value = false
-            Toast.makeText(context, R.string.msg_reconnect_failed, Toast.LENGTH_SHORT).show()
+            AppErrors.report(context, R.string.error_reconnect_failed)
             return
         }
 
@@ -547,7 +534,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                         clearConnectionAlert()
                     } else {
                         DebugLogger.w(TAG, "WebSocket failed to connect after successful HTTP test")
-                        Toast.makeText(context, R.string.msg_reconnect_failed, Toast.LENGTH_SHORT).show()
+                        AppErrors.report(context, R.string.error_reconnect_failed)
                     }
                 } else {
                     _isReconnecting.value = false
@@ -556,7 +543,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                         reason = errorMessage,
                         failureType = failureType
                     )
-                    Toast.makeText(context, R.string.msg_reconnect_failed, Toast.LENGTH_SHORT).show()
+                    AppErrors.report(context, R.string.error_reconnect_failed)
                 }
             }
         }
@@ -619,6 +606,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         GalleryRepository.getInstance().reset()
         MediaStateHolder.clearAll()
         MediaCache.reset()
+        ResultThumbnails.clear()
         JobRegistry.clear()
         // Clear model cache and node registry
         _modelCache.value = ModelCache()
@@ -627,19 +615,6 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
 
     // WebSocket management
 
-    /**
-     * Open WebSocket connection with centralized event handling.
-     * Events are parsed and broadcast via [webSocketMessages] SharedFlow.
-     * @return true if connection attempt started
-     */
-    /**
-     * Brings the socket back for something the user just did.
-     *
-     * The socket used to be opened once at start-up and retried three times. If that burst failed
-     * -- phone still waking, tunnel not up yet -- nothing ever re-opened it, so the rest of the
-     * session ran with no progress, no preview and no completion events, while ordinary HTTP
-     * requests kept working and made the connection look healthy.
-     */
     fun ensureWebSocket(): Boolean {
         val state = _webSocketState.value
         if (state is WebSocketState.Connected || state is WebSocketState.Connecting) return true
@@ -650,6 +625,11 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         return openWebSocket()
     }
 
+    /**
+     * Open WebSocket connection with centralized event handling.
+     * Events are parsed and broadcast via [webSocketMessages] SharedFlow.
+     * @return true if connection attempt started
+     */
     fun openWebSocket(): Boolean {
         DebugLogger.d(TAG, "openWebSocket: called, currentState=${_webSocketState.value}")
         val client = _client ?: run {
@@ -699,29 +679,14 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                // Type alone said nothing: connect-refused, TLS, 401 and "socket closed" all looked
-                // the same, so every diagnosis turned into guesswork.
-                DebugLogger.e(
-                    TAG,
-                    "WebSocket connection failed: ${t::class.java.name}: ${t.message}" +
-                        (response?.let { " (HTTP ${it.code} ${it.message})" } ?: " (no response)")
-                )
+                DebugLogger.e(TAG, "WebSocket connection failed: ${t::class.simpleName}")
                 stopKeepalive()
-                // Move off "connecting" first. scheduleReconnect() skips while _isConnecting is
-                // set, so a failure on the very first attempt scheduled nothing and left the
-                // session on "connecting" for good -- no previews, no progress, no completion.
-                _isConnecting.value = false
-                _isReconnecting.value = false
-                if (_webSocketState.value !is WebSocketState.Connected) {
-                    _webSocketState.value = WebSocketState.Disconnected
-                }
                 scheduleReconnect()
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 DebugLogger.i(TAG, "WebSocket closed (code: $code)")
                 stopKeepalive()
-                _isConnecting.value = false
                 if (code != 1000) {
                     scheduleReconnect()
                 } else {
@@ -765,26 +730,21 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                     val node = data?.optString("node")
                     val isComplete = data?.isNull("node") == true
 
-                     if (isComplete && !promptId.isNullOrEmpty()) {
-                         DebugLogger.i(TAG, "WS: executing complete (promptId: ${Obfuscator.promptId(promptId)})")
-                         // Notify JobRegistry of completion (JobRegistry handles gallery refresh)
-                         JobRegistry.markCompleted(promptId)
-                         WebSocketMessage.ExecutionComplete(promptId)
-                     } else {
-                         if (!promptId.isNullOrEmpty()) lastExecutingPromptId = promptId
-                         WebSocketMessage.Executing(promptId, node)
-                     }
-                 }
-                 "progress" -> {
-                     val data = message.optJSONObject("data")
-                     val value = data?.optInt("value", 0) ?: 0
-                     val max = data?.optInt("max", 0) ?: 0
-                     // Newer servers echo the prompt id; older ones do not, so fall back to the
-                     // job that is currently executing rather than guessing from any queued job.
-                     val owner = data?.optString("prompt_id")?.takeIf { it.isNotBlank() }
-                         ?: lastExecutingPromptId
-                     if (max > 0) WebSocketMessage.Progress(value, max, owner) else null
-                 }
+                    if (isComplete && !promptId.isNullOrEmpty()) {
+                        DebugLogger.i(TAG, "WS: executing complete (promptId: ${Obfuscator.promptId(promptId)})")
+                        // Notify JobRegistry of completion (JobRegistry handles gallery refresh)
+                        JobRegistry.markCompleted(promptId)
+                        WebSocketMessage.ExecutionComplete(promptId)
+                    } else {
+                        WebSocketMessage.Executing(promptId, node)
+                    }
+                }
+                "progress" -> {
+                    val data = message.optJSONObject("data")
+                    val value = data?.optInt("value", 0) ?: 0
+                    val max = data?.optInt("max", 0) ?: 0
+                    if (max > 0) WebSocketMessage.Progress(value, max) else null
+                }
                 "execution_start" -> {
                     val data = message.optJSONObject("data")
                     val promptId = data?.optString("prompt_id") ?: ""
@@ -792,10 +752,6 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                     // Notify JobRegistry that this job is now executing
                     if (promptId.isNotEmpty()) {
                         JobRegistry.markExecuting(promptId)
-                        // Claim the step stream here rather than on the first `executing`: when a
-                        // queued job starts, any step still in flight belongs to this job, and a
-                        // stale id from the previous run made every update look foreign.
-                        lastExecutingPromptId = promptId
                     }
                     WebSocketMessage.ExecutionStart(promptId)
                 }
@@ -804,28 +760,32 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                     val promptId = data?.optString("prompt_id")
                     val errorMsg = data?.optString("exception_message", "Unknown error") ?: "Unknown error"
                     DebugLogger.e(TAG, "WS: execution_error (promptId: ${Obfuscator.promptId(promptId)})")
-                    // Notify JobRegistry of the failure, keeping which node raised it: a bare
-                    // "failed" leaves the user guessing which parameter to change.
+                    // Ours, before the registry forgets it; then notify JobRegistry of the failure
+                    val isOwn = !promptId.isNullOrEmpty() && JobRegistry.findOwner(promptId) != null
                     if (!promptId.isNullOrEmpty()) {
-                        JobRegistry.markFailed(
-                            promptId,
-                            JobFailure(
-                                promptId = promptId,
-                                ownerId = JobRegistry.findOwner(promptId),
-                                nodeId = data?.optString("node_id")?.takeIf { it.isNotEmpty() },
-                                nodeType = data?.optString("node_type")?.takeIf { it.isNotEmpty() },
-                                message = errorMsg
-                            )
-                        )
+                        JobRegistry.markFailed(promptId)
                     }
-                    WebSocketMessage.ExecutionError(promptId, errorMsg)
+                    val traceback = data?.optJSONArray("traceback")?.let { lines ->
+                        (0 until lines.length()).map { lines.optString(it) }
+                    }.orEmpty()
+                    WebSocketMessage.ExecutionError(
+                        promptId = promptId,
+                        message = errorMsg,
+                        nodeType = data?.optString("node_type")?.takeIf { it.isNotEmpty() },
+                        nodeId = data?.optString("node_id")?.takeIf { it.isNotEmpty() },
+                        exceptionType = data?.optString("exception_type")?.takeIf { it.isNotEmpty() },
+                        traceback = traceback,
+                        isOwn = isOwn
+                    )
                 }
                 "execution_success" -> {
                     val data = message.optJSONObject("data")
                     val promptId = data?.optString("prompt_id") ?: ""
                     DebugLogger.i(TAG, "WS: execution_success (promptId: ${Obfuscator.promptId(promptId)})")
-                    // Also notify JobRegistry - execution_success is another completion signal
+                    // Also notify JobRegistry - execution_success is another completion signal, and the only one
+                    // that means the job produced its results (it arrives before "executing" with no node)
                     if (promptId.isNotEmpty()) {
+                        JobRegistry.notifyReady(promptId)
                         JobRegistry.markCompleted(promptId)
                     }
                     WebSocketMessage.ExecutionSuccess(promptId)
@@ -842,6 +802,9 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                     val queueRemaining = execInfo?.optInt("queue_remaining") ?: 0
                     // Update JobRegistry with queue size
                     JobRegistry.updateFromStatus(queueRemaining)
+                    // More of our jobs waiting than the whole queue holds: some left it without us hearing (e.g. queued
+                    // before a restart); check them against the server's queue
+                    if (JobRegistry.queueState.value.ownActiveJobCount > queueRemaining) pollQueueStatus()
                     WebSocketMessage.Status(queueRemaining)
                 }
                 "previewing", "executed" -> null  // Don't emit for these types
@@ -854,7 +817,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                 scope.launch { _webSocketMessages.emit(it) }
             }
         } catch (e: Exception) {
-            DebugLogger.w(TAG, "WS: failed to parse message: ${e.message}")
+            DebugLogger.w(TAG, "WS: failed to parse message: ${Obfuscator.error(e)}")
         }
     }
 
@@ -870,7 +833,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
                     scope.launch { _webSocketMessages.emit(WebSocketMessage.PreviewImage(bitmap)) }
                 }
             } catch (e: Exception) {
-                DebugLogger.w(TAG, "WS: failed to decode preview: ${e.message}")
+                DebugLogger.w(TAG, "WS: failed to decode preview: ${Obfuscator.error(e)}")
             }
         }
     }
@@ -920,8 +883,7 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         reconnectAttempts++
         _webSocketState.value = WebSocketState.Reconnecting(reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
 
-        // Linear, capped: 2s, 4s, 6s ... 16s. The cap matters now that attempts run to eight --
-        // without it the last wait would be a pointless sixteen seconds plus.
+        // Linear delay: 2s, 4s, ..., capped at 16s
         val delayMs = (reconnectAttempts * 2000L).coerceAtMost(16_000L)
         val sessionId = reconnectionSessionId  // Capture current session
 
@@ -954,13 +916,13 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
 
             if (success) {
                 openWebSocket()
-            } else if (failureType == ConnectionFailure.AUTHENTICATION) {
-                // Auth failure - don't retry, notify UI immediately
-                DebugLogger.w(TAG, "Authentication failed during reconnection")
+            } else if (failureType == ConnectionFailure.AUTHENTICATION || failureType == ConnectionFailure.CERTIFICATE) {
+                // Auth or certificate failure - retrying won't help, the user decides on the login screen
+                DebugLogger.w(TAG, "Reconnection rejected: $failureType")
                 reconnectAttempts = MAX_RECONNECT_ATTEMPTS  // Prevent further retries
                 _webSocketState.value = WebSocketState.Failed(
                     reason = errorMessage,
-                    failureType = ConnectionFailure.AUTHENTICATION
+                    failureType = failureType
                 )
             } else {
                 // Network error - schedule retry
@@ -977,9 +939,9 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         val client = _client ?: return
         client.fetchQueue { queueJson ->
             if (queueJson != null) {
-                val running = queueJson.optJSONArray("queue_running")
-                val pending = queueJson.optJSONArray("queue_pending")
-                JobRegistry.updateFromServerQueue(running, pending, queueJson.optJSONObject("prompts"))
+                JobRegistry.updateFromServerQueue(QueueSnapshot.parse(queueJson))
+                // Stale jobs dropped here mustn't come back at the next start
+                _applicationContext?.let { JobRegistry.saveState(it) }
             }
         }
     }
@@ -990,96 +952,46 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
      * Fetch server data (node types and model lists) from /object_info.
      * Called automatically on connection and can be triggered manually via [refreshServerData].
      */
-    private var refreshEpoch = 0L
-    private val refreshLock = Any()
-
     private fun fetchServerData() {
-        val client = _client ?: return
-        val serverId = currentServerId
-        val epoch = synchronized(refreshLock) {
-            refreshEpoch += 1
-            _modelCache.value = _modelCache.value.copy(isLoading = true, lastError = null,
-                nodeDefinitionsLoading = true, nodeDefinitionsError = null,
-                fileRefreshStatus = "模型文件：加载中", nodeRefreshStatus = "节点定义：加载中（独立长超时）")
-            refreshEpoch
+        val client = _client ?: run {
+            DebugLogger.w(TAG, "fetchServerData: Client not available")
+            return
         }
-        val successfulFileFolders = mutableSetOf<String>()
-        var loadedNodeModels: ModelCache? = null
-        val ticket = RefreshTicket(epoch, client, serverId)
-        fun current() = ticket.matches(refreshEpoch, _client, currentServerId)
-        // Folder requests run independently: a slow node registry cannot prevent them.
-        client.fetchModelFolderResult directoryResult@ { directories ->
-            synchronized(refreshLock) { if (!current()) return@directoryResult }
-            val folders = listOf("checkpoints", "diffusion_models", "vae", "text_encoders", "loras")
-            var completed = 0
-            var failed = 0
-            DebugLogger.i(TAG, "Model directory discovery result=${if(directories.isSuccess) "success" else "fallback-known-folders"}")
-            for (folder in folders) {
-                client.fetchModelFolderResult(folder) folderResult@ { result ->
-                    synchronized(refreshLock) {
-                        if (!current()) return@folderResult
-                        completed++
-                        if (result.isFailure) failed++
-                        var cache = _modelCache.value
-                        if (result.isSuccess) successfulFileFolders.add(folder)
-                        val fallback = loadedNodeModels?.let { models -> when(folder) {
-                            "checkpoints" -> models.checkpoints
-                            "diffusion_models" -> models.unets
-                            "vae" -> models.vaes
-                            "text_encoders" -> models.clips
-                            else -> models.loras
-                        } }
-                        (result.getOrNull() ?: fallback)?.let { files ->
-                            if (result.isFailure) DebugLogger.i(TAG, "Model folder fallback source=node-definition-options folder=$folder count=${files.size}")
-                            cache = when(folder) {
-                                "checkpoints" -> cache.copy(checkpoints = files)
-                                "diffusion_models" -> cache.copy(unets = files)
-                                "vae" -> cache.copy(vaes = files)
-                                "text_encoders" -> cache.copy(clips = files, textEncoders = files)
-                                else -> cache.copy(loras = files)
-                            }
-                        }
-                        _modelCache.value = cache.copy(isLoaded = cache.isLoaded || result.isSuccess,
-                            isLoading = completed < folders.size,
-                            lastError = if(failed > 0) "部分模型文件请求失败（$failed）" else null,
-                            fileRefreshStatus = "模型文件：$completed/${folders.size} 已完成，$failed 项失败")
-                    }
-                }
-            }
-        }
-        client.fetchFullObjectInfo { info ->
-            synchronized(refreshLock) {
-                if (!current()) return@fetchFullObjectInfo
-                if (info == null) {
-                    _modelCache.value = _modelCache.value.copy(nodeDefinitionsLoading = false,
-                        nodeDefinitionsError = "节点定义请求失败或超时，模型文件刷新独立继续",
-                        nodeRefreshStatus = "节点定义：失败/超时（查看日志）")
-                } else {
-                    try {
-                        nodeTypeRegistry.parseObjectInfo(info)
-                        _applicationContext?.let { ctx -> serverId?.let { ObjectInfoCache.saveObjectInfo(ctx, it, info) } }
-                        val nodes = extractModelLists()
-                        loadedNodeModels = nodes
-                        val cache = _modelCache.value
-                        _modelCache.value = cache.copy(
-                            checkpoints = if ("checkpoints" in successfulFileFolders) cache.checkpoints else nodes.checkpoints,
-                            unets = if ("diffusion_models" in successfulFileFolders) cache.unets else nodes.unets,
-                            vaes = if ("vae" in successfulFileFolders) cache.vaes else nodes.vaes,
-                            clips = if ("text_encoders" in successfulFileFolders) cache.clips else nodes.clips,
-                            textEncoders = if ("text_encoders" in successfulFileFolders) cache.textEncoders else nodes.textEncoders,
-                            loras = if ("loras" in successfulFileFolders) cache.loras else nodes.loras,
-                            isLoaded = true,
-                            samplers = nodes.samplers, schedulers = nodes.schedulers,
-                            upscaleMethods = nodes.upscaleMethods, latentUpscaleModels = nodes.latentUpscaleModels,
-                            nodeDefinitionsRevision = cache.nodeDefinitionsRevision + 1,
-                            nodeDefinitionsLoading = false, nodeDefinitionsError = null,
-                            nodeRefreshStatus = "节点定义：已加载 ${info.length()} 类")
-                    } catch (error: Exception) {
-                        DebugLogger.w(TAG, "Node definitions parse type=${error.javaClass.simpleName}")
-                        _modelCache.value = _modelCache.value.copy(nodeDefinitionsLoading = false,
-                            nodeDefinitionsError = "节点定义解析失败", nodeRefreshStatus = "节点定义：解析失败")
-                    }
-                }
+
+        DebugLogger.i(TAG, "Fetching server data from /object_info")
+        _modelCache.value = _modelCache.value.copy(
+            isLoading = true, lastError = null,
+            nodeDefinitionsLoading = true, nodeDefinitionsError = null
+        )
+
+        client.fetchFullObjectInfo { objectInfo ->
+            val ctx = _applicationContext
+            val serverId = currentServerId
+            // Cache object_info to disk for offline mode, then parse node definitions for the
+            // workflow editor from that copy, so the response is never held in memory as a whole
+            val loaded = objectInfo != null && ctx != null && serverId != null &&
+                    ObjectInfoCache.saveObjectInfo(ctx, serverId, objectInfo, nodeTypeRegistry::parseObjectInfo)
+
+            if (loaded) {
+                // Extract model lists for generation screens (field-name-based discovery)
+                val models = extractModelLists()
+                _modelCache.value = models.copy(
+                    isLoaded = true, isLoading = false,
+                    // The H3 panel keys its options off this revision: it moves once per parsed /object_info
+                    nodeDefinitionsRevision = models.nodeDefinitionsRevision + 1,
+                    nodeDefinitionsLoading = false, nodeDefinitionsError = null
+                )
+                DebugLogger.i(TAG, "Server data loaded: ${models.checkpoints.size} checkpoints, " +
+                        "${models.unets.size} unets, ${models.vaes.size} vaes, " +
+                        "${models.clips.size} clips, ${models.loras.size} loras")
+            } else {
+                DebugLogger.w(TAG, "Failed to fetch server data")
+                _modelCache.value = _modelCache.value.copy(
+                    isLoading = false,
+                    lastError = "Failed to fetch server data",
+                    nodeDefinitionsLoading = false,
+                    nodeDefinitionsError = "节点定义请求失败或超时，模型文件刷新独立继续"
+                )
             }
         }
     }
@@ -1113,8 +1025,8 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
             return false
         }
 
-        val objectInfo = ObjectInfoCache.loadObjectInfo(context, serverId)
-        if (objectInfo == null) {
+        // Parse node definitions for workflow editor
+        if (!ObjectInfoCache.loadObjectInfo(context, serverId, nodeTypeRegistry::parseObjectInfo)) {
             DebugLogger.e(TAG, "Failed to load offline cache for server: $serverId")
             return false
         }
@@ -1125,13 +1037,14 @@ private const val MAX_RECONNECT_ATTEMPTS = 8
         // Set offline connected state so currentServerId is available
         _connectionState.value = ConnectionState.OfflineConnected(serverId = serverId)
 
-        // Parse node definitions for workflow editor
-        nodeTypeRegistry.parseObjectInfo(objectInfo)
-
         // Extract model lists for generation screens
         val models = extractModelLists()
-        _modelCache.value = models.copy(isLoaded = true, isLoading = false,
-            fileRefreshStatus = "模型文件：离线缓存", nodeRefreshStatus = "节点定义：离线缓存已加载")
+        _modelCache.value = models.copy(
+            isLoaded = true, isLoading = false,
+            // Same revision move as a live fetch: the H3 panel reads definitions from this cache
+            nodeDefinitionsRevision = models.nodeDefinitionsRevision + 1,
+            nodeDefinitionsLoading = false, nodeDefinitionsError = null
+        )
 
         DebugLogger.i(TAG, "Offline cache loaded: ${models.checkpoints.size} checkpoints, " +
                 "${models.unets.size} unets, ${models.vaes.size} vaes, " +

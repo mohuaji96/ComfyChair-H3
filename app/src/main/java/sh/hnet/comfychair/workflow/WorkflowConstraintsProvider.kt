@@ -6,6 +6,7 @@ import org.json.JSONObject
 import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.Obfuscator
 
 /**
  * Provides numeric constraints for workflow fields by looking up the actual
@@ -32,7 +33,8 @@ object WorkflowConstraintsProvider {
         "cfg" to NumericConstraints(0f, 100f, 0.1f, 1),
         "width" to NumericConstraints(16f, 16384f, 8f, 0),
         "height" to NumericConstraints(16f, 16384f, 8f, 0),
-        "length" to NumericConstraints(1f, 1024f, 4f, 0),
+        // ComfyUI's video latent nodes allow up to 16384 frames
+        "length" to NumericConstraints(1f, 16384f, 4f, 0),
         "frame_rate" to NumericConstraints(1f, 60f, 1f, 0),
         "fps" to NumericConstraints(1f, 60f, 1f, 0),
         "megapixels" to NumericConstraints(0.01f, 16f, 0.01f, 2),
@@ -73,7 +75,7 @@ object WorkflowConstraintsProvider {
         val decimalPlaces = DECIMAL_PLACES[fieldKey] ?: 0
         val fallbackWithDecimals = fallback.copy(decimalPlaces = decimalPlaces)
 
-        DebugLogger.d(TAG, "Looking up constraints: field='$fieldKey', workflow='$workflowName'")
+        DebugLogger.d(TAG, "Looking up constraints: field='$fieldKey', workflow=${Obfuscator.workflowName(workflowName)}")
 
         // Get workflow JSON
         val workflow = WorkflowManager.getWorkflowByName(workflowName)
@@ -82,10 +84,11 @@ object WorkflowConstraintsProvider {
             return fallbackWithDecimals
         }
 
+        // The nodes that run: a placeholder's node may be inside a subgraph
         val json = try {
-            JSONObject(workflow.jsonContent)
+            JSONObject(Subgraphs.flattenJson(workflow.jsonContent))
         } catch (e: Exception) {
-            DebugLogger.w(TAG, "  -> Failed to parse workflow JSON: ${e.message}")
+            DebugLogger.w(TAG, "  -> Failed to parse workflow JSON: ${Obfuscator.error(e)}")
             return fallbackWithDecimals
         }
 

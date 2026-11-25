@@ -19,6 +19,7 @@ object TemplateKeyRegistry {
         "ckpt_name" to "ckpt_name",
         "unet_name" to "unet_name",
         "vae_name" to "vae_name",
+        "audio_vae_name" to "vae_name",
         "clip_name" to "clip_name",
         "clip_name1" to "clip_name1",
         "clip_name2" to "clip_name2",
@@ -38,6 +39,7 @@ object TemplateKeyRegistry {
         "length" to "length",
         "frame_rate" to "fps",
         "image_filename" to "image",
+        "video_filename" to "video",
         "seed" to "seed",
         "denoise" to "denoise",
         "batch_size" to "batch_size",
@@ -76,6 +78,7 @@ object TemplateKeyRegistry {
         "length" to "length",
         "fps" to "frame_rate",
         "image" to "image_filename",
+        "video" to "video_filename",
         "seed" to "seed",
         "denoise" to "denoise",
         "batch_size" to "batch_size",
@@ -102,11 +105,12 @@ object TemplateKeyRegistry {
      * These are the minimum fields needed for a workflow to function.
      */
     private val REQUIRED_KEYS_BY_TYPE: Map<WorkflowType, Set<String>> = mapOf(
-        WorkflowType.TTI to setOf("positive_text"),
-        WorkflowType.ITI_INPAINTING to setOf("positive_text", "image"),
-        WorkflowType.ITI_EDITING to setOf("positive_text", "image"),
-        WorkflowType.TTV to setOf("positive_text"),
-        WorkflowType.ITV to setOf("positive_text", "image")
+        WorkflowType.TTI to emptySet(),
+        WorkflowType.ITI_INPAINTING to setOf("image"),
+        WorkflowType.ITI_EDITING to setOf("image"),
+        WorkflowType.TTV to emptySet(),
+        WorkflowType.ITV to setOf("image"),
+        WorkflowType.V2V to setOf("video")
     )
 
     /**
@@ -114,7 +118,7 @@ object TemplateKeyRegistry {
      * Field visibility is determined by WorkflowDefaults capability flags at runtime.
      */
     private val UNIVERSAL_OPTIONAL_KEYS: Set<String> = setOf(
-        "negative_text", "ckpt_name", "unet_name", "vae_name",
+        "positive_text", "negative_text", "ckpt_name", "unet_name", "vae_name",
         "clip_name", "clip_name1", "clip_name2", "clip_name3", "clip_name4",
         "width", "height", "steps", "cfg", "sampler_name", "scheduler",
         "megapixels", "lora_name",
@@ -122,7 +126,7 @@ object TemplateKeyRegistry {
         "highnoise_lora_name", "lownoise_lora_name",
         "length", "fps",
         "seed", "denoise", "batch_size", "upscale_method", "scale_by", "stop_at_clip_layer",
-        "text_encoder_name", "latent_upscale_model"
+        "text_encoder_name", "latent_upscale_model", "audio_vae_name"
     )
 
     /**
@@ -134,7 +138,8 @@ object TemplateKeyRegistry {
         WorkflowType.ITI_INPAINTING to UNIVERSAL_OPTIONAL_KEYS,
         WorkflowType.ITI_EDITING to UNIVERSAL_OPTIONAL_KEYS,
         WorkflowType.TTV to UNIVERSAL_OPTIONAL_KEYS,
-        WorkflowType.ITV to UNIVERSAL_OPTIONAL_KEYS
+        WorkflowType.ITV to UNIVERSAL_OPTIONAL_KEYS,
+        WorkflowType.V2V to UNIVERSAL_OPTIONAL_KEYS
     )
 
     /**
@@ -186,6 +191,45 @@ object TemplateKeyRegistry {
      */
     fun getJsonKeyForPlaceholder(placeholder: String): String {
         return PLACEHOLDER_TO_KEY[placeholder] ?: placeholder
+    }
+
+    /**
+     * Literal input values the app replaces at generation time, just like {{placeholders}}.
+     * Built-in inpainting and editing workflows use these instead of {{image_filename}}.
+     */
+    private val GENERATION_MARKERS = setOf(
+        "uploaded_image.png [input]",
+        "reference_image_1.png [input]",
+        "reference_image_2.png [input]"
+    )
+
+    /**
+     * Check if an input value is filled in by the app at generation time ({{placeholder}} or image
+     * marker). Such inputs must not be editable in the Workflow Editor, and saved node attribute
+     * edits must not override them, or e.g. a stale filename would replace every freshly uploaded image.
+     */
+    fun isAppManagedValue(value: Any?): Boolean {
+        val str = value as? String ?: return false
+        return (str.contains("{{") && str.contains("}}")) || str in GENERATION_MARKERS
+    }
+
+    // Input keys holding the text of primitive String nodes (e.g. PrimitiveStringMultiline "value")
+    private val PRIMITIVE_TEXT_KEYS = listOf("value", "string", "text")
+
+    /**
+     * Returns the input key holding the text if the node is a primitive String node, e.g.
+     * "String (Multiline)" feeding one prompt to several text encoders. A prompt mapped to it
+     * reaches all of them, instead of replacing the link of a single encoder.
+     *
+     * @param classType Node class type
+     * @param inputs Input values of the node; links are represented by [isLink]
+     * @param isLink Whether an input value is a link to another node
+     */
+    fun primitiveTextKey(classType: String, inputs: Map<String, Any?>, isLink: (Any?) -> Boolean): String? {
+        if (!classType.contains("String", ignoreCase = true)) return null
+        // A primitive only holds literals; nodes processing strings (concatenate, replace) have links
+        if (inputs.values.any(isLink)) return null
+        return PRIMITIVE_TEXT_KEYS.firstOrNull { inputs[it] is String }
     }
 
     /**
@@ -281,7 +325,9 @@ object TemplateKeyRegistry {
      * This supports nodes like RandomNoise that use "noise_seed" instead of "seed".
      */
     private val ALTERNATIVE_INPUT_KEYS: Map<String, Set<String>> = mapOf(
-        "seed" to setOf("seed", "noise_seed")
+        "seed" to setOf("seed", "noise_seed"),
+        // VHS_LoadVideo's file is "video", ComfyUI's LoadVideo's "file"
+        "video" to setOf("video", "file")
     )
 
     /**
@@ -293,6 +339,10 @@ object TemplateKeyRegistry {
      * @param inputKey The actual input key from the node (e.g., "unet_name")
      * @return true if the input key corresponds to this field
      */
+    /** Every node input name that can hold a field: its own and the alternatives (e.g. LoadVideo's "file"). */
+    fun inputKeysForField(fieldKey: String): Set<String> =
+        setOf(getJsonKeyForPlaceholder(fieldKey)) + ALTERNATIVE_INPUT_KEYS[fieldKey].orEmpty()
+
     fun doesInputKeyMatchField(fieldKey: String, inputKey: String): Boolean {
         val expectedJsonKey = getJsonKeyForPlaceholder(fieldKey)
         // Check primary key match
@@ -314,10 +364,13 @@ object TemplateKeyRegistry {
         // For highnoise/lownoise variants, we need to check the specific placeholder
         // to distinguish between them (both map to the same JSON key like "unet_name")
         return when {
-            fieldKey.startsWith("highnoise_") || fieldKey.startsWith("lownoise_") -> {
+            // Likewise the audio VAE, a second "vae_name" next to the video VAE
+            fieldKey.startsWith("highnoise_") || fieldKey.startsWith("lownoise_") || fieldKey == "audio_vae_name" -> {
                 val placeholderPattern = "{{$fieldKey}}"
                 inputValue?.toString()?.contains(placeholderPattern) ?: false
             }
+            // The source video is a file name: "video" is also the name of VIDEO links between nodes
+            fieldKey == "video" -> inputValue is String
             // For all other fields, accept any node with the correct JSON input key
             else -> true
         }

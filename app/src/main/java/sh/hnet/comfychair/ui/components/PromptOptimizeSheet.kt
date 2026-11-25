@@ -62,6 +62,7 @@ fun PromptOptimizeSheet(
     libraryPrompt: String,
     onDismiss: () -> Unit,
     onCopy: (String) -> Unit,
+    onApply: ((String) -> Unit)? = null,
     viewModel: PromptOptimizerViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -280,11 +281,24 @@ fun PromptOptimizeSheet(
                         enabled = !state.running,
                         modifier = Modifier.weight(1f)
                     ) { Text("再来一次") }
-                    Button(
-                        onClick = { onCopy(resultDraft) },
-                        enabled = resultDraft.isNotBlank(),
-                        modifier = Modifier.weight(1f)
-                    ) { Text("复制") }
+                    if (onApply != null) {
+                        OutlinedButton(
+                            onClick = { onCopy(resultDraft) },
+                            enabled = resultDraft.isNotBlank(),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("复制") }
+                        Button(
+                            onClick = { onApply(resultDraft) },
+                            enabled = resultDraft.isNotBlank(),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("填入提示词") }
+                    } else {
+                        Button(
+                            onClick = { onCopy(resultDraft) },
+                            enabled = resultDraft.isNotBlank(),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("复制") }
+                    }
                 }
             }
         }

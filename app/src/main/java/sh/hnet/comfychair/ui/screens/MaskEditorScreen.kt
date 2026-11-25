@@ -29,9 +29,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,7 +65,7 @@ fun MaskEditorScreen(
     var showBrushSizePopup by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim)) {
         // Canvas fills entire screen
         MaskPaintCanvas(
             sourceImage = sourceImage,
@@ -152,20 +151,18 @@ fun MaskEditorScreen(
                                 text = "${stringResource(R.string.label_brush_size)}: ${brushSize.toInt()}",
                                 style = MaterialTheme.typography.bodyMedium
                             )
+                            val brushState = remember { SliderState(trackRange = 20f..200f) }
+                            brushState.value = brushSize
                             Slider(
-                                value = brushSize,
+                                state = brushState,
                                 onValueChange = {
                                     MaskEditorStateHolder.updateBrushSize(it)
                                     MaskEditorStateHolder.onBrushSizeChange?.invoke(it)
-                                },
-                                valueRange = 20f..200f
+                                }
                             )
                         }
                     }
                 }
-
-                // Vertical Divider
-                VerticalDivider(modifier = Modifier.padding(horizontal = 8.dp))
 
                 // More menu (Clear and Invert)
                 Box {

@@ -38,6 +38,7 @@ data class WorkflowValues(
     val clip4Model: String? = null,  // For multi-CLIP slot 4
     val textEncoderModel: String? = null,  // Text encoder ({{text_encoder_name}})
     val latentUpscaleModel: String? = null,  // Latent upscale model ({{latent_upscale_model}})
+    val audioVaeModel: String? = null,  // Audio VAE ({{audio_vae_name}})
     val highnoiseUnetModel: String? = null,
     val lownoiseUnetModel: String? = null,
     val highnoiseLoraModel: String? = null,
@@ -58,7 +59,10 @@ data class WorkflowValues(
     val batchSize: Int? = null,
     val upscaleMethod: String? = null,
     val scaleBy: Float? = null,
-    val stopAtClipLayer: Int? = null
+    val stopAtClipLayer: Int? = null,
+
+    // Custom fields' values, as text by field ID (spec §18)
+    val customValues: Map<String, String>? = null
 ) {
     companion object {
         fun fromJson(jsonString: String): WorkflowValues {
@@ -85,6 +89,7 @@ data class WorkflowValues(
                 clip4Model = json.optString("clip4Model").takeIf { it.isNotEmpty() },
                 textEncoderModel = json.optString("textEncoderModel").takeIf { it.isNotEmpty() },
                 latentUpscaleModel = json.optString("latentUpscaleModel").takeIf { it.isNotEmpty() },
+                audioVaeModel = json.optString("audioVaeModel").takeIf { it.isNotEmpty() },
                 highnoiseUnetModel = json.optString("highnoiseUnetModel").takeIf { it.isNotEmpty() },
                 lownoiseUnetModel = json.optString("lownoiseUnetModel").takeIf { it.isNotEmpty() },
                 highnoiseLoraModel = json.optString("highnoiseLoraModel").takeIf { it.isNotEmpty() },
@@ -99,7 +104,10 @@ data class WorkflowValues(
                 batchSize = json.optInt("batchSize").takeIf { it > 0 },
                 upscaleMethod = json.optString("upscaleMethod").takeIf { it.isNotEmpty() },
                 scaleBy = json.optDouble("scaleBy").takeIf { !it.isNaN() }?.toFloat(),
-                stopAtClipLayer = json.optInt("stopAtClipLayer", 0).takeIf { it != 0 }
+                stopAtClipLayer = json.optInt("stopAtClipLayer", 0).takeIf { it != 0 },
+                customValues = json.optJSONObject("customValues")?.let { values ->
+                    values.keys().asSequence().associateWith { values.optString(it) }
+                }?.takeIf { it.isNotEmpty() }
             )
         }
 
@@ -126,6 +134,7 @@ data class WorkflowValues(
                 values.clip4Model?.let { put("clip4Model", it) }
                 values.textEncoderModel?.let { put("textEncoderModel", it) }
                 values.latentUpscaleModel?.let { put("latentUpscaleModel", it) }
+                values.audioVaeModel?.let { put("audioVaeModel", it) }
                 values.highnoiseUnetModel?.let { put("highnoiseUnetModel", it) }
                 values.lownoiseUnetModel?.let { put("lownoiseUnetModel", it) }
                 values.highnoiseLoraModel?.let { put("highnoiseLoraModel", it) }
@@ -141,6 +150,9 @@ data class WorkflowValues(
                 values.upscaleMethod?.let { put("upscaleMethod", it) }
                 values.scaleBy?.let { put("scaleBy", it.toDouble()) }
                 values.stopAtClipLayer?.let { put("stopAtClipLayer", it) }
+                values.customValues?.takeIf { it.isNotEmpty() }?.let { custom ->
+                    put("customValues", JSONObject().apply { custom.forEach { (id, value) -> put(id, value) } })
+                }
             }.toString()
         }
     }

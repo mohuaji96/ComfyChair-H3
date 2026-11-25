@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filled state of the prompt library icon: solid bookmark with the star cut out,
+     so the AI badge survives while the tint is a single colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillType="evenOdd"
+        android:fillColor="#FF000000"
+        android:pathData="M17,3H7C5.9,3 5,3.9 5,5v16l7,-3 7,3V5c0,-1.1 -0.9,-2 -2,-2zM12,7.2Q12.8,9.7 15.2,10.4Q12.8,11.1 12,13.6Q11.2,11.1 8.8,10.4Q11.2,9.7 12,7.2z" />
+</vector>

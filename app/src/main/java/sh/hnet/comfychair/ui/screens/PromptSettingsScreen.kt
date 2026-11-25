@@ -36,7 +36,6 @@ import sh.hnet.comfychair.ui.components.SettingsRowDivider
 import sh.hnet.comfychair.ui.components.SettingsSectionLabel
 import sh.hnet.comfychair.ui.components.SettingsSegmented
 import sh.hnet.comfychair.ui.components.SettingsPrimaryButton
-import sh.hnet.comfychair.ui.components.SettingsScreenScaffold
 import sh.hnet.comfychair.viewmodel.PromptOptimizerViewModel
 import java.util.Locale
 
@@ -79,10 +78,9 @@ fun PromptSettingsScreen(
         templateVersion++
     }
 
-    SettingsScreenScaffold(
+    SettingsDetailScaffold(
         title = "提示词优化",
-        onNavigateToGeneration = onNavigateToGeneration,
-        onLogout = onLogout
+        onBack = onNavigateToGeneration
     ) {
         Spacer(Modifier.height(4.dp))
 
@@ -98,7 +96,7 @@ fun PromptSettingsScreen(
                 onClick = onOpenProviders,
                 modifier = Modifier.fillMaxWidth()
             )
-            return@SettingsScreenScaffold
+            return@SettingsDetailScaffold
         }
 
         SettingsSectionLabel("当前使用")

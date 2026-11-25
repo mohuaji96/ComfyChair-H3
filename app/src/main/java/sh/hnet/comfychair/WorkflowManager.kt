@@ -1,26 +1,34 @@
 package sh.hnet.comfychair
 
+import sh.hnet.comfychair.model.CustomFields
+import sh.hnet.comfychair.model.CustomField
 import android.content.Context
+import java.io.File
+import java.io.InputStream
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.NodeAttributeEdits
 import sh.hnet.comfychair.model.WorkflowDefaults
+import sh.hnet.comfychair.model.WorkflowValues
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.WorkflowValuesStorage
-import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.BypassNodeResolver
+import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.LoraInjectionUtils
-import sh.hnet.comfychair.util.WorkflowJsonAnalyzer
 import sh.hnet.comfychair.util.Obfuscator
 import sh.hnet.comfychair.util.UuidUtils
 import sh.hnet.comfychair.util.ValidationUtils
+import sh.hnet.comfychair.util.WorkflowJsonAnalyzer
+import sh.hnet.comfychair.viewmodel.base.GenerationParams
+import sh.hnet.comfychair.viewmodel.base.ModelSlot
+import sh.hnet.comfychair.workflow.ComfyUiExporter
+import sh.hnet.comfychair.workflow.Subgraphs
 import sh.hnet.comfychair.workflow.TemplateKeyRegistry
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
-import java.io.InputStream
+import sh.hnet.comfychair.workflow.WorkflowGraphPreparation
 
 /**
  * Workflow types supported by ComfyChair
@@ -30,7 +38,8 @@ enum class WorkflowType {
     ITI_INPAINTING,   // Image-to-Image Inpainting
     ITI_EDITING,      // Image-to-Image Editing
     TTV,              // Text-to-Video
-    ITV               // Image-to-Video
+    ITV,              // Image-to-Video
+    V2V               // Video-to-Video
 }
 
 /**
@@ -47,7 +56,8 @@ object WorkflowTypeDisplay {
         WorkflowType.ITI_INPAINTING to R.string.workflow_section_iti_inpainting,
         WorkflowType.ITI_EDITING to R.string.workflow_section_iti_editing,
         WorkflowType.TTV to R.string.workflow_section_ttv,
-        WorkflowType.ITV to R.string.workflow_section_itv
+        WorkflowType.ITV to R.string.workflow_section_itv,
+        WorkflowType.V2V to R.string.workflow_section_v2v
     )
 
     /**
@@ -82,15 +92,15 @@ sealed class WorkflowValidationResult {
 object WorkflowManager {
 
     private const val TAG = "Workflow"
-    /** Last quick-parameter preflight failure. Null if the latest preparation was safe. */
-    @Volatile var lastQuickParameterError: String? = null
-        private set
     private const val USER_WORKFLOWS_PREFS = "UserWorkflowsPrefs"
     private const val USER_WORKFLOWS_KEY = "user_workflows_json"
     private const val USER_WORKFLOWS_DIR = "user_workflows"
 
     // Workflow data class
-    /** Independent library: H3 templates never appear in the ordinary generation screens. */
+    /**
+     * Independent library: H3 templates, kept apart from the ordinary generation screens when a caller asks for them.
+     * Upstream has one library, so [getAllWorkflows] without a space still returns everything (unchanged).
+     */
     enum class WorkflowSpace { NORMAL, H3 }
 
     data class Workflow(
@@ -102,7 +112,13 @@ object WorkflowManager {
         val isBuiltIn: Boolean,
         val defaults: WorkflowDefaults = WorkflowDefaults(),
         val space: WorkflowSpace = WorkflowSpace.NORMAL
-    )
+    ) {
+        /** Fields the user made from node values (spec §18), read from the workflow's wrapper. */
+        val customFields: List<CustomField> by lazy { CustomFields.fieldsOf(jsonContent) }
+
+        /** The workflow's own labels for its built-in fields, by field key. */
+        val fieldLabels: Map<String, String> by lazy { CustomFields.labelsOf(jsonContent) }
+    }
 
     // Context initialization
     private lateinit var applicationContext: Context
@@ -132,7 +148,6 @@ object WorkflowManager {
     }
 
     // Constants - delegate to WorkflowJsonAnalyzer
-    val REQUIRED_PLACEHOLDERS get() = WorkflowJsonAnalyzer.REQUIRED_PLACEHOLDERS
     val REQUIRED_PATTERNS get() = WorkflowJsonAnalyzer.REQUIRED_PATTERNS
     val PREFIX_TO_TYPE get() = WorkflowJsonAnalyzer.PREFIX_TO_TYPE
 
@@ -152,7 +167,6 @@ object WorkflowManager {
         workflows.clear()
         loadBuiltInWorkflows()
         loadUserWorkflows()
-        retagSpaces()
         disabledWorkflowIds = AppSettings.getDisabledWorkflowIds(
             applicationContext,
             workflows.filter { it.isBuiltIn }.map { it.id }
@@ -190,31 +204,13 @@ object WorkflowManager {
         _workflowsVersion.value++
     }
 
-    /** H3 is decided by content, never by where the file happens to live. */
-    private fun spaceOf(jsonContent: String, type: WorkflowType): WorkflowSpace {
-        val byContent = runCatching {
-            sh.hnet.comfychair.workflow.H3Plan.resolve(jsonContent) != null
-        }.getOrDefault(false)
-        if (byContent) return WorkflowSpace.H3
-        // Space is content-derived; the declared type never moves a workflow between libraries.
-        return WorkflowSpace.NORMAL
-    }
-
-    /** Re-derives the space of user workflows; built-ins keep the space from their resource. */
-    private fun retagSpaces() {
-        for (i in workflows.indices) {
-            val w = workflows[i]
-            if (w.isBuiltIn) continue
-            val space = spaceOf(w.jsonContent, w.type)
-            if (space != w.space) workflows[i] = w.copy(space = space)
-        }
-    }
-
     /**
-     * Reload all workflows (call after adding/deleting user workflows)
+     * Reload all workflows from disk (after a backup restore, a reset, or a save in the editor); the screens follow
+     * through [workflowsVersion].
      */
     fun reloadWorkflows() {
         loadAllWorkflows()
+        _workflowsVersion.value++
     }
 
     /**
@@ -244,13 +240,12 @@ object WorkflowManager {
 
                 // Generate deterministic UUID from resource name
                 val id = UuidUtils.generateDeterministicId(resourceName)
-
-                val space = if (resourceName.contains("h3", ignoreCase = true))
+                val space = if (resourceName.contains("_h3_mobile_", ignoreCase = true))
                     WorkflowSpace.H3 else WorkflowSpace.NORMAL
-                workflows.add(
-                    Workflow(id, name, description, jsonContent, type, isBuiltIn = true, defaults, space))
+
+                workflows.add(Workflow(id, name, description, jsonContent, type, isBuiltIn = true, defaults, space))
             } catch (e: Exception) {
-                // Failed to load workflow
+                DebugLogger.e(TAG, "Built-in workflow could not be loaded: ${e.javaClass.simpleName}")
             }
         }
     }
@@ -279,10 +274,18 @@ object WorkflowManager {
                 }
             }
         } catch (e: Exception) {
-            // Reflection failed, return empty list
+            DebugLogger.e(TAG, "Built-in workflows could not be listed: ${e.javaClass.simpleName}")
         }
 
         return resources
+    }
+
+    /** H3 is decided by content for user workflows; built-ins keep the space from their resource. */
+    private fun spaceOf(jsonContent: String): WorkflowSpace {
+        val byContent = runCatching {
+            sh.hnet.comfychair.workflow.H3Plan.resolve(jsonContent) != null
+        }.getOrDefault(false)
+        return if (byContent) WorkflowSpace.H3 else WorkflowSpace.NORMAL
     }
 
     /**
@@ -292,11 +295,17 @@ object WorkflowManager {
         val prefs = applicationContext.getSharedPreferences(USER_WORKFLOWS_PREFS, Context.MODE_PRIVATE)
         val metadataJson = prefs.getString(USER_WORKFLOWS_KEY, null) ?: return
 
-        try {
-            val metadataArray = JSONArray(metadataJson)
-            val dir = File(applicationContext.filesDir, USER_WORKFLOWS_DIR)
+        val metadataArray = try {
+            JSONArray(metadataJson)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "User workflow list could not be read: ${e.javaClass.simpleName}")
+            return
+        }
+        val dir = File(applicationContext.filesDir, USER_WORKFLOWS_DIR)
 
-            for (i in 0 until metadataArray.length()) {
+        // Each workflow on its own, so one broken entry doesn't hide the others
+        for (i in 0 until metadataArray.length()) {
+            try {
                 val metadata = metadataArray.getJSONObject(i)
                 val id = metadata.getString("id")
                 val name = metadata.getString("name")
@@ -309,12 +318,15 @@ object WorkflowManager {
                 } catch (e: Exception) {
                     // Old-format workflow types (TTI_CHECKPOINT, TTI_UNET, ITI_CHECKPOINT, ITI_UNET, ITE_UNET, TTV_UNET, ITV_UNET)
                     // are no longer supported. These workflows will be silently skipped.
-                    DebugLogger.w(TAG, "Skipping workflow '$name': unsupported type '$typeStr' (old format)")
+                    DebugLogger.w(TAG, "Skipping workflow ${Obfuscator.workflowName(name)}: unsupported type '$typeStr' (old format)")
                     continue
                 }
 
                 val file = File(dir, filename)
-                if (!file.exists()) continue
+                if (!file.exists()) {
+                    DebugLogger.w(TAG, "Skipping workflow ${Obfuscator.workflowName(name)}: file missing")
+                    continue
+                }
 
                 val jsonContent = file.readText()
                 val jsonObject = try {
@@ -324,12 +336,10 @@ object WorkflowManager {
                 }
                 val defaults = WorkflowDefaults.fromJson(jsonObject?.optJSONObject("defaults"))
 
-                workflows.add(
-                    Workflow(id, name, description, jsonContent, type, isBuiltIn = false, defaults,
-                        spaceOf(jsonContent, type)))
+                workflows.add(Workflow(id, name, description, jsonContent, type, isBuiltIn = false, defaults, spaceOf(jsonContent)))
+            } catch (e: Exception) {
+                DebugLogger.e(TAG, "User workflow ${i + 1} could not be loaded: ${e.javaClass.simpleName}")
             }
-        } catch (e: Exception) {
-            // Failed to load user workflows
         }
     }
 
@@ -375,27 +385,30 @@ object WorkflowManager {
     }
 
     /**
-     * Generate a unique name for duplicating a workflow.
-     * Returns "Name (1)", "Name (2)", etc. until a unique name is found.
-     * The original name is kept intact, e.g. "My Workflow (2)" becomes "My Workflow (2) (1)".
+     * A name for a copy of a workflow: "<name> copy", then "<name> copy 2", 3… (in the user's language), the first not
+     * taken. A copy of a copy counts on from the same base name instead of stacking suffixes.
      */
     fun generateUniqueDuplicateName(originalName: String): String {
-        val existingNames = workflows.map { it.name }.toSet()
-
-        // Find all numbers already used with this exact base name
-        val numberPattern = Regex("""^\Q$originalName\E \((\d+)\)$""", RegexOption.IGNORE_CASE)
-        val usedNumbers = existingNames.mapNotNull { name ->
-            numberPattern.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()
-        }.toSet()
-
-        // Find the next available number starting from 1
-        var nextNumber = 1
-        while (nextNumber in usedNumbers) {
-            nextNumber++
+        val marker = "\u0000"
+        val number = 987654321
+        fun pattern(template: String): Regex {
+            val parts = template.replace(number.toString(), "\u0001").split(marker)
+            val withNumber = parts.joinToString("(.+)") { Regex.escape(it).replace("\u0001", "\\E(\\d+)\\Q") }
+            return Regex("^$withNumber$")
         }
+        val single = pattern(applicationContext.getString(R.string.label_copy_name, marker))
+        val numbered = pattern(applicationContext.getString(R.string.label_copy_name_numbered, marker, number))
+        val base = numbered.matchEntire(originalName)?.groupValues?.get(1)
+            ?: single.matchEntire(originalName)?.groupValues?.get(1)
+            ?: originalName
 
-        return "$originalName ($nextNumber)"
+        val first = applicationContext.getString(R.string.label_copy_name, base)
+        if (!isWorkflowNameTaken(first)) return first
+        var n = 2
+        while (isWorkflowNameTaken(applicationContext.getString(R.string.label_copy_name_numbered, base, n))) n++
+        return applicationContext.getString(R.string.label_copy_name_numbered, base, n)
     }
+
 
     /**
      * Duplicate a workflow (built-in or user) as a new user workflow.
@@ -468,7 +481,8 @@ object WorkflowManager {
             jsonContent = updatedJsonContent,
             type = sourceWorkflow.type,
             isBuiltIn = false,
-            defaults = cleanedDefaults
+            defaults = cleanedDefaults,
+            space = sourceWorkflow.space
         )
 
         // Save metadata
@@ -491,78 +505,111 @@ object WorkflowManager {
         // Add to in-memory list
         workflows.add(newWorkflow)
 
-        DebugLogger.i(TAG, "Duplicated workflow: ${sourceWorkflow.name} -> $newName (id: $newId)")
+        DebugLogger.i(TAG, "Duplicated workflow: ${Obfuscator.workflowName(sourceWorkflow.name)} -> ${Obfuscator.workflowName(newName)} (id: $newId)")
 
         _workflowsVersion.value++
         return Result.success(newWorkflow)
     }
 
     /**
-     * Export a workflow to ComfyUI format (just the nodes, without our wrapper metadata).
-     * This is the inverse of importing - strips name, description, defaults, fieldMappings
-     * and returns only the raw ComfyUI workflow JSON.
+     * Export a workflow in ComfyUI's API format: only the nodes that run (subgraphs flattened), as generation sends
+     * them but with the values of [exportableRoot].
      *
      * @return Result containing the JSON string in ComfyUI format, or error
      */
     fun exportWorkflowToComfyUIFormat(workflowId: String): Result<String> {
         val workflow = workflows.find { it.id == workflowId }
             ?: return Result.failure(Exception("Workflow not found"))
-
-        val json = try {
-            JSONObject(workflow.jsonContent)
+        return try {
+            val flat = Subgraphs.flatten(exportableRoot(workflow))
+            DebugLogger.i(TAG, "Exported workflow in API format: ${Obfuscator.workflowName(workflow.name)}")
+            Result.success((flat.optJSONObject("nodes") ?: flat).toString(2))
         } catch (e: Exception) {
-            return Result.failure(Exception("Failed to parse workflow JSON"))
+            Result.failure(Exception("Failed to parse workflow JSON"))
         }
-
-        // Extract the nodes object (ComfyUI format is just the nodes)
-        val nodesJson = if (json.has("nodes") && json.optJSONObject("nodes") != null) {
-            json.getJSONObject("nodes")
-        } else {
-            // Already in raw format
-            json
-        }
-
-        // Replace any placeholders ({{placeholder}}) with default values if available
-        val defaults = workflow.defaults
-        for (nodeId in nodesJson.keys()) {
-            val node = nodesJson.optJSONObject(nodeId) ?: continue
-            val inputs = node.optJSONObject("inputs") ?: continue
-
-            for (inputKey in inputs.keys()) {
-                val value = inputs.opt(inputKey)
-                if (value is String && value.startsWith("{{") && value.endsWith("}}")) {
-                    // This is a placeholder, try to replace with default
-                    val placeholderName = value.substring(2, value.length - 2)
-                    val defaultValue = getDefaultValueForPlaceholder(placeholderName, defaults)
-                    if (defaultValue != null) {
-                        inputs.put(inputKey, defaultValue)
-                    }
-                }
-            }
-        }
-
-        DebugLogger.i(TAG, "Exported workflow to ComfyUI format: ${workflow.name}")
-
-        return Result.success(nodesJson.toString(2))
-    }
-
-    /** Read the exact LiteGraph import file, if this workflow originated from LiteGraph. */
-    fun exportOriginalLiteGraph(workflowId: String): Result<String> = runCatching {
-        require(getWorkflowById(workflowId) != null) { "Workflow not found" }
-        sh.hnet.comfychair.storage.LiteGraphSourceStore(applicationContext).exportOriginal(workflowId)
     }
 
     /**
-     * Edit one independent value in the working LiteGraph source, NOT the original.
-     * The result is not automatically submitted to ComfyUI: the execution conversion
-     * and validation are a separate explicit operation.
+     * Export a workflow in ComfyUI's UI format (what its frontend opens with layout, groups, notes and subgraphs),
+     * with the values of [exportableRoot] and the editor's layout. Needs the server's node definitions (the order of
+     * the widgets' values comes from them).
      */
-    fun editLiteGraphSourceWidget(
-        workflowId: String, nodeId: Int, key: String, value: Any
-    ): Result<String> = runCatching {
-        require(getWorkflowById(workflowId) != null) { "Workflow not found" }
-        sh.hnet.comfychair.storage.LiteGraphSourceStore(applicationContext)
-            .changeWidget(workflowId, nodeId, key, value).json
+    fun exportWorkflowToComfyUIUiFormat(workflowId: String): Result<String> {
+        val workflow = workflows.find { it.id == workflowId }
+            ?: return Result.failure(Exception("Workflow not found"))
+        val registry = ConnectionManager.nodeTypeRegistry
+        if (!registry.isPopulated()) return Result.failure(IllegalStateException("No node definitions"))
+        return try {
+            val exporter = ComfyUiExporter(registry::getNodeDefinition) { level ->
+                WorkflowGraphPreparation.levelPositions(level, registry)
+            }
+            val document = exporter.export(exportableRoot(workflow))
+            DebugLogger.i(TAG, "Exported workflow in UI format: ${Obfuscator.workflowName(workflow.name)}")
+            Result.success(document.toString(2))
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "UI format export failed: ${Obfuscator.error(e)}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * A workflow as it's exported for ComfyUI (stored form): every value the app fills (a placeholder) replaced by what
+     * was last used for this workflow on this server, else the workflow's default; the edits made in Node values
+     * applied. Images the app uploads keep their markers: the user picks them in ComfyUI.
+     */
+    private fun exportableRoot(workflow: Workflow): JSONObject {
+        val saved = ConnectionManager.currentServerId?.let { workflowValuesStorage.loadValues(it, workflow.id) }
+        val root = JSONObject(applyNodeAttributeEdits(Subgraphs.exposeJson(workflow.jsonContent), workflow.id))
+        val placeholder = Regex("""^\{\{(\w+)\}\}$""")
+        fun fill(nodes: JSONObject?) {
+            if (nodes == null) return
+            for (nodeId in nodes.keys()) {
+                val inputs = nodes.optJSONObject(nodeId)?.optJSONObject("inputs") ?: continue
+                for (key in inputs.keys().asSequence().toList()) {
+                    val name = (inputs.opt(key) as? String)?.let { placeholder.find(it)?.groupValues?.get(1) } ?: continue
+                    exportValueFor(name, saved, workflow)?.let { inputs.put(key, it) }
+                }
+            }
+        }
+        fill(root.optJSONObject("nodes") ?: root)
+        Subgraphs.definitionsOf(root)?.let { definitions ->
+            for (id in definitions.keys()) fill(definitions.optJSONObject(id)?.optJSONObject("nodes"))
+        }
+        Subgraphs.absorb(root)
+        return root
+    }
+
+    /** The value an export gives the app's field [placeholder]: the last one used ([saved]), else the default. */
+    private fun exportValueFor(placeholder: String, saved: WorkflowValues?, workflow: Workflow): Any? {
+        CustomFields.PLACEHOLDER.find("{{$placeholder}}")?.let { match ->
+            val field = workflow.customFields.find { it.id == match.groupValues[1] } ?: return null
+            return saved?.customValues?.get(field.id)?.let { CustomFields.typedValue(field.type, it) }
+                ?: CustomFields.typedValue(field.type, field.default) ?: field.default
+        }
+        ModelSlot.entries.find { it.placeholder == placeholder }?.let { slot ->
+            return saved?.let(slot.saved)?.takeIf { it.isNotEmpty() }
+        }
+        val defaults = workflow.defaults
+        return when (placeholder) {
+            "width" -> saved?.width ?: defaults.width
+            "height" -> saved?.height ?: defaults.height
+            "steps" -> saved?.steps ?: defaults.steps
+            "cfg" -> (saved?.cfg ?: defaults.cfg)?.toDouble()
+            "sampler_name", "sampler" -> saved?.samplerName ?: defaults.samplerName
+            "scheduler" -> saved?.scheduler ?: defaults.scheduler
+            "denoise" -> saved?.denoise?.toDouble() ?: 1.0
+            "positive_prompt", "positive_text" -> ""
+            "negative_prompt", "negative_text" -> saved?.negativePrompt ?: defaults.negativePrompt ?: ""
+            "seed" -> saved?.seed ?: 0L
+            "batch_size" -> saved?.batchSize ?: 1
+            "megapixels" -> (saved?.megapixels ?: defaults.megapixels)?.toDouble()
+            "length" -> saved?.length ?: defaults.length
+            "frame_rate", "fps" -> saved?.frameRate ?: defaults.frameRate
+            "upscale_method" -> saved?.upscaleMethod
+            "scale_by" -> saved?.scaleBy?.toDouble()
+            "stop_at_clip_layer" -> saved?.stopAtClipLayer
+            else -> null
+        }?.takeUnless { it is String && isPlaceholder(it) }
     }
 
     /**
@@ -578,33 +625,10 @@ object WorkflowManager {
         return try {
             // Parse and re-format with indentation for readability
             val json = JSONObject(workflow.jsonContent)
-            DebugLogger.i(TAG, "Exported workflow in internal format: ${workflow.name}")
+            DebugLogger.i(TAG, "Exported workflow in internal format: ${Obfuscator.workflowName(workflow.name)}")
             Result.success(json.toString(2))
         } catch (e: Exception) {
             Result.failure(Exception("Failed to parse workflow JSON"))
-        }
-    }
-
-    /**
-     * Get default value for a placeholder name.
-     */
-    private fun getDefaultValueForPlaceholder(placeholder: String, defaults: WorkflowDefaults): Any? {
-        return when (placeholder) {
-            "width" -> defaults.width
-            "height" -> defaults.height
-            "steps" -> defaults.steps
-            "cfg" -> defaults.cfg
-            "sampler_name", "sampler" -> defaults.samplerName
-            "scheduler" -> defaults.scheduler
-            "denoise" -> 1.0  // Common default
-            "positive_prompt", "positive_text" -> ""
-            "negative_prompt", "negative_text" -> defaults.negativePrompt ?: ""
-            "seed" -> -1  // Random seed
-            "batch_size" -> 1  // Default batch size
-            "megapixels" -> defaults.megapixels
-            "length" -> defaults.length
-            "frame_rate", "fps" -> defaults.frameRate
-            else -> null
         }
     }
 
@@ -615,41 +639,50 @@ object WorkflowManager {
      */
     fun getNodeSpecificOptionsForField(workflowId: String, fieldKey: String): List<String>? {
         val workflow = getWorkflowById(workflowId) ?: return null
-        val json = try {
-            JSONObject(workflow.jsonContent)
-        } catch (e: Exception) {
-            return null
-        }
-        val nodesJson = if (json.has("nodes")) json.optJSONObject("nodes") ?: json else json
-
-        // Find the placeholder pattern for this field
-        val placeholderName = TemplateKeyRegistry.getPlaceholderForKey(fieldKey)
-        val placeholder = "{{$placeholderName}}"
-
-        // Search nodes for the one containing this placeholder
-        val nodeIds = nodesJson.keys()
-        while (nodeIds.hasNext()) {
-            val nodeId = nodeIds.next()
-            val node = nodesJson.optJSONObject(nodeId) ?: continue
-            val inputs = node.optJSONObject("inputs") ?: continue
-            val classType = node.optString("class_type")
-
-            // Check if any input has our placeholder
-            val inputKeys = inputs.keys()
-            while (inputKeys.hasNext()) {
-                val inputKey = inputKeys.next()
-                val value = inputs.optString(inputKey, "")
-                if (value == placeholder) {
-                    // Found the node! Get its options from NodeTypeRegistry
-                    val nodeDefinition = ConnectionManager.nodeTypeRegistry.getNodeDefinition(classType)
-                    return nodeDefinition?.inputs
-                        ?.find { it.name == inputKey }
-                        ?.options
-                }
-            }
-        }
-        return null
+        val placeholder = "{{${TemplateKeyRegistry.getPlaceholderForKey(fieldKey)}}}"
+        val (classType, inputKey) = placeholderInputIndex(workflow.jsonContent)[placeholder] ?: return null
+        // Node definitions are looked up on each call: the registry may be loaded after the index was built
+        return ConnectionManager.nodeTypeRegistry.getNodeDefinition(classType)
+            ?.inputs
+            ?.find { it.name == inputKey }
+            ?.options
     }
+
+    /** Placeholder index per workflow JSON; screens query it for many fields right after loading a workflow. */
+    private val placeholderIndexCache = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Map<String, Pair<String, String>>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Map<String, Pair<String, String>>>?) =
+                size > 16
+        }
+    )
+
+    /**
+     * Map each placeholder ("{{name}}") to the first node input holding it, as (class_type, input name).
+     * Parsed once per workflow JSON instead of once per queried field.
+     */
+    private fun placeholderInputIndex(jsonContent: String): Map<String, Pair<String, String>> =
+        placeholderIndexCache.getOrPut(jsonContent) {
+            val index = mutableMapOf<String, Pair<String, String>>()
+            try {
+                // The nodes that hold them, inside subgraphs too
+                val json = JSONObject(Subgraphs.flattenJson(jsonContent))
+                val nodesJson = if (json.has("nodes")) json.optJSONObject("nodes") ?: json else json
+                for (nodeId in nodesJson.keys()) {
+                    val node = nodesJson.optJSONObject(nodeId) ?: continue
+                    val inputs = node.optJSONObject("inputs") ?: continue
+                    val classType = node.optString("class_type")
+                    for (inputKey in inputs.keys()) {
+                        val value = inputs.optString(inputKey, "")
+                        if (value.startsWith("{{") && value.endsWith("}}")) {
+                            index.putIfAbsent(value, classType to inputKey)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Invalid JSON: no node-specific options
+            }
+            index
+        }
 
     /**
      * Generate a sanitized filename for export (without type prefix).
@@ -663,7 +696,10 @@ object WorkflowManager {
     }
 
     /**
-     * Generate filename from workflow type and name
+     * A free file name for a new workflow, from its type and name: the name's letters and digits, with a number when
+     * that file exists. The name alone doesn't decide it: a renamed workflow keeps its file, names differing only in
+     * other characters (or made of none of them, e.g. Chinese) give the same one, and a taken file must never be
+     * overwritten.
      */
     fun generateFilename(type: WorkflowType, name: String): String {
         val prefix = PREFIX_TO_TYPE.entries.find { it.value == type }?.key ?: "tti_"
@@ -671,15 +707,12 @@ object WorkflowManager {
             .replace(Regex("[^a-z0-9]"), "_")
             .replace(Regex("_+"), "_")
             .trim('_')
-        return "${prefix}${sanitizedName}.json"
-    }
-
-    /**
-     * Check if a filename already exists in user workflows
-     */
-    fun isFilenameExists(filename: String): Boolean {
+            .ifEmpty { "workflow" }
         val dir = File(applicationContext.filesDir, USER_WORKFLOWS_DIR)
-        return File(dir, filename).exists()
+        var candidate = "${prefix}${sanitizedName}.json"
+        var n = 2
+        while (File(dir, candidate).exists()) candidate = "${prefix}${sanitizedName}_${n++}.json"
+        return candidate
     }
 
     /**
@@ -691,11 +724,16 @@ object WorkflowManager {
     }
 
     /**
-     * Validate workflow description format
-     * @return error message if invalid, null if valid
+     * A workflow's JSON with its subgraph instances' values exposed ([Subgraphs]), each value a mapping names from
+     * inside a subgraph shown by its instance.
      */
-    fun validateWorkflowDescription(description: String): String? {
-        return ValidationUtils.validateWorkflowDescription(description, applicationContext)
+    private fun exposedForMapping(jsonContent: String, mappings: Collection<Pair<String, String>>): JSONObject {
+        val json = JSONObject(jsonContent)
+        if (Subgraphs.definitionsOf(json) != null) {
+            mappings.forEach { (nodeId, inputKey) -> Subgraphs.promote(json, nodeId, inputKey) }
+            Subgraphs.expose(json)
+        }
+        return json
     }
 
     /**
@@ -707,11 +745,13 @@ object WorkflowManager {
         description: String,
         jsonContent: String,
         type: WorkflowType,
-        fieldMappings: Map<String, Pair<String, String>>  // fieldKey -> (nodeId, inputKey)
+        fieldMappings: Map<String, Pair<String, String>>,  // fieldKey -> (nodeId, inputKey)
+        customFields: List<CustomField>? = null  // made or changed while mapping; null keeps the file's
     ): Result<Workflow> {
-        // Parse JSON
+        // Parse JSON; mappings and custom fields may name values an instance shows from its subgraph (or doesn't show
+        // yet: promoted then), so its values are exposed
         val json = try {
-            JSONObject(jsonContent)
+            exposedForMapping(jsonContent, fieldMappings.values + customFields.orEmpty().flatMap { field -> field.targets.map { it.nodeId to it.input } })
         } catch (e: Exception) {
             return Result.failure(Exception("Invalid JSON: ${e.message}"))
         }
@@ -720,6 +760,11 @@ object WorkflowManager {
         val isWrapped = json.has("nodes") && json.optJSONObject("nodes") != null
 
         val nodesJson = if (isWrapped) json.getJSONObject("nodes") else json
+
+        // Custom fields made while mapping: their placeholders into the values they fill (before built-in fields
+        // take theirs, so a value mapped to both ends with the built-in one)
+        val fileFields = if (isWrapped) CustomFields.fieldsOf(jsonContent) else emptyList()
+        val finalCustomFields = customFields?.let { CustomFields.place(nodesJson, it, fileFields) } ?: fileFields
 
         // Extract original values before replacing with placeholders to create defaults
         val extractedDefaults = mutableMapOf<String, Any>()
@@ -837,6 +882,15 @@ object WorkflowManager {
             if (isWrapped && json.has("manual_placement")) {
                 put("manual_placement", json.getBoolean("manual_placement"))
             }
+            // Custom fields and labels of built-in fields go with the workflow (spec §18)
+            val keptFields = finalCustomFields.mapNotNull { field ->
+                // A value a built-in field took leaves the custom one; a field left with none goes
+                val kept = field.targets.filter { t -> nodesJson.optJSONObject(t.nodeId)?.optJSONObject("inputs")?.opt(t.input) == field.placeholder }
+                if (kept.isEmpty()) null else field.copy(targets = kept)
+            }
+            if (keptFields.isNotEmpty()) put(CustomFields.FIELDS_KEY, CustomFields.toJson(keptFields))
+            if (isWrapped && json.has(CustomFields.LABELS_KEY)) put(CustomFields.LABELS_KEY, json.getJSONObject(CustomFields.LABELS_KEY))
+            if (isWrapped && json.has(Subgraphs.KEY)) put(Subgraphs.KEY, json.getJSONObject(Subgraphs.KEY))
             // Store field mappings for reference
             if (fieldMappings.isNotEmpty()) {
                 put("fieldMappings", JSONObject().apply {
@@ -850,13 +904,11 @@ object WorkflowManager {
             }
         }
 
-        // Generate filename
-        val filename = generateFilename(type, name)
+        // Values shown on subgraph instances back into their definitions
+        Subgraphs.absorb(finalJson)
 
-        // Check for duplicate filename
-        if (isFilenameExists(filename)) {
-            return Result.failure(Exception("Workflow with this name already exists"))
-        }
+        // A free file name (the workflow's name was checked by the import dialog)
+        val filename = generateFilename(type, name)
 
         // Save file
         val dir = File(applicationContext.filesDir, USER_WORKFLOWS_DIR)
@@ -886,7 +938,8 @@ object WorkflowManager {
 
         prefs.edit().putString(USER_WORKFLOWS_KEY, metadataArray.toString()).apply()
 
-        val workflow = Workflow(id, name, description, finalJson.toString(2), type, isBuiltIn = false, defaults)
+        val storedJson = finalJson.toString(2)
+        val workflow = Workflow(id, name, description, storedJson, type, isBuiltIn = false, defaults, spaceOf(storedJson))
         workflows.add(workflow)
 
         _workflowsVersion.value++
@@ -911,9 +964,9 @@ object WorkflowManager {
             return Result.failure(Exception("Cannot edit built-in workflows"))
         }
 
-        // Parse JSON
+        // Parse JSON; mappings may name values an instance shows from its subgraph, so its values are exposed
         val json = try {
-            JSONObject(jsonContent)
+            exposedForMapping(jsonContent, fieldMappings.values)
         } catch (e: Exception) {
             return Result.failure(Exception("Invalid JSON: ${e.message}"))
         }
@@ -1034,6 +1087,10 @@ object WorkflowManager {
             if (isWrapped && json.has("manual_placement")) {
                 put("manual_placement", json.getBoolean("manual_placement"))
             }
+            // Custom fields and labels of built-in fields go with the workflow (spec §18)
+            if (isWrapped && json.has(CustomFields.FIELDS_KEY)) put(CustomFields.FIELDS_KEY, json.getJSONArray(CustomFields.FIELDS_KEY))
+            if (isWrapped && json.has(CustomFields.LABELS_KEY)) put(CustomFields.LABELS_KEY, json.getJSONObject(CustomFields.LABELS_KEY))
+            if (isWrapped && json.has(Subgraphs.KEY)) put(Subgraphs.KEY, json.getJSONObject(Subgraphs.KEY))
             if (fieldMappings.isNotEmpty()) {
                 put("fieldMappings", JSONObject().apply {
                     fieldMappings.forEach { (fieldKey, mapping) ->
@@ -1045,6 +1102,9 @@ object WorkflowManager {
                 })
             }
         }
+
+        // Values shown on subgraph instances back into their definitions
+        Subgraphs.absorb(finalJson)
 
         // Get filename from preferences
         val prefs = applicationContext.getSharedPreferences(USER_WORKFLOWS_PREFS, Context.MODE_PRIVATE)
@@ -1094,32 +1154,6 @@ object WorkflowManager {
      * Auto-detects workflow type from content and wraps raw ComfyUI workflows if needed
      * @return Result with the created Workflow or error message
      */
-    /**
-     * Preserve recognized H3 imports without legacy placeholder mapping or a network gate.
-     *
-     * API JSON is stored as-is. LiteGraph (UI format, subgraphs included) is flattened
-     * offline for editing; the untouched UI document is kept in LiteGraphSourceStore so
-     * the original file is never overwritten.
-     */
-    fun importH3Workflow(source: String, name: String, description: String): Result<Workflow> = runCatching {
-         val analysis=sh.hnet.comfychair.workflow.H3WorkflowAdapter.inspectAny(source) ?: error("不是已识别的 H3 工作流")
-         require(analysis.mode!=sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.AMBIGUOUS) {
-             analysis.warnings.firstOrNull() ?: "存在多个 H3 核心节点，请在专业编辑器中确认执行分支"
-         }
-         val type=if(analysis.mode==sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.T2V) WorkflowType.TTV else WorkflowType.ITV
-         val stored=if(analysis.format=="litegraph")
-             sh.hnet.comfychair.workflow.H3LiteGraphAdapter.convert(org.json.JSONObject(source)).toString(2)
-         else source
-         val workflow=addUserWorkflowWithMapping(name,description,stored,type,emptyMap()).getOrThrow()
-         try {
-             sh.hnet.comfychair.storage.H3SourceStore(applicationContext).open(workflow.id,stored)
-             if(analysis.format=="litegraph")
-                 sh.hnet.comfychair.storage.LiteGraphSourceStore(applicationContext).saveOriginal(workflow.id,source)
-         }
-         catch(error: Exception) { deleteUserWorkflow(workflow.id);throw error }
-         workflow
-    }
-
     fun addUserWorkflow(
         filename: String,
         name: String,
@@ -1217,7 +1251,7 @@ object WorkflowManager {
 
         prefs.edit().putString(USER_WORKFLOWS_KEY, metadataArray.toString()).apply()
 
-        val workflow = Workflow(id, name, description, finalJson, type, isBuiltIn = false)
+        val workflow = Workflow(id, name, description, finalJson, type, isBuiltIn = false, space = spaceOf(finalJson))
         workflows.add(workflow)
 
         _workflowsVersion.value++
@@ -1261,7 +1295,6 @@ object WorkflowManager {
             // Update preferences
             prefs.edit().putString(USER_WORKFLOWS_KEY, newArray.toString()).apply()
 
-            // A gone workflow must not leave its id behind in the disabled set
             if (workflowId in disabledWorkflowIds) {
                 disabledWorkflowIds = disabledWorkflowIds - workflowId
                 AppSettings.setDisabledWorkflowIds(applicationContext, disabledWorkflowIds)
@@ -1341,38 +1374,53 @@ object WorkflowManager {
     /**
      * Get all workflows
      */
-    /** Ordinary screens see only NORMAL; the H3 workspace asks for H3 explicitly. */
-    fun getAllWorkflows(space: WorkflowSpace = WorkflowSpace.NORMAL): List<Workflow> =
-        workflows.filter { it.space == space }
+    fun getAllWorkflows(): List<Workflow> = workflows.toList()
 
-    /** Management and backup need both libraries. */
-    fun getAllWorkflowsIncludingH3(): List<Workflow> = workflows.toList()
+    /** Whether a workflow's graph is one the H3 workspace can drive. */
+    fun isH3Workflow(workflow: Workflow): Boolean =
+        workflow.jsonContent.contains("MiniMaxH3") ||
+            runCatching { sh.hnet.comfychair.workflow.H3Plan.resolve(workflow.jsonContent) != null }
+                .getOrDefault(false)
 
     /**
      * Get workflows by type
      */
-    fun getWorkflowsByType(
-        type: WorkflowType,
-        space: WorkflowSpace = WorkflowSpace.NORMAL
-    ): List<Workflow> {
-        return workflows.filter { it.type == type && it.space == space }
-            .sortedBy { it.name.lowercase() }
+    fun getWorkflowsByType(type: WorkflowType): List<Workflow> {
+        return workflows.filter { it.type == type && it.space == WorkflowSpace.NORMAL }.sortedBy { it.name.lowercase() }
     }
 
     /**
      * The workflows of a type the user hasn't switched off, i.e. those offered on the
      * generation screens
      */
-    fun getEnabledWorkflowsByType(
-        type: WorkflowType,
-        space: WorkflowSpace = WorkflowSpace.NORMAL
-    ): List<Workflow> = getWorkflowsByType(type, space).filter { isWorkflowEnabled(it.id) }
+    fun getEnabledWorkflowsByType(type: WorkflowType): List<Workflow> =
+        getWorkflowsByType(type).filter { isWorkflowEnabled(it.id) }
 
     /**
-     * Check if a workflow can be deleted (not built-in)
+     * The workflows of one library: H3 only includes built-in _h3_mobile_ templates and user-imported H3 workflows,
+     * keeping upstream's built-in minimax_h3 ordinary video templates isolated in NORMAL.
      */
-    fun canDeleteWorkflow(workflowId: String): Boolean {
-        return workflows.find { it.id == workflowId }?.isBuiltIn == false
+    fun getAllWorkflows(space: WorkflowSpace): List<Workflow> = workflows.filter { it.space == space }
+
+    fun importH3Workflow(source: String, name: String, description: String): Result<Workflow> = runCatching {
+        val analysis = sh.hnet.comfychair.workflow.H3WorkflowAdapter.inspectAny(source) ?: error("不是已识别的 H3 工作流")
+        require(analysis.mode != sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.AMBIGUOUS) {
+            analysis.warnings.firstOrNull() ?: "存在多个 H3 核心节点，请在专业编辑器中确认执行分支"
+        }
+        val type = if (analysis.mode == sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.T2V) WorkflowType.TTV else WorkflowType.ITV
+        val stored = if (analysis.format == "litegraph")
+            sh.hnet.comfychair.workflow.H3LiteGraphAdapter.convert(org.json.JSONObject(source)).toString(2)
+        else source
+        val workflow = addUserWorkflowWithMapping(name, description, stored, type, emptyMap()).getOrThrow()
+        try {
+            sh.hnet.comfychair.storage.H3SourceStore(applicationContext).open(workflow.id, stored)
+            if (analysis.format == "litegraph")
+                sh.hnet.comfychair.storage.LiteGraphSourceStore(applicationContext).saveOriginal(workflow.id, source)
+        } catch (error: Exception) {
+            deleteUserWorkflow(workflow.id)
+            throw error
+        }
+        workflow
     }
 
     /**
@@ -1575,12 +1623,21 @@ object WorkflowManager {
         return try {
             val json = JSONObject(workflowJson)
             val nodes = json.optJSONObject("nodes") ?: json
+            val definitions = Subgraphs.definitionsOf(json)
 
             for ((nodeId, nodeEdits) in edits) {
                 val node = nodes.optJSONObject(nodeId) ?: continue
                 val inputs = node.optJSONObject("inputs") ?: continue
 
                 for ((inputName, value) in nodeEdits) {
+                    // A value inside a subgraph that its instance doesn't show (changed inside it, spec §19.2.5) goes
+                    // into the definition, as a value the instance shows does when it's taken back
+                    if (!inputs.has(inputName) && definitions != null && Subgraphs.isPromotedKey(inputName) &&
+                        definitions.has(node.optString("class_type"))
+                    ) {
+                        Subgraphs.setValueAt(definitions, node.optString("class_type"), inputName, if (value is Float) value.toDouble() else value)
+                        continue
+                    }
                     // Only update if the input exists and is not a connection
                     if (inputs.has(inputName)) {
                         val currentValue = inputs.opt(inputName)
@@ -1603,33 +1660,6 @@ object WorkflowManager {
             json.toString()
         } catch (e: Exception) {
             workflowJson
-        }
-    }
-
-    /**
-     * Apply working LiteGraph quick edits only after the ordinary template,
-     * manual node edits and bypass processing have finished. Never patch the
-     * persisted template or submit a prompt when any change cannot be traced.
-     */
-    private fun applyVerifiedQuickEdits(workflowId: String, preparedJson: String): String? {
-        lastQuickParameterError = null
-        return try {
-            val sourceStore = sh.hnet.comfychair.storage.LiteGraphSourceStore(applicationContext)
-            val h3Prepared = sh.hnet.comfychair.storage.H3SourceStore(applicationContext).apply(workflowId, preparedJson)
-            val origin = sourceStore.readOriginal(workflowId) ?: return h3Prepared
-            val working = sourceStore.readWorking(workflowId) ?: origin
-            sh.hnet.comfychair.workflow.LiteGraphExecutionPatch.apply(
-                original = origin,
-                working = working,
-                preparedPrompt = h3Prepared,
-                getNodeDefinition = { classType ->
-                    ConnectionManager.nodeTypeRegistry.getNodeDefinition(classType)
-                }
-            ).json
-        } catch (e: Exception) {
-            lastQuickParameterError = "快捷参数未能安全同步：${e.message ?: "未知转换错误"}。请检查服务器节点定义或重置工作副本。"
-            DebugLogger.e(TAG, "Quick parameter synchronization blocked for $workflowId: ${e.message}")
-            null // Never silently fall back to the old parameter values.
         }
     }
 
@@ -1695,7 +1725,7 @@ object WorkflowManager {
         val json = try {
             JSONObject(processedJson)
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Failed to parse workflow JSON for edits: ${e.message}")
+            DebugLogger.e(TAG, "Failed to parse workflow JSON for edits: ${Obfuscator.error(e)}")
             return processedJson
         }
 
@@ -1706,6 +1736,16 @@ object WorkflowManager {
             json
         }
 
+        // Template inputs, to skip edits of values the app fills in at generation time. The editor
+        // no longer offers these, but older versions saved such edits (e.g. a stale image filename).
+        val templateNodes = getWorkflowById(workflowId)?.jsonContent?.let { content ->
+            try {
+                JSONObject(Subgraphs.exposeJson(content)).let { it.optJSONObject("nodes") ?: it }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
         // Apply edits to each node
         var modified = false
         edits.edits.forEach { (nodeId, nodeEdits) ->
@@ -1713,7 +1753,12 @@ object WorkflowManager {
             if (node != null) {
                 val inputs = node.optJSONObject("inputs")
                 if (inputs != null) {
+                    val templateInputs = templateNodes?.optJSONObject(nodeId)?.optJSONObject("inputs")
                     nodeEdits.forEach { (inputName, value) ->
+                        if (TemplateKeyRegistry.isAppManagedValue(templateInputs?.opt(inputName))) {
+                            DebugLogger.d(TAG, "Skipped edit of app-managed input: node $nodeId, $inputName")
+                            return@forEach
+                        }
                         // Only apply if input exists (don't add new inputs)
                         if (inputs.has(inputName)) {
                             when (value) {
@@ -1726,7 +1771,7 @@ object WorkflowManager {
                                 else -> inputs.put(inputName, value.toString())
                             }
                             modified = true
-                            DebugLogger.d(TAG, "Applied edit: node $nodeId, $inputName = $value")
+                            DebugLogger.d(TAG, "Applied edit: node $nodeId, $inputName (${value::class.simpleName})")
                         }
                     }
                 }
@@ -1737,603 +1782,150 @@ object WorkflowManager {
     }
 
     /**
-     * Prepare workflow JSON with actual parameter values (by workflow ID)
+     * Images uploaded to the server for a workflow (server-side file names).
      */
-    fun prepareWorkflowById(
+    data class WorkflowImages(
+        val source: String? = null,
+        val reference1: String? = null,
+        val reference2: String? = null,
+        /** The uploaded source video (Video to Video) */
+        val video: String? = null
+    )
+
+    /**
+     * Prepare a workflow for submission: every placeholder filled from [params] (prompts, all model
+     * selections, all parameters), uploaded [images] referenced, unused reference image nodes removed,
+     * node edits from the Workflow Editor and bypassed nodes applied, and the LoRA chains injected.
+     *
+     * The single preparation for all screens: any workflow can use any placeholder, so nothing here
+     * depends on the screen. Returns null if the workflow doesn't exist.
+     */
+    fun prepareWorkflow(
         workflowId: String,
-        positivePrompt: String,
-        negativePrompt: String = "",
-        // Single-model patterns
-        checkpoint: String = "",
-        unet: String = "",
-        lora: String? = null,  // Mandatory LoRA (single selection dropdown)
-        // Dual-model patterns (for unified support)
-        highnoiseUnet: String = "",
-        lownoiseUnet: String = "",
-        highnoiseLora: String = "",
-        lownoiseLora: String = "",
-        // Common models
-        vae: String = "",
-        clip: String? = null,
-        clip1: String? = null,
-        clip2: String? = null,
-        clip3: String? = null,
-        clip4: String? = null,
-        textEncoder: String? = null,
-        latentUpscaleModel: String? = null,
-        width: Int,
-        height: Int,
-        steps: Int,
-        cfg: Float = 8.0f,
-        samplerName: String = "euler",
-        scheduler: String = "normal",
-        seed: Long? = null,
-        randomSeed: Boolean = true,
-        denoise: Float? = null,
-        batchSize: Int? = null,
-        upscaleMethod: String? = null,
-        scaleBy: Float? = null,
-        stopAtClipLayer: Int? = null
+        params: GenerationParams,
+        images: WorkflowImages = WorkflowImages()
     ): String? {
         val workflow = getWorkflowById(workflowId) ?: return null
-        lastQuickParameterError = null
-        DebugLogger.i(TAG, "Preparing workflow: ${workflow.name} (id: $workflowId)")
-        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(positivePrompt)}")
-        DebugLogger.d(TAG, "Dimensions: ${width}x${height}, Steps: $steps, CFG: $cfg")
-        DebugLogger.d(TAG, "Sampler: $samplerName, Scheduler: $scheduler")
-        if (checkpoint.isNotEmpty()) DebugLogger.d(TAG, "Checkpoint: ${Obfuscator.modelName(checkpoint)}")
-        if (unet.isNotEmpty()) DebugLogger.d(TAG, "UNET: ${Obfuscator.modelName(unet)}")
-        lora?.let { DebugLogger.d(TAG, "LoRA: ${Obfuscator.modelName(it)}") }
-        if (highnoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "High-noise UNET: ${Obfuscator.modelName(highnoiseUnet)}")
-        if (lownoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "Low-noise UNET: ${Obfuscator.modelName(lownoiseUnet)}")
-        if (highnoiseLora.isNotEmpty()) DebugLogger.d(TAG, "High-noise LoRA: ${Obfuscator.modelName(highnoiseLora)}")
-        if (lownoiseLora.isNotEmpty()) DebugLogger.d(TAG, "Low-noise LoRA: ${Obfuscator.modelName(lownoiseLora)}")
-        if (vae.isNotEmpty()) DebugLogger.d(TAG, "VAE: ${Obfuscator.modelName(vae)}")
-        clip?.let { DebugLogger.d(TAG, "CLIP: ${Obfuscator.modelName(it)}") }
-        clip1?.let { DebugLogger.d(TAG, "CLIP1: ${Obfuscator.modelName(it)}") }
-        clip2?.let { DebugLogger.d(TAG, "CLIP2: ${Obfuscator.modelName(it)}") }
-        clip3?.let { DebugLogger.d(TAG, "CLIP3: ${Obfuscator.modelName(it)}") }
-        clip4?.let { DebugLogger.d(TAG, "CLIP4: ${Obfuscator.modelName(it)}") }
+        DebugLogger.i(TAG, "Preparing workflow ${Obfuscator.workflowName(workflow.name)} (${workflow.type})")
+        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(params.positivePrompt)}, steps: ${params.steps}, cfg: ${params.cfg}, " +
+            "sampler: ${params.sampler}, scheduler: ${params.scheduler}")
+        ModelSlot.entries.forEach { slot ->
+            params.selection(slot).takeIf { it.isNotEmpty() }?.let {
+                DebugLogger.d(TAG, "${slot.name}: ${Obfuscator.modelName(it)}")
+            }
+        }
+        images.source?.let { DebugLogger.d(TAG, "Source image: ${Obfuscator.filename(it)}") }
 
-        // Determine actual seed value - use provided seed if randomSeed is false, otherwise generate random
-        val actualSeed = if (randomSeed) (0..999999999999).random() else (seed ?: 0)
-        val escapedPositivePrompt = escapeForJson(positivePrompt)
-        val escapedNegativePrompt = escapeForJson(negativePrompt)
+        // Values shown on subgraph instances are inputs there, as the fields and edits name them
+        var json = Subgraphs.exposeJson(workflow.jsonContent)
 
-        var processedJson = workflow.jsonContent
+        // Prompts and models
+        json = json.replace("{{positive_prompt}}", escapeForJson(params.positivePrompt))
+        json = json.replace("{{negative_prompt}}", escapeForJson(params.negativePrompt))
+        ModelSlot.entries.forEach { slot ->
+            json = json.replace("{{${slot.placeholder}}}", escapeForJson(params.selection(slot)))
+        }
 
-        // Type-specific placeholders: prompts and models
-        processedJson = processedJson.replace("{{positive_prompt}}", escapedPositivePrompt)
-        processedJson = processedJson.replace("{{negative_prompt}}", escapedNegativePrompt)
-        // Single-model placeholders
-        processedJson = processedJson.replace("{{ckpt_name}}", escapeForJson(checkpoint))
-        processedJson = processedJson.replace("{{unet_name}}", escapeForJson(unet))
-        lora?.let { processedJson = processedJson.replace("{{lora_name}}", escapeForJson(it)) }
-        // Dual-model placeholders
-        processedJson = processedJson.replace("{{highnoise_unet_name}}", escapeForJson(highnoiseUnet))
-        processedJson = processedJson.replace("{{lownoise_unet_name}}", escapeForJson(lownoiseUnet))
-        processedJson = processedJson.replace("{{highnoise_lora_name}}", escapeForJson(highnoiseLora))
-        processedJson = processedJson.replace("{{lownoise_lora_name}}", escapeForJson(lownoiseLora))
-        // Common model placeholders
-        processedJson = processedJson.replace("{{vae_name}}", escapeForJson(vae))
-        clip?.let { processedJson = processedJson.replace("{{clip_name}}", escapeForJson(it)) }
-        clip1?.let { processedJson = processedJson.replace("{{clip_name1}}", escapeForJson(it)) }
-        clip2?.let { processedJson = processedJson.replace("{{clip_name2}}", escapeForJson(it)) }
-        clip3?.let { processedJson = processedJson.replace("{{clip_name3}}", escapeForJson(it)) }
-        clip4?.let { processedJson = processedJson.replace("{{clip_name4}}", escapeForJson(it)) }
-        textEncoder?.let { processedJson = processedJson.replace("{{text_encoder_name}}", escapeForJson(it)) }
-        latentUpscaleModel?.let { processedJson = processedJson.replace("{{latent_upscale_model}}", escapeForJson(it)) }
+        // Uploaded images, as placeholders or as the templates' fixed file names
+        images.source?.let { name ->
+            val annotated = "${escapeForJson(name)} [input]"
+            json = json.replace("{{image_filename}}", annotated)
+            json = json.replace("uploaded_image.png [input]", annotated)
+        }
+        images.reference1?.let { name ->
+            val annotated = "${escapeForJson(name)} [input]"
+            json = json.replace("{{reference_image_1}}", annotated)
+            json = json.replace("reference_image_1.png [input]", annotated)
+        }
+        images.reference2?.let { name ->
+            val annotated = "${escapeForJson(name)} [input]"
+            json = json.replace("{{reference_image_2}}", annotated)
+            json = json.replace("reference_image_2.png [input]", annotated)
+        }
+        images.video?.let { name ->
+            json = json.replace("{{video_filename}}", "${escapeForJson(name)} [input]")
+        }
 
-        // Common parameter placeholders (unified handling)
-        processedJson = replaceCommonPlaceholders(
-            json = processedJson,
-            seed = actualSeed,
-            steps = steps,
-            cfg = cfg,
-            samplerName = samplerName,
-            scheduler = scheduler,
-            denoise = denoise,
-            batchSize = batchSize,
-            width = width,
-            height = height,
-            upscaleMethod = upscaleMethod,
-            scaleBy = scaleBy,
-            stopAtClipLayer = stopAtClipLayer
+        // Parameters
+        json = replaceCommonPlaceholders(
+            json = json,
+            seed = if (params.randomSeed) (0..999999999999).random() else (params.seed.toLongOrNull() ?: 0),
+            steps = params.steps.toIntOrNull(),
+            cfg = params.cfg.toFloatOrNull(),
+            samplerName = params.sampler,
+            scheduler = params.scheduler,
+            denoise = params.denoise.toFloatOrNull(),
+            batchSize = params.batchSize.toIntOrNull(),
+            width = params.width.toIntOrNull(),
+            height = params.height.toIntOrNull(),
+            megapixels = params.megapixels.toFloatOrNull(),
+            length = params.length.toIntOrNull(),
+            frameRate = params.fps.toIntOrNull(),
+            upscaleMethod = params.upscaleMethod.takeIf { it.isNotEmpty() },
+            scaleBy = params.scaleBy.toFloatOrNull(),
+            stopAtClipLayer = params.stopAtClipLayer.toIntOrNull()
         )
 
-        // Apply node attribute edits from the Workflow Editor
-        return applyVerifiedQuickEdits(workflow.id, applyBypassedNodes(applyNodeAttributeEdits(processedJson, workflow.id)))
+        // Custom fields: each value into every value it fills, as its type
+        json = CustomFields.apply(json, workflow.customFields, params.customValues)
+
+        json = applyNodeAttributeEdits(json, workflow.id)
+        // From here on the nodes that run: subgraphs flattened, their values back inside
+        json = Subgraphs.flattenJson(json)
+        json = removeUnusedReferenceImages(json, images)
+        json = applyBypassedNodes(json)
+
+        // LoRA chains: the main chain after the model loader, the high/low noise chains after a
+        // dual-model workflow's own LoRAs (no change for workflows without that structure)
+        if (params.loraChain.isNotEmpty()) {
+            json = injectLoraChain(json, params.loraChain, workflow.type)
+        }
+        if (params.highnoiseLoraChain.isNotEmpty()) {
+            json = injectAdditionalVideoLoras(json, params.highnoiseLoraChain, isHighNoise = true)
+        }
+        if (params.lownoiseLoraChain.isNotEmpty()) {
+            json = injectAdditionalVideoLoras(json, params.lownoiseLoraChain, isHighNoise = false)
+        }
+        return json
     }
 
     /**
-     * Prepare Image-to-image workflow JSON with actual parameter values (by workflow ID)
+     * Remove reference image nodes (LoadImage with a reference image placeholder) that got no image,
+     * together with the inputs connected to them, so the workflow runs without the optional references.
      */
-    fun prepareImageToImageWorkflowById(
-        workflowId: String,
-        positivePrompt: String,
-        negativePrompt: String = "",
-        // Single-model patterns
-        checkpoint: String = "",
-        unet: String = "",
-        lora: String? = null,  // Mandatory LoRA (single selection dropdown)
-        // Dual-model patterns (for unified support)
-        highnoiseUnet: String = "",
-        lownoiseUnet: String = "",
-        highnoiseLora: String = "",
-        lownoiseLora: String = "",
-        // Common models
-        vae: String = "",
-        clip: String = "",
-        clip1: String? = null,
-        clip2: String? = null,
-        clip3: String? = null,
-        clip4: String? = null,
-        textEncoder: String? = null,
-        latentUpscaleModel: String? = null,
-        megapixels: Float = 1.0f,
-        steps: Int,
-        cfg: Float = 8.0f,
-        samplerName: String = "euler",
-        scheduler: String = "normal",
-        denoise: Float = 1.0f,
-        imageFilename: String
-    ): String? {
-        val workflow = getWorkflowById(workflowId) ?: return null
-        lastQuickParameterError = null
-        DebugLogger.i(TAG, "Preparing ITI workflow: ${workflow.name} (id: $workflowId)")
-        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(positivePrompt)}")
-        DebugLogger.d(TAG, "Megapixels: $megapixels, Steps: $steps, CFG: $cfg")
-        DebugLogger.d(TAG, "Sampler: $samplerName, Scheduler: $scheduler")
-        if (checkpoint.isNotEmpty()) DebugLogger.d(TAG, "Checkpoint: ${Obfuscator.modelName(checkpoint)}")
-        if (unet.isNotEmpty()) DebugLogger.d(TAG, "UNET: ${Obfuscator.modelName(unet)}")
-        lora?.let { DebugLogger.d(TAG, "LoRA: ${Obfuscator.modelName(it)}") }
-        if (highnoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "High-noise UNET: ${Obfuscator.modelName(highnoiseUnet)}")
-        if (lownoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "Low-noise UNET: ${Obfuscator.modelName(lownoiseUnet)}")
-        if (highnoiseLora.isNotEmpty()) DebugLogger.d(TAG, "High-noise LoRA: ${Obfuscator.modelName(highnoiseLora)}")
-        if (lownoiseLora.isNotEmpty()) DebugLogger.d(TAG, "Low-noise LoRA: ${Obfuscator.modelName(lownoiseLora)}")
-        if (vae.isNotEmpty()) DebugLogger.d(TAG, "VAE: ${Obfuscator.modelName(vae)}")
-        if (clip.isNotEmpty()) DebugLogger.d(TAG, "CLIP: ${Obfuscator.modelName(clip)}")
-        DebugLogger.d(TAG, "Source image: ${Obfuscator.filename(imageFilename)}")
-
-        val randomSeed = (0..999999999999).random()
-        val escapedPositivePrompt = escapeForJson(positivePrompt)
-        val escapedNegativePrompt = escapeForJson(negativePrompt)
-
-        var processedJson = workflow.jsonContent
-
-        // Type-specific placeholders: prompts and models
-        processedJson = processedJson.replace("{{positive_prompt}}", escapedPositivePrompt)
-        processedJson = processedJson.replace("{{negative_prompt}}", escapedNegativePrompt)
-        // Single-model placeholders
-        processedJson = processedJson.replace("{{ckpt_name}}", escapeForJson(checkpoint))
-        processedJson = processedJson.replace("{{unet_name}}", escapeForJson(unet))
-        lora?.let { processedJson = processedJson.replace("{{lora_name}}", escapeForJson(it)) }
-        // Dual-model placeholders
-        processedJson = processedJson.replace("{{highnoise_unet_name}}", escapeForJson(highnoiseUnet))
-        processedJson = processedJson.replace("{{lownoise_unet_name}}", escapeForJson(lownoiseUnet))
-        processedJson = processedJson.replace("{{highnoise_lora_name}}", escapeForJson(highnoiseLora))
-        processedJson = processedJson.replace("{{lownoise_lora_name}}", escapeForJson(lownoiseLora))
-        // Common model placeholders
-        processedJson = processedJson.replace("{{vae_name}}", escapeForJson(vae))
-        processedJson = processedJson.replace("{{clip_name}}", escapeForJson(clip))
-        clip1?.let { processedJson = processedJson.replace("{{clip_name1}}", escapeForJson(it)) }
-        clip2?.let { processedJson = processedJson.replace("{{clip_name2}}", escapeForJson(it)) }
-        clip3?.let { processedJson = processedJson.replace("{{clip_name3}}", escapeForJson(it)) }
-        clip4?.let { processedJson = processedJson.replace("{{clip_name4}}", escapeForJson(it)) }
-        textEncoder?.let { processedJson = processedJson.replace("{{text_encoder_name}}", escapeForJson(it)) }
-        latentUpscaleModel?.let { processedJson = processedJson.replace("{{latent_upscale_model}}", escapeForJson(it)) }
-
-        // Type-specific: source image placeholder (both template and literal formats)
-        val escapedImageFilename = escapeForJson(imageFilename)
-        processedJson = processedJson.replace("{{image_filename}}", "$escapedImageFilename [input]")
-        processedJson = processedJson.replace("uploaded_image.png [input]", "$escapedImageFilename [input]")
-
-        // Common parameter placeholders (unified handling)
-        processedJson = replaceCommonPlaceholders(
-            json = processedJson,
-            seed = randomSeed,
-            steps = steps,
-            cfg = cfg,
-            samplerName = samplerName,
-            scheduler = scheduler,
-            denoise = denoise,
-            megapixels = megapixels
-        )
-
-        // Apply node attribute edits from the Workflow Editor
-        return applyVerifiedQuickEdits(workflow.id, applyBypassedNodes(applyNodeAttributeEdits(processedJson, workflow.id)))
-    }
-
-    /**
-     * Prepare Image-to-Image Editing workflow JSON with actual parameter values (by workflow ID).
-     * This is for the QwenImage Edit-style workflows that use reference images instead of masks.
-     */
-    fun prepareImageEditingWorkflowById(
-        workflowId: String,
-        positivePrompt: String,
-        negativePrompt: String = "",
-        checkpoint: String = "",
-        unet: String,
-        lora: String,
-        vae: String,
-        clip: String,
-        clip1: String? = null,
-        clip2: String? = null,
-        clip3: String? = null,
-        clip4: String? = null,
-        textEncoder: String? = null,
-        latentUpscaleModel: String? = null,
-        // Dual-model patterns (for video-style workflows)
-        highnoiseUnet: String = "",
-        lownoiseUnet: String = "",
-        highnoiseLora: String = "",
-        lownoiseLora: String = "",
-        megapixels: Float = 2.0f,
-        steps: Int,
-        cfg: Float = 1.0f,
-        samplerName: String = "euler",
-        scheduler: String = "simple",
-        denoise: Float = 1.0f,
-        sourceImageFilename: String,
-        referenceImage1Filename: String? = null,
-        referenceImage2Filename: String? = null
-    ): String? {
-        val workflow = getWorkflowById(workflowId) ?: return null
-        lastQuickParameterError = null
-        DebugLogger.i(TAG, "Preparing ITE workflow: ${workflow.name} (id: $workflowId)")
-        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(positivePrompt)}")
-        DebugLogger.d(TAG, "Megapixels: $megapixels, Steps: $steps, CFG: $cfg")
-        DebugLogger.d(TAG, "Sampler: $samplerName, Scheduler: $scheduler")
-        DebugLogger.d(TAG, "UNET: ${Obfuscator.modelName(unet)}")
-        DebugLogger.d(TAG, "LoRA: ${Obfuscator.modelName(lora)}")
-        DebugLogger.d(TAG, "VAE: ${Obfuscator.modelName(vae)}")
-        DebugLogger.d(TAG, "CLIP: ${Obfuscator.modelName(clip)}")
-        DebugLogger.d(TAG, "Source: ${Obfuscator.filename(sourceImageFilename)}")
-        referenceImage1Filename?.let { DebugLogger.d(TAG, "Reference1: ${Obfuscator.filename(it)}") }
-        referenceImage2Filename?.let { DebugLogger.d(TAG, "Reference2: ${Obfuscator.filename(it)}") }
-
-        val randomSeed = (0..999999999999).random()
-        val escapedPositivePrompt = escapeForJson(positivePrompt)
-        val escapedNegativePrompt = escapeForJson(negativePrompt)
-
-        var processedJson = workflow.jsonContent
-
-        // Type-specific placeholders: prompts and models
-        processedJson = processedJson.replace("{{positive_prompt}}", escapedPositivePrompt)
-        processedJson = processedJson.replace("{{negative_prompt}}", escapedNegativePrompt)
-        // Checkpoint (for checkpoint-based workflows like CheckpointLoaderSimple)
-        if (checkpoint.isNotEmpty()) {
-            processedJson = processedJson.replace("{{ckpt_name}}", escapeForJson(checkpoint))
-        }
-        processedJson = processedJson.replace("{{unet_name}}", escapeForJson(unet))
-        processedJson = processedJson.replace("{{lora_name}}", escapeForJson(lora))
-        processedJson = processedJson.replace("{{vae_name}}", escapeForJson(vae))
-        processedJson = processedJson.replace("{{clip_name}}", escapeForJson(clip))
-        clip1?.let { processedJson = processedJson.replace("{{clip_name1}}", escapeForJson(it)) }
-        clip2?.let { processedJson = processedJson.replace("{{clip_name2}}", escapeForJson(it)) }
-        clip3?.let { processedJson = processedJson.replace("{{clip_name3}}", escapeForJson(it)) }
-        clip4?.let { processedJson = processedJson.replace("{{clip_name4}}", escapeForJson(it)) }
-        textEncoder?.let { processedJson = processedJson.replace("{{text_encoder_name}}", escapeForJson(it)) }
-        latentUpscaleModel?.let { processedJson = processedJson.replace("{{latent_upscale_model}}", escapeForJson(it)) }
-        // Dual-model patterns (for video-style workflows)
-        if (highnoiseUnet.isNotEmpty()) {
-            processedJson = processedJson.replace("{{highnoise_unet_name}}", escapeForJson(highnoiseUnet))
-        }
-        if (lownoiseUnet.isNotEmpty()) {
-            processedJson = processedJson.replace("{{lownoise_unet_name}}", escapeForJson(lownoiseUnet))
-        }
-        if (highnoiseLora.isNotEmpty()) {
-            processedJson = processedJson.replace("{{highnoise_lora_name}}", escapeForJson(highnoiseLora))
-        }
-        if (lownoiseLora.isNotEmpty()) {
-            processedJson = processedJson.replace("{{lownoise_lora_name}}", escapeForJson(lownoiseLora))
-        }
-
-        // Type-specific: source image placeholder (both template and literal formats)
-        val escapedSourceFilename = escapeForJson(sourceImageFilename)
-        processedJson = processedJson.replace("{{image_filename}}", "$escapedSourceFilename [input]")
-        processedJson = processedJson.replace("uploaded_image.png [input]", "$escapedSourceFilename [input]")
-
-        // Type-specific: reference images (both placeholder and magic filename formats)
-        if (referenceImage1Filename != null) {
-            val escaped1 = "${escapeForJson(referenceImage1Filename)} [input]"
-            processedJson = processedJson.replace("{{reference_image_1}}", escaped1)
-            processedJson = processedJson.replace("reference_image_1.png [input]", escaped1)
-        }
-        if (referenceImage2Filename != null) {
-            val escaped2 = "${escapeForJson(referenceImage2Filename)} [input]"
-            processedJson = processedJson.replace("{{reference_image_2}}", escaped2)
-            processedJson = processedJson.replace("reference_image_2.png [input]", escaped2)
-        }
-
-        // Common parameter placeholders (unified handling)
-        processedJson = replaceCommonPlaceholders(
-            json = processedJson,
-            seed = randomSeed,
-            steps = steps,
-            cfg = cfg,
-            samplerName = samplerName,
-            scheduler = scheduler,
-            denoise = denoise,
-            megapixels = megapixels
-        )
-
-        // Second pass: remove unused reference image nodes and their connections
-        try {
+    private fun removeUnusedReferenceImages(processedJson: String, images: WorkflowImages): String {
+        if (!processedJson.contains("reference_image_")) return processedJson
+        return try {
             val json = JSONObject(processedJson)
             val nodes = json.optJSONObject("nodes") ?: return processedJson
 
-            // Find and remove reference image nodes that weren't provided
-            // Also remove connections to those nodes from other nodes
-            val nodesToRemove = mutableListOf<String>()
-            val nodeIdToImageInput = mutableMapOf<String, String>() // nodeId -> "image2" or "image3"
-
-            // Scan for LoadImage nodes with reference image placeholders
-            val nodeIds = nodes.keys()
-            while (nodeIds.hasNext()) {
-                val nodeId = nodeIds.next()
+            val nodesToRemove = mutableSetOf<String>()
+            for (nodeId in nodes.keys()) {
                 val node = nodes.optJSONObject(nodeId) ?: continue
-                val inputs = node.optJSONObject("inputs") ?: continue
-                val classType = node.optString("class_type")
-
-                if (classType == "LoadImage") {
-                    val imageName = inputs.optString("image", "")
-                    // Check for both placeholder and magic filename patterns
-                    val isRef1 = imageName == "{{reference_image_1}}" || imageName == "reference_image_1.png [input]"
-                    val isRef2 = imageName == "{{reference_image_2}}" || imageName == "reference_image_2.png [input]"
-                    if (isRef1 && referenceImage1Filename == null) {
-                        nodesToRemove.add(nodeId)
-                        nodeIdToImageInput[nodeId] = "image2"
-                    } else if (isRef2 && referenceImage2Filename == null) {
-                        nodesToRemove.add(nodeId)
-                        nodeIdToImageInput[nodeId] = "image3"
-                    }
+                if (node.optString("class_type") != "LoadImage") continue
+                val imageName = node.optJSONObject("inputs")?.optString("image", "") ?: continue
+                val isRef1 = imageName == "{{reference_image_1}}" || imageName == "reference_image_1.png [input]"
+                val isRef2 = imageName == "{{reference_image_2}}" || imageName == "reference_image_2.png [input]"
+                if ((isRef1 && images.reference1 == null) || (isRef2 && images.reference2 == null)) {
+                    nodesToRemove.add(nodeId)
                 }
             }
+            if (nodesToRemove.isEmpty()) return processedJson
+            nodesToRemove.forEach { nodes.remove(it) }
 
-            // Remove the nodes
-            for (nodeId in nodesToRemove) {
-                nodes.remove(nodeId)
+            // Connections are [nodeId, outputIndex] arrays
+            for (nodeId in nodes.keys()) {
+                val inputs = nodes.optJSONObject(nodeId)?.optJSONObject("inputs") ?: continue
+                val connected = inputs.keys().asSequence().filter { key ->
+                    val value = inputs.opt(key)
+                    value is JSONArray && value.length() == 2 && value.optString(0) in nodesToRemove
+                }.toList()
+                connected.forEach { inputs.remove(it) }
             }
-
-            // Remove connections to removed nodes from all other nodes
-            val allNodeIds = nodes.keys()
-            while (allNodeIds.hasNext()) {
-                val nodeId = allNodeIds.next()
-                val node = nodes.optJSONObject(nodeId) ?: continue
-                val inputs = node.optJSONObject("inputs") ?: continue
-
-                // Check each input for connections to removed nodes
-                val inputsToRemove = mutableListOf<String>()
-                val inputKeys = inputs.keys()
-                while (inputKeys.hasNext()) {
-                    val inputKey = inputKeys.next()
-                    val inputValue = inputs.opt(inputKey)
-
-                    // Connection format is [nodeId, outputIndex] as JSONArray
-                    if (inputValue is JSONArray && inputValue.length() == 2) {
-                        val connectedNodeId = inputValue.optString(0)
-                        if (connectedNodeId in nodesToRemove) {
-                            inputsToRemove.add(inputKey)
-                        }
-                    }
-                }
-
-                // Remove the connections
-                for (inputKey in inputsToRemove) {
-                    inputs.remove(inputKey)
-                }
-            }
-
-            // Apply node attribute edits from the Workflow Editor
-            return applyVerifiedQuickEdits(workflow.id, applyNodeAttributeEdits(json.toString(), workflow.id))
+            json.toString()
         } catch (e: Exception) {
-            // If JSON parsing fails, return the string-processed version with edits applied
-            return applyVerifiedQuickEdits(workflow.id, applyBypassedNodes(applyNodeAttributeEdits(processedJson, workflow.id)))
+            processedJson
         }
-    }
-
-    /**
-     * Prepare video workflow JSON with actual parameter values (by workflow ID)
-     */
-    fun prepareVideoWorkflowById(
-        workflowId: String,
-        positivePrompt: String,
-        negativePrompt: String = "",
-        // Single-model patterns (e.g., LTX 2.0)
-        checkpoint: String = "",
-        unet: String = "",
-        lora: String? = null,
-        // Dual-model patterns (e.g., Wan 2.2)
-        highnoiseUnet: String = "",
-        lownoiseUnet: String = "",
-        highnoiseLora: String = "",
-        lownoiseLora: String = "",
-        // Common models
-        vae: String = "",
-        clip: String = "",
-        clip1: String? = null,
-        clip2: String? = null,
-        clip3: String? = null,
-        clip4: String? = null,
-        textEncoder: String? = null,
-        latentUpscaleModel: String? = null,
-        width: Int,
-        height: Int,
-        length: Int,
-        fps: Int = 16,
-        // Generation parameters (optional - workflow may have defaults)
-        steps: Int? = null,
-        cfg: Float? = null,
-        samplerName: String? = null,
-        scheduler: String? = null,
-        denoise: Float? = null
-    ): String? {
-        val workflow = getWorkflowById(workflowId) ?: return null
-        lastQuickParameterError = null
-        DebugLogger.i(TAG, "Preparing TTV workflow: ${workflow.name} (id: $workflowId)")
-        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(positivePrompt)}")
-        DebugLogger.d(TAG, "Dimensions: ${width}x${height}, Length: $length frames, FPS: $fps")
-        if (checkpoint.isNotEmpty()) DebugLogger.d(TAG, "Checkpoint: ${Obfuscator.modelName(checkpoint)}")
-        if (unet.isNotEmpty()) DebugLogger.d(TAG, "UNET: ${Obfuscator.modelName(unet)}")
-        lora?.let { DebugLogger.d(TAG, "LoRA: ${Obfuscator.modelName(it)}") }
-        if (highnoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "High-noise UNET: ${Obfuscator.modelName(highnoiseUnet)}")
-        if (lownoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "Low-noise UNET: ${Obfuscator.modelName(lownoiseUnet)}")
-        if (highnoiseLora.isNotEmpty()) DebugLogger.d(TAG, "High-noise LoRA: ${Obfuscator.modelName(highnoiseLora)}")
-        if (lownoiseLora.isNotEmpty()) DebugLogger.d(TAG, "Low-noise LoRA: ${Obfuscator.modelName(lownoiseLora)}")
-        if (vae.isNotEmpty()) DebugLogger.d(TAG, "VAE: ${Obfuscator.modelName(vae)}")
-        if (clip.isNotEmpty()) DebugLogger.d(TAG, "CLIP: ${Obfuscator.modelName(clip)}")
-
-        val randomSeed = (0..999999999999).random()
-        val escapedPositivePrompt = escapeForJson(positivePrompt)
-        val escapedNegativePrompt = escapeForJson(negativePrompt)
-
-        var processedJson = workflow.jsonContent
-
-        // Type-specific placeholders: prompts and models
-        processedJson = processedJson.replace("{{positive_prompt}}", escapedPositivePrompt)
-        processedJson = processedJson.replace("{{negative_prompt}}", escapedNegativePrompt)
-        // Single-model placeholders
-        processedJson = processedJson.replace("{{ckpt_name}}", escapeForJson(checkpoint))
-        processedJson = processedJson.replace("{{unet_name}}", escapeForJson(unet))
-        lora?.let { processedJson = processedJson.replace("{{lora_name}}", escapeForJson(it)) }
-        // Dual-model placeholders
-        processedJson = processedJson.replace("{{highnoise_unet_name}}", escapeForJson(highnoiseUnet))
-        processedJson = processedJson.replace("{{lownoise_unet_name}}", escapeForJson(lownoiseUnet))
-        processedJson = processedJson.replace("{{highnoise_lora_name}}", escapeForJson(highnoiseLora))
-        processedJson = processedJson.replace("{{lownoise_lora_name}}", escapeForJson(lownoiseLora))
-        // Common model placeholders
-        processedJson = processedJson.replace("{{vae_name}}", escapeForJson(vae))
-        processedJson = processedJson.replace("{{clip_name}}", escapeForJson(clip))
-        clip1?.let { processedJson = processedJson.replace("{{clip_name1}}", escapeForJson(it)) }
-        clip2?.let { processedJson = processedJson.replace("{{clip_name2}}", escapeForJson(it)) }
-        clip3?.let { processedJson = processedJson.replace("{{clip_name3}}", escapeForJson(it)) }
-        clip4?.let { processedJson = processedJson.replace("{{clip_name4}}", escapeForJson(it)) }
-        textEncoder?.let { processedJson = processedJson.replace("{{text_encoder_name}}", escapeForJson(it)) }
-        latentUpscaleModel?.let { processedJson = processedJson.replace("{{latent_upscale_model}}", escapeForJson(it)) }
-
-        // Common parameter placeholders (unified handling)
-        processedJson = replaceCommonPlaceholders(
-            json = processedJson,
-            seed = randomSeed,
-            steps = steps,
-            cfg = cfg,
-            samplerName = samplerName,
-            scheduler = scheduler,
-            denoise = denoise,
-            width = width,
-            height = height,
-            length = length,
-            frameRate = fps,
-            batchSize = 1
-        )
-
-        // Apply node attribute edits from the Workflow Editor
-        return applyVerifiedQuickEdits(workflow.id, applyBypassedNodes(applyNodeAttributeEdits(processedJson, workflow.id)))
-    }
-
-    /**
-     * Prepare image-to-video workflow JSON with actual parameter values (by workflow ID)
-     */
-    fun prepareImageToVideoWorkflowById(
-        workflowId: String,
-        positivePrompt: String,
-        negativePrompt: String = "",
-        // Single-model patterns (e.g., LTX 2.0)
-        checkpoint: String = "",
-        unet: String = "",
-        lora: String? = null,
-        // Dual-model patterns (e.g., Wan 2.2)
-        highnoiseUnet: String = "",
-        lownoiseUnet: String = "",
-        highnoiseLora: String = "",
-        lownoiseLora: String = "",
-        // Common models
-        vae: String = "",
-        clip: String = "",
-        clip1: String? = null,
-        clip2: String? = null,
-        clip3: String? = null,
-        clip4: String? = null,
-        textEncoder: String? = null,
-        latentUpscaleModel: String? = null,
-        width: Int,
-        height: Int,
-        length: Int,
-        fps: Int = 16,
-        imageFilename: String,
-        // Generation parameters (optional - workflow may have defaults)
-        steps: Int? = null,
-        cfg: Float? = null,
-        samplerName: String? = null,
-        scheduler: String? = null,
-        denoise: Float? = null
-    ): String? {
-        val workflow = getWorkflowById(workflowId) ?: return null
-        lastQuickParameterError = null
-        DebugLogger.i(TAG, "Preparing ITV workflow: ${workflow.name} (id: $workflowId)")
-        DebugLogger.d(TAG, "Prompt: ${Obfuscator.prompt(positivePrompt)}")
-        DebugLogger.d(TAG, "Dimensions: ${width}x${height}, Length: $length frames, FPS: $fps")
-        if (checkpoint.isNotEmpty()) DebugLogger.d(TAG, "Checkpoint: ${Obfuscator.modelName(checkpoint)}")
-        if (unet.isNotEmpty()) DebugLogger.d(TAG, "UNET: ${Obfuscator.modelName(unet)}")
-        lora?.let { DebugLogger.d(TAG, "LoRA: ${Obfuscator.modelName(it)}") }
-        if (highnoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "High-noise UNET: ${Obfuscator.modelName(highnoiseUnet)}")
-        if (lownoiseUnet.isNotEmpty()) DebugLogger.d(TAG, "Low-noise UNET: ${Obfuscator.modelName(lownoiseUnet)}")
-        if (highnoiseLora.isNotEmpty()) DebugLogger.d(TAG, "High-noise LoRA: ${Obfuscator.modelName(highnoiseLora)}")
-        if (lownoiseLora.isNotEmpty()) DebugLogger.d(TAG, "Low-noise LoRA: ${Obfuscator.modelName(lownoiseLora)}")
-        if (vae.isNotEmpty()) DebugLogger.d(TAG, "VAE: ${Obfuscator.modelName(vae)}")
-        if (clip.isNotEmpty()) DebugLogger.d(TAG, "CLIP: ${Obfuscator.modelName(clip)}")
-        DebugLogger.d(TAG, "Source image: ${Obfuscator.filename(imageFilename)}")
-
-        val randomSeed = (0..999999999999).random()
-        val escapedPositivePrompt = escapeForJson(positivePrompt)
-        val escapedNegativePrompt = escapeForJson(negativePrompt)
-
-        var processedJson = workflow.jsonContent
-
-        // Type-specific placeholders: prompts and models
-        processedJson = processedJson.replace("{{positive_prompt}}", escapedPositivePrompt)
-        processedJson = processedJson.replace("{{negative_prompt}}", escapedNegativePrompt)
-        // Single-model placeholders
-        processedJson = processedJson.replace("{{ckpt_name}}", escapeForJson(checkpoint))
-        processedJson = processedJson.replace("{{unet_name}}", escapeForJson(unet))
-        lora?.let { processedJson = processedJson.replace("{{lora_name}}", escapeForJson(it)) }
-        // Dual-model placeholders
-        processedJson = processedJson.replace("{{highnoise_unet_name}}", escapeForJson(highnoiseUnet))
-        processedJson = processedJson.replace("{{lownoise_unet_name}}", escapeForJson(lownoiseUnet))
-        processedJson = processedJson.replace("{{highnoise_lora_name}}", escapeForJson(highnoiseLora))
-        processedJson = processedJson.replace("{{lownoise_lora_name}}", escapeForJson(lownoiseLora))
-        // Common model placeholders
-        processedJson = processedJson.replace("{{vae_name}}", escapeForJson(vae))
-        processedJson = processedJson.replace("{{clip_name}}", escapeForJson(clip))
-        clip1?.let { processedJson = processedJson.replace("{{clip_name1}}", escapeForJson(it)) }
-        clip2?.let { processedJson = processedJson.replace("{{clip_name2}}", escapeForJson(it)) }
-        clip3?.let { processedJson = processedJson.replace("{{clip_name3}}", escapeForJson(it)) }
-        clip4?.let { processedJson = processedJson.replace("{{clip_name4}}", escapeForJson(it)) }
-        textEncoder?.let { processedJson = processedJson.replace("{{text_encoder_name}}", escapeForJson(it)) }
-        latentUpscaleModel?.let { processedJson = processedJson.replace("{{latent_upscale_model}}", escapeForJson(it)) }
-
-        // Type-specific: source image placeholder
-        processedJson = processedJson.replace("{{image_filename}}", escapeForJson(imageFilename))
-
-        // Common parameter placeholders (unified handling)
-        processedJson = replaceCommonPlaceholders(
-            json = processedJson,
-            seed = randomSeed,
-            steps = steps,
-            cfg = cfg,
-            samplerName = samplerName,
-            scheduler = scheduler,
-            denoise = denoise,
-            width = width,
-            height = height,
-            length = length,
-            frameRate = fps,
-            batchSize = 1
-        )
-
-        // Apply node attribute edits from the Workflow Editor
-        return applyVerifiedQuickEdits(workflow.id, applyBypassedNodes(applyNodeAttributeEdits(processedJson, workflow.id)))
     }
 
     /**

@@ -13,10 +13,10 @@ import sh.hnet.comfychair.cache.MaskEditorStateHolder
 import sh.hnet.comfychair.ui.screens.MaskEditorScreen
 import sh.hnet.comfychair.ui.theme.ComfyChairTheme
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.PrivacyUtils
 
 /**
  * Fullscreen activity for editing inpainting masks.
- * Follows the MediaViewerActivity pattern for consistent transitions.
  */
 class MaskEditorActivity : ComponentActivity() {
 
@@ -35,6 +35,7 @@ class MaskEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        PrivacyUtils.applyRecentsScreenshotPolicy(this)
 
         // Verify state is initialized
         if (MaskEditorStateHolder.sourceImage == null) {

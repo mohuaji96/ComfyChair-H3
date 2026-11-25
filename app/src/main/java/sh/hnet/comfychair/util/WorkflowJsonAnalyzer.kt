@@ -3,6 +3,7 @@ package sh.hnet.comfychair.util
 import org.json.JSONObject
 import sh.hnet.comfychair.WorkflowType
 import sh.hnet.comfychair.WorkflowValidationResult
+import sh.hnet.comfychair.workflow.Subgraphs
 import sh.hnet.comfychair.workflow.TemplateKeyRegistry
 import sh.hnet.comfychair.workflow.WorkflowGraph
 
@@ -15,15 +16,8 @@ import sh.hnet.comfychair.workflow.WorkflowGraph
  */
 internal object WorkflowJsonAnalyzer {
 
-    // Required placeholders per workflow type - only positive_prompt is required now
-    // All other fields are optional and handled by WorkflowDefaults capability flags
-    val REQUIRED_PLACEHOLDERS = mapOf(
-        WorkflowType.TTI to listOf("{{positive_prompt}}"),
-        WorkflowType.ITI_INPAINTING to listOf("{{positive_prompt}}"),
-        WorkflowType.ITI_EDITING to listOf("{{positive_prompt}}"),
-        WorkflowType.TTV to listOf("{{positive_prompt}}"),
-        WorkflowType.ITV to listOf("{{positive_prompt}}")
-    )
+    // No placeholder is required: even the positive prompt is optional (e.g. upscaler workflows have
+    // none), and field visibility is handled by WorkflowCapabilities flags
 
     // Required patterns (not placeholders but literal strings that must exist)
     val REQUIRED_PATTERNS = mapOf(
@@ -37,8 +31,13 @@ internal object WorkflowJsonAnalyzer {
         "iti_inpainting_" to WorkflowType.ITI_INPAINTING,
         "iti_editing_" to WorkflowType.ITI_EDITING,
         "ttv_" to WorkflowType.TTV,
-        "itv_" to WorkflowType.ITV
+        "itv_" to WorkflowType.ITV,
+        "v2v_" to WorkflowType.V2V
     )
+
+    /** A node that loads a video file: ComfyUI's LoadVideo or VideoHelperSuite's VHS_LoadVideo (and its FFmpeg variant). */
+    fun isVideoLoader(classType: String): Boolean =
+        classType == "LoadVideo" || classType == "VHS_LoadVideo" || classType == "VHS_LoadVideoFFmpeg"
 
     /**
      * Parse workflow type from filename prefix
@@ -89,8 +88,9 @@ internal object WorkflowJsonAnalyzer {
      * Returns null if type cannot be determined
      */
     fun detectWorkflowType(jsonContent: String): WorkflowType? {
+        // The nodes that run: inside subgraphs too
         val json = try {
-            JSONObject(jsonContent)
+            JSONObject(Subgraphs.flattenJson(jsonContent))
         } catch (e: Exception) {
             return null
         }
@@ -144,6 +144,9 @@ internal object WorkflowJsonAnalyzer {
 
         // Detection rules (order matters - most specific first):
         return when {
+            // Video-to-video: loads a video (most specific: such workflows also have video nodes)
+            classTypes.any { isVideoLoader(it) } -> WorkflowType.V2V
+
             // Image-to-video: has both LoadImage and video nodes
             hasLoadImage && hasVideoNodes -> WorkflowType.ITV
 
@@ -193,6 +196,9 @@ internal object WorkflowJsonAnalyzer {
         val hasUNETLoader = classTypes.any { it.equals("UNETLoader", ignoreCase = true) }
 
         return when {
+            // Video-to-video: loads a video (most specific: such workflows also have video nodes)
+            classTypes.any { isVideoLoader(it) } -> WorkflowType.V2V
+
             // Image-to-video: has both LoadImage and video nodes
             hasLoadImage && hasVideoNodes -> WorkflowType.ITV
 
@@ -225,24 +231,16 @@ internal object WorkflowJsonAnalyzer {
             return WorkflowValidationResult.InvalidJson(e.message ?: "Invalid JSON")
         }
 
-        // Check for required placeholders
-        val requiredPlaceholders = REQUIRED_PLACEHOLDERS[type] ?: emptyList()
-        val missingPlaceholders = requiredPlaceholders.filter { placeholder ->
-            !jsonContent.contains(placeholder)
-        }
-
         // Check for required patterns
         val requiredPatterns = REQUIRED_PATTERNS[type] ?: emptyList()
         val missingPatterns = requiredPatterns.filter { pattern ->
             !jsonContent.contains(pattern)
         }
 
-        val allMissing = missingPlaceholders + missingPatterns
-
-        return if (allMissing.isEmpty()) {
+        return if (missingPatterns.isEmpty()) {
             WorkflowValidationResult.Success
         } else {
-            WorkflowValidationResult.MissingPlaceholders(allMissing)
+            WorkflowValidationResult.MissingPlaceholders(missingPatterns)
         }
     }
 
@@ -251,8 +249,9 @@ internal object WorkflowJsonAnalyzer {
      * This is used for raw ComfyUI workflows that don't use placeholders
      */
     fun validateWorkflowKeys(jsonContent: String, type: WorkflowType): WorkflowValidationResult {
+        // The nodes that run: inside subgraphs too
         val json = try {
-            JSONObject(jsonContent)
+            JSONObject(Subgraphs.flattenJson(jsonContent))
         } catch (e: Exception) {
             return WorkflowValidationResult.InvalidJson(e.message ?: "Invalid JSON")
         }
@@ -284,9 +283,9 @@ internal object WorkflowJsonAnalyzer {
         // 1. The actual JSON key is present (mapped via PLACEHOLDER_TO_KEY), or
         // 2. The placeholder is present in values (for specific placeholders like highnoise_unet_name)
         val missingKeys = requiredKeys.filter { requiredKey ->
-            val jsonKey = TemplateKeyRegistry.getJsonKeyForPlaceholder(requiredKey)
-            val hasJsonKey = jsonKey in presentKeys
-            val hasPlaceholder = requiredKey in presentPlaceholders
+            val hasJsonKey = TemplateKeyRegistry.inputKeysForField(requiredKey).any { it in presentKeys }
+            val hasPlaceholder = requiredKey in presentPlaceholders ||
+                TemplateKeyRegistry.getPlaceholderForKey(requiredKey) in presentPlaceholders
             !hasJsonKey && !hasPlaceholder
         }
 
@@ -308,7 +307,8 @@ internal object WorkflowJsonAnalyzer {
      */
     fun extractClassTypes(jsonContent: String): Result<Set<String>> {
         return try {
-            val json = JSONObject(jsonContent)
+            // The nodes that run: inside subgraphs, without the instances (their types are the workflow's own)
+            val json = JSONObject(Subgraphs.flattenJson(jsonContent))
             val nodesJson = extractNodesObject(json)
             val classTypes = mutableSetOf<String>()
 

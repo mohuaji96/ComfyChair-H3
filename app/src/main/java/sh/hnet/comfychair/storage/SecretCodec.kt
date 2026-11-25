@@ -16,6 +16,7 @@ class SecretCodec(private val key: () -> SecretKey?) {
     fun seal(name: String, value: String): String? = runCatching {
         val secretKey = key() ?: return null
         val cipher = Cipher.getInstance(TRANSFORMATION)
+        // The IV comes from the cipher: the Android Keystore requires keys to pick their own
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         cipher.updateAAD(name.toByteArray(Charsets.UTF_8))
         val iv = cipher.iv

@@ -1,779 +1,444 @@
 package sh.hnet.comfychair.ui.screens
 
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.OutlinedIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import sh.hnet.comfychair.MaskEditorActivity
-import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.R
-import sh.hnet.comfychair.WorkflowManager
-import sh.hnet.comfychair.WorkflowEditorActivity
 import sh.hnet.comfychair.cache.MaskEditorStateHolder
-import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.ScreenType
+import sh.hnet.comfychair.navigation.MainRoute
+import sh.hnet.comfychair.queue.JobDescription
 import sh.hnet.comfychair.queue.JobRegistry
-import sh.hnet.comfychair.ui.components.ServerStatusLamp
-import sh.hnet.comfychair.ui.components.AppMenuDropdown
-import sh.hnet.comfychair.ui.components.PromptLibraryDialog
-import sh.hnet.comfychair.ui.components.PromptPresetDialog
-import sh.hnet.comfychair.ui.components.shared.PromptPresetDropdown
-import sh.hnet.comfychair.ui.components.shared.rememberSpellCheckVisualTransformation
-import sh.hnet.comfychair.ui.theme.Dimensions
-import sh.hnet.comfychair.storage.AppSettings
-import sh.hnet.comfychair.ui.components.GenerationButton
-import sh.hnet.comfychair.ui.components.GenerationProgressBar
-import sh.hnet.comfychair.ui.components.config.ConfigBottomSheetContent
-import sh.hnet.comfychair.ui.components.config.UnifiedCallbacks
-import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
+import sh.hnet.comfychair.ui.components.LocalMediaViewer
 import sh.hnet.comfychair.ui.components.MaskPreview
-import sh.hnet.comfychair.viewmodel.ConnectionStatus
+import sh.hnet.comfychair.ui.components.ResultHeroImage
+import sh.hnet.comfychair.ui.components.ResultHeroVideo
+import sh.hnet.comfychair.ui.components.ResultsPreview
+import sh.hnet.comfychair.ui.components.SourceMedia
+import sh.hnet.comfychair.ui.components.UseAsSource
+import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
+import sh.hnet.comfychair.ui.components.config.workflowGroups
+import sh.hnet.comfychair.ui.components.config.workflowIcon
+import sh.hnet.comfychair.ui.components.generation.EmptyResultState
+import sh.hnet.comfychair.ui.components.generation.EmptySourcePicker
+import sh.hnet.comfychair.ui.components.generation.GenerationControls
+import sh.hnet.comfychair.ui.components.generation.GenerationOptionsSheet
+import sh.hnet.comfychair.ui.components.generation.GenerationPreviewArea
+import sh.hnet.comfychair.ui.components.generation.GenerationScreenEffects
+import sh.hnet.comfychair.ui.components.generation.GenerationTopBar
+import sh.hnet.comfychair.ui.components.generation.MaskLabel
+import sh.hnet.comfychair.ui.components.generation.MaskTools
+import sh.hnet.comfychair.ui.components.generation.PromptDock
+import sh.hnet.comfychair.ui.components.generation.PromptPresetDialogs
+import sh.hnet.comfychair.ui.components.generation.RecipeChips
+import sh.hnet.comfychair.ui.components.generation.ReferenceSlot
+import sh.hnet.comfychair.ui.components.generation.ReferenceSlots
+import sh.hnet.comfychair.ui.components.generation.ResultActionsMenu
+import sh.hnet.comfychair.ui.components.generation.ResultMedia
+import sh.hnet.comfychair.ui.components.generation.ScreenJobStatus
+import sh.hnet.comfychair.ui.components.generation.SourceResultSwitcher
+import sh.hnet.comfychair.ui.components.generation.SourceSheet
+import sh.hnet.comfychair.ui.components.generation.SourceToolbar
+import sh.hnet.comfychair.ui.components.generation.imageSendActions
+import sh.hnet.comfychair.ui.components.generation.rememberJobSubmitter
+import sh.hnet.comfychair.ui.components.generation.rememberOutputThumbnail
+import sh.hnet.comfychair.ui.components.generation.rememberPromptInputState
+import sh.hnet.comfychair.ui.components.generation.rememberSourcePickerState
+import sh.hnet.comfychair.ui.components.generation.videoSendActions
+import sh.hnet.comfychair.ui.components.loadResultBitmap
+import sh.hnet.comfychair.ui.components.loadResultVideo
+import sh.hnet.comfychair.ui.components.mediaOrigin
+import sh.hnet.comfychair.ui.components.rememberResultsViewer
+import sh.hnet.comfychair.util.VideoUtils
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
-import sh.hnet.comfychair.viewmodel.ImageToImageEvent
 import sh.hnet.comfychair.viewmodel.ImageToImageMode
 import sh.hnet.comfychair.viewmodel.ImageToImageViewMode
 import sh.hnet.comfychair.viewmodel.ImageToImageViewModel
-import sh.hnet.comfychair.viewmodel.PromptPresetEvent
 import sh.hnet.comfychair.viewmodel.PromptPresetViewModel
+import sh.hnet.comfychair.viewmodel.nameWhile
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ImageToImageScreen(
     generationViewModel: GenerationViewModel,
     imageToImageViewModel: ImageToImageViewModel,
-    onNavigateToSettings: () -> Unit,
-    onLogout: () -> Unit
+    onUseAsSource: UseAsSource,
+    presetViewModel: PromptPresetViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
 
-    // Prompt preset ViewModel
-    val presetViewModel: PromptPresetViewModel = viewModel()
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val ownerId = ImageToImageViewModel.OWNER_ID
 
-    // State and effects
-    // Collect state
-    val generationState by generationViewModel.generationState.collectAsState()
-    val connectionStatus by generationViewModel.connectionStatus.collectAsState()
     val uiState by imageToImageViewModel.uiState.collectAsState()
-    val queueState by JobRegistry.queueState.collectAsState()
-    val isConnecting by ConnectionManager.isConnecting.collectAsState()
+    // Read once per composition: also what click handlers below use
+    val sourceImage = uiState.sourceImage
+    val previewImage = uiState.previewImage
+    // Offered only while Editing mode has a free reference slot
+    val useAsReference: ((Bitmap) -> Unit)? =
+        if (imageToImageViewModel.freeReferenceSlot(uiState) != null) imageToImageViewModel::useAsReference else null
     val presetUiState by presetViewModel.uiState.collectAsState()
+    val queueState by JobRegistry.queueState.collectAsState()
 
-    // Initialize preset ViewModel (shared for both inpainting and editing modes)
-    LaunchedEffect(Unit) {
-        presetViewModel.initialize(context, ScreenType.IMAGE_TO_IMAGE)
-    }
-
-    // Refresh presets when screen resumes (catches external changes from Media Viewer)
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                presetViewModel.refreshPresets()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    // Check if THIS screen owns the currently executing job (for progress bar)
-    val isThisScreenExecuting = queueState.executingOwnerId == ImageToImageViewModel.OWNER_ID
-
-    // Check offline mode
-    val isOfflineMode = remember { AppSettings.isOfflineMode(context) }
-    var spellCheckEnabled by remember { mutableStateOf(AppSettings.isPromptSpellCheckEnabled(context)) }
-    var promptExpandEnabled by remember { mutableStateOf(AppSettings.isPromptExpandEnabled(context)) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                spellCheckEnabled = AppSettings.isPromptSpellCheckEnabled(context)
-                promptExpandEnabled = AppSettings.isPromptExpandEnabled(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    val positivePromptTransformation = rememberSpellCheckVisualTransformation(
-        text = uiState.positivePrompt,
-        enabled = spellCheckEnabled
+    GenerationScreenEffects(
+        imageToImageViewModel, generationViewModel, presetViewModel, ScreenType.IMAGE_TO_IMAGE, ownerId,
+        onJobStarted = { imageToImageViewModel.onViewModeChange(ImageToImageViewMode.PREVIEW) }
     )
-    val imeHeight = WindowInsets.ime.getBottom(LocalDensity.current)
-    var prevImeHeight by remember { mutableStateOf(imeHeight) }
-    SideEffect { prevImeHeight = imeHeight }
-    var promptFocused by remember { mutableStateOf(false) }
-    val expandPrompt = promptExpandEnabled && promptFocused && imeHeight > 0 && imeHeight >= prevImeHeight
-
+    val promptInput = rememberPromptInputState()
     var showOptionsSheet by remember { mutableStateOf(false) }
 
-    val optionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isThisScreenExecuting = queueState.executingOwnerId == ownerId
+    // Several results of the last job are shown as a pager with a thumbnail strip
+    val showResults = !isThisScreenExecuting && uiState.generationOutputs.size > 1
+    val isThisScreenQueued = !isThisScreenExecuting && queueState.hasWaitingJob(ownerId)
 
-    // Image picker launcher for source image
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            imageToImageViewModel.onSourceImageChange(context, it)
-            imageToImageViewModel.onViewModeChange(ImageToImageViewMode.SOURCE)
-        }
+    // The source sheet (spec §21), for the source or a reference slot (0 source, 1 and 2 the slots)
+    val sourcePicker = rememberSourcePickerState()
+    var pickingFor by remember { mutableIntStateOf(0) }
+    fun pickSource(slot: Int) {
+        pickingFor = slot
+        sourcePicker.open()
     }
-
-    // Initialize ViewModel
-    LaunchedEffect(Unit) {
-        generationViewModel.getClient()?.let { client ->
-            imageToImageViewModel.initialize(context, client)
-        }
-    }
-
-    // Fetch models when connected
-    LaunchedEffect(connectionStatus) {
-        if (connectionStatus == ConnectionStatus.CONNECTED) {
-            imageToImageViewModel.fetchModels()
-        }
-    }
-
-    // Event handling
-    LaunchedEffect(Unit) {
-        imageToImageViewModel.events.collect { event ->
-            when (event) {
-                is ImageToImageEvent.ShowToast -> {
-                    Toast.makeText(context, event.messageResId, Toast.LENGTH_SHORT).show()
+    SourceSheet(
+        state = sourcePicker,
+        video = false,
+        current = when (pickingFor) {
+            1 -> uiState.reference1Server.nameWhile(uiState.referenceImage1)
+            2 -> uiState.reference2Server.nameWhile(uiState.referenceImage2)
+            else -> uiState.sourceServer.nameWhile(uiState.sourceImage)
+        },
+        onDevice = { uri ->
+            when (pickingFor) {
+                1 -> imageToImageViewModel.onReferenceImage1Change(context, uri)
+                2 -> imageToImageViewModel.onReferenceImage2Change(context, uri)
+                else -> {
+                    imageToImageViewModel.onSourceImageChange(context, uri)
+                    imageToImageViewModel.onViewModeChange(ImageToImageViewMode.SOURCE)
                 }
-                is ImageToImageEvent.ShowToastMessage -> {
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+            }
+        },
+        onServer = { name ->
+            when (pickingFor) {
+                1, 2 -> imageToImageViewModel.onServerReferenceImage(pickingFor, context, name)
+                else -> {
+                    imageToImageViewModel.onServerSourceImage(context, name)
+                    imageToImageViewModel.onViewModeChange(ImageToImageViewMode.SOURCE)
                 }
             }
         }
-    }
-
-    // Preset event handling
-    LaunchedEffect(Unit) {
-        presetViewModel.events.collect { event ->
-            when (event) {
-                is PromptPresetEvent.PresetApplied -> {
-                    imageToImageViewModel.onPositivePromptChange(event.prompt)
-                }
-                is PromptPresetEvent.ShowToast -> {
-                    Toast.makeText(context, context.getString(event.messageResId), Toast.LENGTH_SHORT).show()
-                }
-                is PromptPresetEvent.MaxFavoritesReached -> {
-                    Toast.makeText(context, context.getString(R.string.prompt_preset_max_favorites), Toast.LENGTH_SHORT).show()
-                }
-                is PromptPresetEvent.ResetPrompt -> {
-                    imageToImageViewModel.resetPromptToDefault()
-                }
-            }
-        }
-    }
-
-    // Register event handler when screen is active
-    DisposableEffect(Unit) {
-        imageToImageViewModel.startListening(generationViewModel)
-        onDispose {
-            imageToImageViewModel.stopListening(generationViewModel)
-        }
-    }
-
-    // Handle when a NEW job starts executing for this screen
-    // Using both executingPromptId and executingOwnerId as keys handles the race condition
-    // where execution_start arrives before job registration (owner becomes known later)
-    LaunchedEffect(queueState.executingPromptId, queueState.executingOwnerId) {
-        val promptId = queueState.executingPromptId
-        if (queueState.executingOwnerId == ImageToImageViewModel.OWNER_ID && promptId != null) {
-            imageToImageViewModel.clearPreviewForExecution(promptId)
-            imageToImageViewModel.onViewModeChange(ImageToImageViewMode.PREVIEW)
-            imageToImageViewModel.startListening(generationViewModel)
-        }
-    }
+    )
 
     // UI composition
+    // Opens the mask editor on the current source; its edits come back through the ViewModel
+    fun openMaskEditor(sourceImage: Bitmap) {
+        MaskEditorStateHolder.initialize(
+            sourceImage = sourceImage,
+            maskPaths = uiState.maskPaths,
+            brushSize = uiState.brushSize,
+            isEraserMode = uiState.isEraserMode,
+            onPathAdded = { path, isEraser, brushSize ->
+                imageToImageViewModel.addMaskPath(path, isEraser, brushSize)
+                // Update state holder with new paths
+                MaskEditorStateHolder.updateMaskPaths(imageToImageViewModel.uiState.value.maskPaths)
+            },
+            onClearMask = {
+                imageToImageViewModel.clearMask()
+                MaskEditorStateHolder.updateMaskPaths(emptyList())
+            },
+            onInvertMask = {
+                imageToImageViewModel.invertMask()
+                MaskEditorStateHolder.updateMaskPaths(imageToImageViewModel.uiState.value.maskPaths)
+            },
+            onBrushSizeChange = { imageToImageViewModel.onBrushSizeChange(it) },
+            onEraserModeChange = { imageToImageViewModel.onEraserModeChange(it) }
+        )
+        context.startActivity(MaskEditorActivity.createIntent(context))
+    }
+
+    // Whether the mask is drawn over the source; only a view setting, the mask itself stays
+    var maskVisible by rememberSaveable { mutableStateOf(true) }
+
+    val mediaViewer = LocalMediaViewer.current
+
+    // Generate from the dock and from the prompt editor
+    val submitJob = rememberJobSubmitter(
+        generationViewModel = generationViewModel,
+        ownerId = ownerId,
+        // Read when submitting, for the queue sheet (kept in memory only)
+        describeJob = { JobDescription(uiState.positivePrompt, uiState.selectedWorkflow) },
+        prepareWorkflow = { imageToImageViewModel.prepareWorkflow() },
+        // Inpainting needs a mask
+        generationBlocker = {
+            R.string.hint_paint_mask.takeIf {
+                uiState.mode == ImageToImageMode.INPAINTING && !imageToImageViewModel.hasMask()
+            }
+        }
+    )
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Top App Bar with image options
-        TopAppBar(
-            title = { Text(stringResource(R.string.title_image_to_image)) },
-            windowInsets = WindowInsets(0, 0, 0, 0),
-            actions = {
-                sh.hnet.comfychair.ui.components.QueueIndicatorPill()
-                Spacer(Modifier.width(6.dp))
-                ServerStatusLamp()
-                // Upload image button
-                IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = stringResource(R.string.button_upload_source_image))
-                }
-                // Edit mask button (only in inpainting mode when source image exists)
-                if (uiState.sourceImage != null && uiState.mode == ImageToImageMode.INPAINTING) {
-                    IconButton(onClick = {
-                        // Initialize state holder and launch mask editor activity
-                        MaskEditorStateHolder.initialize(
-                            sourceImage = uiState.sourceImage!!,
-                            maskPaths = uiState.maskPaths,
-                            brushSize = uiState.brushSize,
-                            isEraserMode = uiState.isEraserMode,
-                            onPathAdded = { path, isEraser, brushSize ->
-                                imageToImageViewModel.addMaskPath(path, isEraser, brushSize)
-                                // Update state holder with new paths
-                                MaskEditorStateHolder.updateMaskPaths(imageToImageViewModel.uiState.value.maskPaths)
-                            },
-                            onClearMask = {
-                                imageToImageViewModel.clearMask()
-                                MaskEditorStateHolder.updateMaskPaths(emptyList())
-                            },
-                            onInvertMask = {
-                                imageToImageViewModel.invertMask()
-                                MaskEditorStateHolder.updateMaskPaths(imageToImageViewModel.uiState.value.maskPaths)
-                            },
-                            onBrushSizeChange = { imageToImageViewModel.onBrushSizeChange(it) },
-                            onEraserModeChange = { imageToImageViewModel.onEraserModeChange(it) }
-                        )
-                        context.startActivity(MaskEditorActivity.createIntent(context))
-                    }) {
-                        Icon(Icons.Default.Brush, contentDescription = stringResource(R.string.button_edit_mask))
-                    }
-                    // Clear mask button
-                    IconButton(onClick = { imageToImageViewModel.clearMask() }) {
-                        Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.button_clear_mask))
-                    }
-                }
-                // Menu button
-                AppMenuDropdown(
-                    onSettings = onNavigateToSettings,
-                    onLogout = onLogout
-                )
-            }
+        GenerationTopBar(
+            screen = MainRoute.ImageToImage,
+            ownerId = ownerId,
+            generationViewModel = generationViewModel
         )
 
-        // Progress indicator - below app bar, only show if THIS screen's job is executing
-        AnimatedVisibility(
-            visible = isThisScreenExecuting,
-            // Same 150ms as the H3 workspace, so the header does not jump between pages.
-            enter = expandVertically(tween(150)) + fadeIn(tween(150)),
-            exit = shrinkVertically(tween(150)) + fadeOut(tween(120))
-        ) {
-            GenerationProgressBar(
-                stage = generationState.stage,
-                progress = generationState.progress,
-                maxProgress = generationState.maxProgress,
-                startedAt = generationState.startedAt
-            )
-        }
+        // Picture-in-picture thumbnails: the side that isn't shown full size
+        val sourceThumb = remember(sourceImage) { sourceImage?.asImageBitmap() }
+        val previewThumb = remember(previewImage) { previewImage?.asImageBitmap() }
+        val outputThumb = rememberOutputThumbnail(uiState.generationOutputs.getOrNull(uiState.currentResultIndex).takeIf { showResults })
+        val resultThumb = if (showResults) outputThumb ?: previewThumb else previewThumb
 
-        // Image Preview Area + view mode toggle — collapse when typing in the prompt field
-        AnimatedVisibility(
-            visible = !expandPrompt,
-            modifier = Modifier.weight(1f),
-            enter = fadeIn(tween(150)),
-            exit = ExitTransition.None
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .heightIn(min = 150.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .clickable(
-                            enabled = (uiState.viewMode == ImageToImageViewMode.PREVIEW && uiState.previewImage != null && !isThisScreenExecuting) ||
-                                      (uiState.viewMode == ImageToImageViewMode.SOURCE && uiState.sourceImage != null),
-                            onClick = {
-                                when (uiState.viewMode) {
-                                    ImageToImageViewMode.PREVIEW -> {
-                                        // Launch MediaViewer for generated image
-                                        uiState.previewImage?.let { bitmap ->
-                                            val intent = MediaViewerActivity.createSingleImageIntent(
-                                                context = context,
-                                                bitmap = bitmap,
-                                                hostname = generationViewModel.getHostname(),
-                                                port = generationViewModel.getPort(),
-                                                filename = uiState.previewImageFilename,
-                                                subfolder = uiState.previewImageSubfolder,
-                                                type = uiState.previewImageType
-                                            )
-                                            context.startActivity(intent)
-                                        }
-                                    }
-                                    ImageToImageViewMode.SOURCE -> {
-                                        // Launch MediaViewer for source image (without mask)
-                                        uiState.sourceImage?.let { bitmap ->
-                                            val intent = MediaViewerActivity.createSingleImageIntent(context, bitmap)
-                                            context.startActivity(intent)
-                                        }
+        // Preview area with the source and the result – collapses when typing in the prompt field
+        GenerationPreviewArea {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .heightIn(min = 150.dp)
+                    // The viewer flies the image shown (result or source) out of the preview and back
+                    .mediaOrigin(
+                        if (uiState.viewMode == ImageToImageViewMode.PREVIEW) RESULT_ORIGIN else SOURCE_ORIGIN,
+                        corner = 28.dp
+                    )
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .clickable(
+                        enabled = (uiState.viewMode == ImageToImageViewMode.PREVIEW && uiState.previewImage != null && !isThisScreenExecuting && !showResults) ||
+                                  (uiState.viewMode == ImageToImageViewMode.SOURCE && uiState.sourceImage != null),
+                        onClick = {
+                            when (uiState.viewMode) {
+                                ImageToImageViewMode.PREVIEW -> {
+                                    // Launch MediaViewer for generated image
+                                    uiState.previewImage?.let { bitmap ->
+                                        mediaViewer.openImage(
+                                            bitmap = bitmap,
+                                            filename = uiState.previewImageFilename,
+                                            subfolder = uiState.previewImageSubfolder,
+                                            type = uiState.previewImageType,
+                                            originKey = RESULT_ORIGIN
+                                        )
                                     }
                                 }
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (uiState.viewMode) {
-                        ImageToImageViewMode.SOURCE -> {
-                            if (uiState.sourceImage != null) {
-                                if (uiState.mode == ImageToImageMode.INPAINTING) {
-                                    // Read-only preview of source image with mask overlay
-                                    MaskPreview(
-                                        sourceImage = uiState.sourceImage,
-                                        maskPaths = uiState.maskPaths,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    // Editing mode: show plain source image without mask
-                                    Image(
-                                        bitmap = uiState.sourceImage!!.asImageBitmap(),
-                                        contentDescription = stringResource(R.string.content_description_source_image),
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                            } else {
-                                // Placeholder - app logo
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable { imagePickerLauncher.launch("image/*") }
-                                ) {
-                                    Image(
-                                        painter = painterResource(R.drawable.ic_comfychair_foreground),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(Dimensions.PlaceholderLogoSize),
-                                        contentScale = ContentScale.Fit
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.msg_no_source_image),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                ImageToImageViewMode.SOURCE -> {
+                                    // Launch MediaViewer for source image (without mask)
+                                    uiState.sourceImage?.let { bitmap -> mediaViewer.openImage(bitmap, originKey = SOURCE_ORIGIN) }
                                 }
                             }
                         }
-                        ImageToImageViewMode.PREVIEW -> {
-                            if (uiState.previewImage != null) {
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                SourceResultSwitcher(
+                    showSource = uiState.viewMode == ImageToImageViewMode.SOURCE,
+                    onShowSourceChange = { showSource ->
+                        imageToImageViewModel.onViewModeChange(
+                            if (showSource) ImageToImageViewMode.SOURCE else ImageToImageViewMode.PREVIEW
+                        )
+                    },
+                    sourceThumb = sourceThumb,
+                    resultThumb = resultThumb,
+                    source = { inTransition ->
+                        val inpainting = uiState.mode == ImageToImageMode.INPAINTING
+                        val hasMask = uiState.maskPaths.isNotEmpty()
+                        if (sourceImage != null) {
+                            if (inpainting && maskVisible) {
+                                // Read-only preview of the source with the mask over it
+                                MaskPreview(
+                                    sourceImage = sourceImage,
+                                    maskPaths = uiState.maskPaths,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
                                 Image(
-                                    bitmap = uiState.previewImage!!.asImageBitmap(),
-                                    contentDescription = stringResource(R.string.content_description_preview),
+                                    bitmap = sourceImage.asImageBitmap(),
+                                    contentDescription = stringResource(R.string.content_description_source_image),
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
-                            } else {
-                        // Placeholder - app logo
-                                Image(
-                                    painter = painterResource(R.drawable.ic_comfychair_foreground),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(Dimensions.PlaceholderLogoSize),
-                                    contentScale = ContentScale.Fit
+                            }
+                        } else {
+                            EmptySourcePicker(onPick = { pickSource(0) })
+                        }
+                        // Tools appear once the swap animation is done
+                        if (!inTransition) {
+                            if (sourceImage != null) {
+                                SourceToolbar(
+                                    onReplace = { pickSource(0) },
+                                    onRemove = imageToImageViewModel::clearSourceImage,
+                                    maskTools = if (inpainting) MaskTools(
+                                        hasMask = hasMask,
+                                        maskVisible = maskVisible,
+                                        onToggleMaskVisible = { maskVisible = !maskVisible },
+                                        onClearMask = imageToImageViewModel::clearMask,
+                                        onEditMask = { openMaskEditor(sourceImage) }
+                                    ) else null
+                                )
+                                if (inpainting && maskVisible && hasMask) MaskLabel()
+                            }
+                            if (!inpainting) {
+                                ReferenceSlots(
+                                    listOfNotNull(
+                                        ReferenceSlot(
+                                            image = uiState.referenceImage1,
+                                            description = stringResource(R.string.content_description_reference_image_1),
+                                            onPick = { pickSource(1) },
+                                            onClear = imageToImageViewModel::onClearReferenceImage1
+                                        ).takeIf { uiState.capabilities.hasReferenceImage1 },
+                                        ReferenceSlot(
+                                            image = uiState.referenceImage2,
+                                            description = stringResource(R.string.content_description_reference_image_2),
+                                            onPick = { pickSource(2) },
+                                            onClear = imageToImageViewModel::onClearReferenceImage2
+                                        ).takeIf { uiState.capabilities.hasReferenceImage2 }
+                                    )
                                 )
                             }
                         }
-                    }
-                }
-
-                // View mode toggle
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 16.dp)
-                ) {
-                    SegmentedButton(
-                        selected = uiState.viewMode == ImageToImageViewMode.SOURCE,
-                        onClick = { imageToImageViewModel.onViewModeChange(ImageToImageViewMode.SOURCE) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                    ) {
-                        Text(stringResource(R.string.tab_source_image))
-                    }
-                    SegmentedButton(
-                        selected = uiState.viewMode == ImageToImageViewMode.PREVIEW,
-                        onClick = { imageToImageViewModel.onViewModeChange(ImageToImageViewMode.PREVIEW) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                    ) {
-                        Text(stringResource(R.string.tab_preview))
-                    }
-                }
-            }
-        }
-
-        // Prompt Input — expands to fill screen above keyboard when focused
-        OutlinedTextField(
-            value = uiState.positivePrompt,
-            onValueChange = {
-                imageToImageViewModel.onPositivePromptChange(it)
-                presetViewModel.clearActivePreset()
-            },
-            label = { Text(stringResource(R.string.hint_prompt)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (expandPrompt) Modifier.weight(1f) else Modifier)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .onFocusChanged { promptFocused = it.isFocused },
-            minLines = 2,
-            maxLines = if (expandPrompt) Int.MAX_VALUE else 4,
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = spellCheckEnabled),
-            visualTransformation = positivePromptTransformation,
-            leadingIcon = {
-                PromptPresetDropdown(
-                    favorites = presetUiState.favorites,
-                    activePresetId = presetUiState.activePresetId,
-                    currentPromptIsEmpty = uiState.positivePrompt.isEmpty(),
-                    onPresetSelected = { presetViewModel.onPresetSelected(it) },
-                    onOpenLibrary = { presetViewModel.showLibrary() },
-                    onSaveCurrentPrompt = { presetViewModel.showSaveDialog(uiState.positivePrompt) },
-                    onResetPrompt = { presetViewModel.resetPrompt() }
-                )
-            },
-            trailingIcon = {
-                if (uiState.positivePrompt.isNotEmpty()) {
-                    IconButton(onClick = { imageToImageViewModel.onPositivePromptChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.content_description_clear))
-                    }
-                }
-            }
-        )
-
-        // Generate and Options buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp)
-        ) {
-            GenerationButton(
-                isExecuting = queueState.isOwnJobExecuting,
-                isEnabled = imageToImageViewModel.hasValidConfiguration() &&
-                    uiState.positivePrompt.isNotBlank() &&
-                    uiState.sourceImage != null,
-                isOfflineMode = isOfflineMode,
-                isUploading = uiState.isUploading,
-                isFetching = uiState.isFetching,
-                isConnecting = isConnecting,
-                onGenerate = {
-                    scope.launch {
-                        // In inpainting mode, require mask
-                        if (uiState.mode == ImageToImageMode.INPAINTING && !imageToImageViewModel.hasMask()) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.hint_paint_mask),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@launch
-                        }
-                        val workflowJson = imageToImageViewModel.prepareWorkflow()
-                        if (workflowJson != null) {
-                            generationViewModel.startGeneration(
-                                workflowJson,
-                                ImageToImageViewModel.OWNER_ID
-                            ) { success, _, errorMessage ->
-                                if (!success) {
-                                    Toast.makeText(
-                                        context,
-                                        errorMessage ?: context.getString(R.string.error_generation_failed),
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                    },
+                    // The video surface can't follow the swap animation, so a still stands in meanwhile
+                    result = { inTransition ->
+                        if (showResults) {
+                            val results = uiState.generationOutputs
+                            val openViewer = rememberResultsViewer(results, imageToImageViewModel::onCurrentResultChange)
+                            ResultsPreview(
+                                results = results,
+                                currentIndex = uiState.currentResultIndex,
+                                onCurrentIndexChange = imageToImageViewModel::onCurrentResultChange,
+                                onOpenViewer = openViewer,
+                                stripEnabled = !isThisScreenQueued,
+                                heroOverlay = { current ->
+                                    // A new menu for each result, so it doesn't stay open after swiping
+                                    key(current.id) {
+                                        val preloaded = uiState.previewImage.takeIf { current.filename == uiState.previewImageFilename }
+                                        val load: suspend () -> Bitmap? = { preloaded ?: loadResultBitmap(current) }
+                                        ResultActionsMenu(
+                                            media = ResultMedia.output(current, VideoUtils.GalleryPrefix.TEXT_TO_VIDEO, preloaded),
+                                            sendActions = if (current.isVideo) videoSendActions(onUseAsSource) { loadResultVideo(current)?.let { SourceMedia.Video(it) } } else imageSendActions(
+                                                onUseAsSource, load,
+                                                onUseAsReference = useAsReference?.let { use -> { scope.launch { load()?.let(use) } } }
+                                            ),
+                                            resultNumber = results.indexOf(current) + 1
+                                        )
+                                    }
+                                }
+                            ) { output, isCurrent ->
+                                if (output.isVideo) {
+                                    ResultHeroVideo(output = output, isCurrent = isCurrent, isActive = !inTransition)
+                                } else {
+                                    // The image already shown on the screen doesn't need loading again
+                                    ResultHeroImage(
+                                        output = output,
+                                        preloaded = uiState.previewImage.takeIf { output.filename == uiState.previewImageFilename }
+                                    )
                                 }
                             }
-                        } else {
-                            Toast.makeText(
-                                context,
-                                WorkflowManager.lastQuickParameterError ?: context.getString(R.string.error_generation_failed),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                },
-                onCancelCurrent = { generationViewModel.cancelGeneration { } },
-                onAddToFrontOfQueue = {
-                    scope.launch {
-                        // In inpainting mode, require mask
-                        if (uiState.mode == ImageToImageMode.INPAINTING && !imageToImageViewModel.hasMask()) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.hint_paint_mask),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@launch
-                        }
-                        val workflowJson = imageToImageViewModel.prepareWorkflow()
-                        if (workflowJson != null) {
-                            generationViewModel.startGeneration(
-                                workflowJson,
-                                ImageToImageViewModel.OWNER_ID,
-                                front = true
-                            ) { success, _, errorMessage ->
-                                if (!success) {
-                                    Toast.makeText(
-                                        context,
-                                        errorMessage ?: context.getString(R.string.error_generation_failed),
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
+                        } else if (previewImage != null) {
+                            Image(
+                                bitmap = previewImage.asImageBitmap(),
+                                contentDescription = stringResource(R.string.content_description_preview),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                            // While generating, the area shows live previews instead of a result
+                            if (!isThisScreenExecuting) {
+                                ResultActionsMenu(
+                                    media = ResultMedia.image(
+                                        previewImage, uiState.previewImageFilename, uiState.previewImageSubfolder, uiState.previewImageType
+                                    ),
+                                    sendActions = imageSendActions(
+                                        onUseAsSource, { previewImage },
+                                        onUseAsReference = useAsReference?.let { use -> { use(previewImage) } }
+                                    )
+                                )
                             }
                         } else {
-                            Toast.makeText(
-                                context,
-                                WorkflowManager.lastQuickParameterError ?: context.getString(R.string.error_generation_failed),
-                                Toast.LENGTH_SHORT
-                            ).show()
+                    // Nothing generated yet
+                            EmptyResultState()
                         }
+                        // Over the live frames while this screen's job runs
+                        ScreenJobStatus(ownerId, generationViewModel)
                     }
-                },
-                onClearQueue = {
-                    generationViewModel.getClient()?.clearQueue { success ->
-                        val messageRes = if (success) R.string.msg_queue_cleared_success
-                                       else R.string.error_queue_clear
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            Toast.makeText(context, context.getString(messageRes), Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Animate gear icon rotation when options sheet is shown
-            val optionsIconRotation by animateFloatAsState(
-                targetValue = if (showOptionsSheet) 90f else 0f,
-                label = "options icon rotation"
-            )
-
-            OutlinedIconButton(
-                onClick = { showOptionsSheet = true },
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = stringResource(R.string.button_options),
-                    modifier = Modifier.rotate(optionsIconRotation)
                 )
             }
         }
-    } // End of outer Column
 
-    // Options bottom sheet
-    if (showOptionsSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showOptionsSheet = false },
-            sheetState = optionsSheetState,
-            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
-        ) {
-            val callbacks = remember(imageToImageViewModel) {
-                UnifiedCallbacks(
-                    // Mode selection
-                    onModeChange = imageToImageViewModel::onModeChange,
-                    // Reference image callbacks (editing mode)
-                    onReferenceImage1Change = { uri -> imageToImageViewModel.onReferenceImage1Change(context, uri) },
-                    onClearReferenceImage1 = imageToImageViewModel::onClearReferenceImage1,
-                    onReferenceImage2Change = { uri -> imageToImageViewModel.onReferenceImage2Change(context, uri) },
-                    onClearReferenceImage2 = imageToImageViewModel::onClearReferenceImage2,
-                    // Inpainting workflow callback
-                    onWorkflowChange = imageToImageViewModel::onWorkflowChange,
-                    onViewWorkflow = {
-                        val workflowId = uiState.availableWorkflows
-                            .find { it.name == uiState.selectedWorkflow }?.id
-                        if (workflowId != null) {
-                            context.startActivity(
-                                WorkflowEditorActivity.createIntent(context, workflowId)
-                            )
-                        }
-                    },
-                    // Editing workflow callback
-                    onEditingWorkflowChange = imageToImageViewModel::onEditingWorkflowChange,
-                    onViewEditingWorkflow = {
-                        val workflowId = uiState.editingWorkflows
-                            .find { it.name == uiState.selectedEditingWorkflow }?.id
-                        if (workflowId != null) {
-                            context.startActivity(
-                                WorkflowEditorActivity.createIntent(context, workflowId)
-                            )
-                        }
-                    },
-                    // Negative prompt
-                    onNegativePromptChange = imageToImageViewModel::onNegativePromptChange,
-                    // Inpainting model selection callbacks
-                    onCheckpointChange = imageToImageViewModel::onCheckpointChange,
-                    onUnetChange = imageToImageViewModel::onUnetChange,
-                    onVaeChange = imageToImageViewModel::onVaeChange,
-                    onClipChange = imageToImageViewModel::onClipChange,
-                    onClip1Change = imageToImageViewModel::onClip1Change,
-                    onClip2Change = imageToImageViewModel::onClip2Change,
-                    onClip3Change = imageToImageViewModel::onClip3Change,
-                    onClip4Change = imageToImageViewModel::onClip4Change,
-                    onTextEncoderChange = imageToImageViewModel::onTextEncoderChange,
-                    onLatentUpscaleModelChange = imageToImageViewModel::onLatentUpscaleModelChange,
-                    // Editing model selection callbacks
-                    onEditingUnetChange = imageToImageViewModel::onEditingUnetChange,
-                    onEditingLoraChange = imageToImageViewModel::onEditingLoraChange,
-                    onEditingVaeChange = imageToImageViewModel::onEditingVaeChange,
-                    onEditingClipChange = imageToImageViewModel::onEditingClipChange,
-                    onEditingClip1Change = imageToImageViewModel::onEditingClip1Change,
-                    onEditingClip2Change = imageToImageViewModel::onEditingClip2Change,
-                    onEditingClip3Change = imageToImageViewModel::onEditingClip3Change,
-                    onEditingClip4Change = imageToImageViewModel::onEditingClip4Change,
-                    onEditingTextEncoderChange = imageToImageViewModel::onEditingTextEncoderChange,
-                    onEditingLatentUpscaleModelChange = imageToImageViewModel::onEditingLatentUpscaleModelChange,
-                    // Inpainting parameter callbacks
-                    onMegapixelsChange = imageToImageViewModel::onMegapixelsChange,
-                    onStepsChange = imageToImageViewModel::onStepsChange,
-                    onCfgChange = imageToImageViewModel::onCfgChange,
-                    onSamplerChange = imageToImageViewModel::onSamplerChange,
-                    onSchedulerChange = imageToImageViewModel::onSchedulerChange,
-                    onRandomSeedToggle = imageToImageViewModel::onRandomSeedToggle,
-                    onSeedChange = imageToImageViewModel::onSeedChange,
-                    onRandomizeSeed = imageToImageViewModel::onRandomizeSeed,
-                    onDenoiseChange = imageToImageViewModel::onDenoiseChange,
-                    onBatchSizeChange = imageToImageViewModel::onBatchSizeChange,
-                    onUpscaleMethodChange = imageToImageViewModel::onUpscaleMethodChange,
-                    onScaleByChange = imageToImageViewModel::onScaleByChange,
-                    onStopAtClipLayerChange = imageToImageViewModel::onStopAtClipLayerChange,
-                    // Editing parameter callbacks
-                    onEditingMegapixelsChange = imageToImageViewModel::onEditingMegapixelsChange,
-                    onEditingStepsChange = imageToImageViewModel::onEditingStepsChange,
-                    onEditingCfgChange = imageToImageViewModel::onEditingCfgChange,
-                    onEditingSamplerChange = imageToImageViewModel::onEditingSamplerChange,
-                    onEditingSchedulerChange = imageToImageViewModel::onEditingSchedulerChange,
-                    onEditingRandomSeedToggle = imageToImageViewModel::onEditingRandomSeedToggle,
-                    onEditingSeedChange = imageToImageViewModel::onEditingSeedChange,
-                    onEditingRandomizeSeed = imageToImageViewModel::onEditingRandomizeSeed,
-                    onEditingDenoiseChange = imageToImageViewModel::onEditingDenoiseChange,
-                    onEditingBatchSizeChange = imageToImageViewModel::onEditingBatchSizeChange,
-                    onEditingUpscaleMethodChange = imageToImageViewModel::onEditingUpscaleMethodChange,
-                    onEditingScaleByChange = imageToImageViewModel::onEditingScaleByChange,
-                    onEditingStopAtClipLayerChange = imageToImageViewModel::onEditingStopAtClipLayerChange,
-                    // Inpainting LoRA chain callbacks
-                    onAddLora = imageToImageViewModel::onAddLora,
-                    onRemoveLora = imageToImageViewModel::onRemoveLora,
-                    onLoraNameChange = imageToImageViewModel::onLoraNameChange,
-                    onLoraStrengthChange = imageToImageViewModel::onLoraStrengthChange,
-                    // Editing LoRA chain callbacks
-                    onAddEditingLora = imageToImageViewModel::onAddEditingLora,
-                    onRemoveEditingLora = imageToImageViewModel::onRemoveEditingLora,
-                    onEditingLoraNameChange = imageToImageViewModel::onEditingLoraNameChange,
-                    onEditingLoraStrengthChange = imageToImageViewModel::onEditingLoraStrengthChange,
-                    // Editing mode checkpoint (for checkpoint-based workflows)
-                    onEditingCheckpointChange = imageToImageViewModel::onEditingCheckpointChange,
-                    // Editing mode dual-model patterns (for video-style workflows)
-                    onEditingHighnoiseUnetChange = imageToImageViewModel::onEditingHighnoiseUnetChange,
-                    onEditingLownoiseUnetChange = imageToImageViewModel::onEditingLownoiseUnetChange,
-                    onEditingHighnoiseLoraChange = imageToImageViewModel::onEditingHighnoiseLoraChange,
-                    onEditingLownoiseLoraChange = imageToImageViewModel::onEditingLownoiseLoraChange,
-                    // Editing mode dual LoRA chain callbacks
-                    onAddEditingHighnoiseLora = imageToImageViewModel::onAddEditingHighnoiseLora,
-                    onRemoveEditingHighnoiseLora = imageToImageViewModel::onRemoveEditingHighnoiseLora,
-                    onEditingHighnoiseLoraNameChange = imageToImageViewModel::onEditingHighnoiseLoraNameChange,
-                    onEditingHighnoiseLoraStrengthChange = imageToImageViewModel::onEditingHighnoiseLoraStrengthChange,
-                    onAddEditingLownoiseLora = imageToImageViewModel::onAddEditingLownoiseLora,
-                    onRemoveEditingLownoiseLora = imageToImageViewModel::onRemoveEditingLownoiseLora,
-                    onEditingLownoiseLoraNameChange = imageToImageViewModel::onEditingLownoiseLoraNameChange,
-                    onEditingLownoiseLoraStrengthChange = imageToImageViewModel::onEditingLownoiseLoraStrengthChange
-                )
-            }
-            val bottomSheetConfig = remember(uiState, callbacks) {
-                uiState.toBottomSheetConfig(callbacks)
-            }
-            ConfigBottomSheetContent(
-                config = bottomSheetConfig,
-                workflowName = if (uiState.mode == ImageToImageMode.EDITING)
-                    uiState.selectedEditingWorkflow else uiState.selectedWorkflow,
-                spellCheckEnabled = spellCheckEnabled
-            )
-        }
-    }
+        // The prompt; tapping it opens the full-screen editor (absent for workflows without prompts)
+        PromptDock(
+            state = uiState,
+            onPositiveChange = imageToImageViewModel::onPositivePromptChange,
+            onNegativeChange = imageToImageViewModel::onNegativePromptChange,
+            preview = uiState.previewImage ?: sourceImage,
+            presetViewModel = presetViewModel,
+            presetUiState = presetUiState,
+            spellCheckEnabled = promptInput.spellCheckEnabled,
+            generateEnabled = imageToImageViewModel.hasValidConfiguration(),
+            onGenerate = { submitJob(false) }
+        )
 
-    // Prompt Library Dialog
-    if (presetUiState.showLibrarySideSheet) {
-        PromptLibraryDialog(
-            presets = presetViewModel.getFilteredPresets(),
-            availableTags = presetUiState.availableTags,
-            searchQuery = presetUiState.searchQuery,
-            selectedTags = presetUiState.selectedTags,
-            filterFavoritesOnly = presetUiState.filterFavoritesOnly,
-            activePresetId = presetUiState.activePresetId,
-            onSearchQueryChange = { presetViewModel.onSearchQueryChange(it) },
-            onTagToggle = { presetViewModel.onTagToggle(it) },
-            onToggleFavoritesFilter = { presetViewModel.onToggleFavoritesFilter() },
-            onPresetSelected = { presetViewModel.onPresetSelected(it) },
-            onToggleFavorite = { presetViewModel.onToggleFavorite(it) },
-            onEditPreset = { presetViewModel.showEditDialog(it) },
-            onDuplicatePreset = { presetViewModel.onDuplicatePreset(it) },
-            onDeletePreset = { presetViewModel.onDeletePreset(it) },
-            onDismiss = { presetViewModel.dismissLibrary() }
+        RecipeChips(
+            state = uiState,
+            viewModel = imageToImageViewModel,
+            icon = uiState.workflowIcon,
+            groups = uiState.workflowGroups(imageToImageViewModel::onModeChange, imageToImageViewModel::onWorkflowChange)
+        )
+
+        GenerationControls(
+            missingSource = sourceImage == null,
+            // Read here, where the screen observes its state
+            isEnabled = imageToImageViewModel.hasValidConfiguration(),
+            generationViewModel = generationViewModel,
+            ownerId = ownerId,
+            hasPositivePrompt = uiState.capabilities.hasPositivePrompt,
+            isFetching = uiState.isFetching,
+            optionsOpen = showOptionsSheet,
+            onOpenOptions = { showOptionsSheet = true },
+            isUploading = uiState.isUploading,
+            submit = submitJob
         )
     }
 
-    // Prompt Preset Save/Edit Dialog
-    if (presetUiState.showSaveDialog) {
-        PromptPresetDialog(
-            editingPreset = presetUiState.editingPreset,
-            currentPrompt = presetUiState.currentPromptForSave,
-            existingTags = presetUiState.availableTags,
-            isNameTaken = { name, excludeId -> presetViewModel.isNameTaken(name, excludeId) },
-            onDismiss = { presetViewModel.dismissSaveDialog() },
-            onSave = { name, prompt, tags -> presetViewModel.onSavePreset(name, prompt, tags) }
-        )
-    }
+    GenerationOptionsSheet(
+        visible = showOptionsSheet,
+        onDismiss = { showOptionsSheet = false },
+        viewModel = imageToImageViewModel,
+        state = uiState,
+        // The mode; the ViewModel applies every other change to the current mode
+        extraCallbacks = { callbacks -> callbacks.copy(onModeChange = imageToImageViewModel::onModeChange) }
+    ) { callbacks -> uiState.toBottomSheetConfig(callbacks) }
+
+    PromptPresetDialogs(presetViewModel, presetUiState, uiState.positivePrompt)
 }
+
+/** Media origins of this screen's single result and its source in the preview. */
+private const val RESULT_ORIGIN = "iti_result"
+private const val SOURCE_ORIGIN = "iti_source"

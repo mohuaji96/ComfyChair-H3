@@ -2,30 +2,48 @@ package sh.hnet.comfychair.storage
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.Server
 import sh.hnet.comfychair.util.DebugLogger
 import sh.hnet.comfychair.util.Obfuscator
-import sh.hnet.comfychair.util.UuidUtils
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 /**
  * Result of a restore operation.
  */
 sealed class RestoreResult {
+    /**
+     * @param skippedWorkflows Names of the backup's workflows that weren't restored (invalid, or already there)
+     * @param skippedPrompts Names of the backup's prompts that weren't restored
+     */
     data class Success(
         val serversChanged: Boolean,
-        val skippedWorkflows: Int = 0
+        val skippedWorkflows: List<String> = emptyList(),
+        val skippedPrompts: List<String> = emptyList()
     ) : RestoreResult()
 
+    /** The file was refused before anything was written. */
     data class Failure(val errorMessageResId: Int) : RestoreResult()
+
+    /** Restoring stopped on an unexpected error, possibly after some data was written; [details] only for the user. */
+    data class Crashed(val details: String?) : RestoreResult()
+}
+
+/** What a backup file is, checked without writing anything. */
+sealed class BackupCheck {
+    data class Valid(val servers: Int, val workflows: Int, val prompts: Int) : BackupCheck()
+    /** Not JSON at all. */
+    data object Unreadable : BackupCheck()
+    /** JSON, but not a ComfyChair backup. */
+    data object NotBackup : BackupCheck()
+    data object UnsupportedVersion : BackupCheck()
+    data object NoServers : BackupCheck()
 }
 
 /**
@@ -45,6 +63,7 @@ class BackupManager(private val context: Context) {
         private const val TAG = "BackupManager"
         const val BACKUP_VERSION = 5
         private const val USER_WORKFLOWS_DIR = "user_workflows"
+        private val WORKFLOW_FILENAME = Regex("""^[A-Za-z0-9._ -]+\.json$""")
 
         // SharedPreferences names
         private const val PREFS_APP_SETTINGS = "AppSettings"
@@ -52,6 +71,7 @@ class BackupManager(private val context: Context) {
         private const val PREFS_IMAGE_TO_IMAGE = "ImageToImageFragmentPrefs"
         private const val PREFS_TEXT_TO_VIDEO = "TextToVideoFragmentPrefs"
         private const val PREFS_IMAGE_TO_VIDEO = "ImageToVideoFragmentPrefs"
+        private const val PREFS_VIDEO_TO_VIDEO = "VideoToVideoFragmentPrefs"
         private const val PREFS_WORKFLOW_VALUES = "WorkflowValuesPrefs"
         private const val PREFS_USER_WORKFLOWS = "UserWorkflowsPrefs"
         private const val PREFS_PROMPT_PRESETS = "PromptPresetPrefs"
@@ -88,12 +108,13 @@ class BackupManager(private val context: Context) {
                 put("workflowValues", readWorkflowValues(servers))
                 put("userWorkflows", readUserWorkflows())
                 put("promptPresets", readPromptPresets())
+                put("h3Extensions", readH3Extensions())
             }
 
             DebugLogger.i(TAG, "Backup created successfully with ${servers.size} servers")
             Result.success(backup.toString(2))
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Backup creation failed: ${e.message}")
+            DebugLogger.e(TAG, "Backup creation failed: ${Obfuscator.error(e)}")
             Result.failure(e)
         }
     }
@@ -106,42 +127,65 @@ class BackupManager(private val context: Context) {
     fun restoreBackup(jsonString: String): RestoreResult {
         DebugLogger.i(TAG, "Starting backup restore...")
 
+        // The whole file is checked before the first write: a refused file changes nothing
+        val (json, check) = parse(jsonString)
+        when (check) {
+            is BackupCheck.Valid -> Unit
+            BackupCheck.Unreadable, BackupCheck.NotBackup -> return RestoreResult.Failure(R.string.error_backup_invalid_json)
+            BackupCheck.UnsupportedVersion -> return RestoreResult.Failure(R.string.error_backup_unsupported_version)
+            BackupCheck.NoServers -> return RestoreResult.Failure(R.string.error_backup_no_servers)
+        }
+
+        return try {
+            // Clear cached media files before restoring
+            clearCacheFiles()
+            restoreBackupV4(json!!)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "Restore failed: ${Obfuscator.error(e)}")
+            RestoreResult.Crashed(e.message)
+        }
+    }
+
+    /** Checks a backup file without writing anything: what it is, and what it would bring back. */
+    fun check(jsonString: String): BackupCheck = parse(jsonString).second
+
+    private fun parse(jsonString: String): Pair<JSONObject?, BackupCheck> {
         val json = try {
             JSONObject(jsonString)
         } catch (e: Exception) {
-            DebugLogger.e(TAG, "Failed to parse backup JSON: ${e.message}")
-            return RestoreResult.Failure(R.string.error_backup_invalid_json)
+            DebugLogger.e(TAG, "Failed to parse backup JSON: ${Obfuscator.error(e)}")
+            return null to BackupCheck.Unreadable
         }
-
-        // Validate basic structure
-        if (!validator.validateStructure(json)) {
+        // A ComfyChair backup has a version and a list of servers
+        if (!json.has("version") || json.optJSONArray("servers") == null) {
             DebugLogger.e(TAG, "Backup structure validation failed")
-            return RestoreResult.Failure(R.string.error_backup_invalid_json)
+            return json to BackupCheck.NotBackup
         }
-
-        // Check version - v4 and v5 are supported
+        // v4 and v5 are supported
         val version = json.optInt("version", -1)
         if (version !in 4..BACKUP_VERSION) {
             DebugLogger.e(TAG, "Unsupported backup version: $version (required: 4-$BACKUP_VERSION)")
-            return RestoreResult.Failure(R.string.error_backup_unsupported_version)
+            return json to BackupCheck.UnsupportedVersion
         }
-
-        // Clear cached media files before restoring
-        clearCacheFiles()
-
-        return restoreBackupV4(json)
+        val servers = json.optJSONArray("servers")
+        val serverCount = (0 until (servers?.length() ?: 0)).count { i -> servers?.optJSONObject(i)?.let(Server::fromJson) != null }
+        if (serverCount == 0 || !validator.validateStructure(json)) {
+            DebugLogger.e(TAG, "No servers in backup")
+            return json to BackupCheck.NoServers
+        }
+        return json to BackupCheck.Valid(
+            servers = serverCount,
+            workflows = json.optJSONArray("userWorkflows")?.length() ?: 0,
+            prompts = json.optJSONArray("promptPresets")?.length() ?: 0
+        )
     }
 
     /**
      * Restore backup (v4 format - hierarchical, server-first).
      */
     private fun restoreBackupV4(json: JSONObject): RestoreResult {
-        // Restore servers
-        val serversArray = json.optJSONArray("servers")
-        if (serversArray == null || serversArray.length() == 0) {
-            DebugLogger.e(TAG, "No servers array in backup")
-            return RestoreResult.Failure(R.string.error_backup_no_servers)
-        }
+        // Restore servers (checked to be there by parse())
+        val serversArray = json.getJSONArray("servers")
 
         val existingServers = serverStorage.getServers()
         val serverIdMapping = mutableMapOf<String, String>() // backupId -> actualId
@@ -185,20 +229,27 @@ class BackupManager(private val context: Context) {
         }
 
         // Restore user workflows
-        var skippedWorkflows = 0
+        var skippedWorkflows = emptyList<String>()
         json.optJSONArray("userWorkflows")?.let { workflows ->
             skippedWorkflows = restoreUserWorkflows(workflows)
         }
 
         // Restore prompt presets (v5+)
+        var skippedPrompts = emptyList<String>()
         json.optJSONArray("promptPresets")?.let { presets ->
-            restorePromptPresets(presets)
+            skippedPrompts = restorePromptPresets(presets)
         }
 
-        DebugLogger.i(TAG, "Backup restore completed. Servers changed: $serversChanged, skipped workflows: $skippedWorkflows")
+        // Restore H3 extensions if present in the backup
+        json.optJSONObject("h3Extensions")?.let { ext ->
+            restoreH3Extensions(ext)
+        }
+
+        DebugLogger.i(TAG, "Backup restore completed. Servers changed: $serversChanged, skipped workflows: ${skippedWorkflows.size}, skipped prompts: ${skippedPrompts.size}")
         return RestoreResult.Success(
             serversChanged = serversChanged,
-            skippedWorkflows = skippedWorkflows
+            skippedWorkflows = skippedWorkflows,
+            skippedPrompts = skippedPrompts
         )
     }
 
@@ -209,12 +260,15 @@ class BackupManager(private val context: Context) {
         return JSONObject().apply {
             put("autoConnectEnabled", prefs.getBoolean("autoConnect", true))
             put("livePreviewEnabled", prefs.getBoolean("live_preview_enabled", true))
-            put("memoryFirstCache", prefs.getBoolean("memory_first_cache", true))
-            put("mediaCacheDisabled", prefs.getBoolean("media_cache_disabled", false))
+            put("viewerLoop", prefs.getBoolean("viewer_loop", true))
+            val storageMode = AppSettings.getMediaStorageMode(context)
+            put("mediaStorageMode", storageMode.key)
+            // Equivalent former switches, so older app versions restore the same behaviour
+            put("memoryFirstCache", storageMode != MediaStorageMode.DEVICE)
+            put("mediaCacheDisabled", storageMode == MediaStorageMode.MEMORY_ONLY)
             put("debugLoggingEnabled", prefs.getBoolean("debug_logging_enabled", false))
-            put("showBuiltInWorkflows", prefs.getBoolean("show_built_in_workflows", true))
+            put("disabledWorkflows", JSONArray(prefs.getStringSet("disabled_workflows", null).orEmpty().sorted()))
             put("promptSpellCheckEnabled", prefs.getBoolean("prompt_spell_check", false))
-            put("promptExpandEnabled", prefs.getBoolean("prompt_expand", false))
         }
     }
 
@@ -226,6 +280,7 @@ class BackupManager(private val context: Context) {
                 put("imageToImage", readImageToImagePrefs(server.id))
                 put("textToVideo", readTextToVideoPrefs(server.id))
                 put("imageToVideo", readImageToVideoPrefs(server.id))
+                put("videoToVideo", readVideoScreenPrefs(PREFS_VIDEO_TO_VIDEO, server.id))
             })
         }
         return result
@@ -244,6 +299,7 @@ class BackupManager(private val context: Context) {
         return JSONObject().apply {
             put("selectedWorkflowId", prefs.getString("${serverId}_selectedWorkflowId", "") ?: "")
             put("positivePrompt", prefs.getString("${serverId}_positivePrompt", "") ?: "")
+            put("editingPositivePrompt", prefs.getString("${serverId}_editingPositivePrompt", "") ?: "")
             put("mode", prefs.getString("${serverId}_mode", "INPAINTING") ?: "INPAINTING")
             put("selectedEditingWorkflowId", prefs.getString("${serverId}_selectedEditingWorkflowId", "") ?: "")
         }
@@ -251,6 +307,15 @@ class BackupManager(private val context: Context) {
 
     private fun readTextToVideoPrefs(serverId: String): JSONObject {
         val prefs = context.getSharedPreferences(PREFS_TEXT_TO_VIDEO, Context.MODE_PRIVATE)
+        return JSONObject().apply {
+            put("selectedWorkflowId", prefs.getString("${serverId}_selectedWorkflowId", "") ?: "")
+            put("positivePrompt", prefs.getString("${serverId}_positivePrompt", "") ?: "")
+        }
+    }
+
+    /** A video screen's own choices: the selected workflow and the prompt (Video to Video). */
+    private fun readVideoScreenPrefs(prefsName: String, serverId: String): JSONObject {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         return JSONObject().apply {
             put("selectedWorkflowId", prefs.getString("${serverId}_selectedWorkflowId", "") ?: "")
             put("positivePrompt", prefs.getString("${serverId}_positivePrompt", "") ?: "")
@@ -346,26 +411,35 @@ class BackupManager(private val context: Context) {
         if (json.has("autoConnectEnabled")) {
             editor.putBoolean("autoConnect", json.optBoolean("autoConnectEnabled", true))
         }
+        if (json.has("viewerLoop")) {
+            editor.putBoolean("viewer_loop", json.optBoolean("viewerLoop", true))
+        }
         if (json.has("livePreviewEnabled")) {
             editor.putBoolean("live_preview_enabled", json.optBoolean("livePreviewEnabled", true))
         }
-        if (json.has("memoryFirstCache")) {
-            editor.putBoolean("memory_first_cache", json.optBoolean("memoryFirstCache", true))
-        }
-        if (json.has("mediaCacheDisabled")) {
-            editor.putBoolean("media_cache_disabled", json.optBoolean("mediaCacheDisabled", false))
+        // Media storage: the current setting, or migrated from the former switches of older backups
+        val storageMode = MediaStorageMode.fromKey(json.optString("mediaStorageMode").ifEmpty { null })
+            ?: if (json.has("memoryFirstCache")) MediaStorageMode.migrate(json.optBoolean("memoryFirstCache", true)) else null
+        if (storageMode != null) {
+            editor.putString("media_storage_mode", storageMode.key)
+            editor.remove("memory_first_cache")
+            editor.remove("media_cache_disabled")
         }
         if (json.has("debugLoggingEnabled")) {
             editor.putBoolean("debug_logging_enabled", json.optBoolean("debugLoggingEnabled", false))
         }
-        if (json.has("showBuiltInWorkflows")) {
+        // Workflows switched off one by one, or the former switch for all built-in workflows of
+        // older backups, which AppSettings migrates when the workflows are reloaded
+        val disabledWorkflows = json.optJSONArray("disabledWorkflows")
+        if (disabledWorkflows != null) {
+            editor.putStringSet("disabled_workflows", (0 until disabledWorkflows.length()).map { disabledWorkflows.optString(it) }.filter { it.isNotEmpty() }.toSet())
+            editor.remove("show_built_in_workflows")
+        } else if (json.has("showBuiltInWorkflows")) {
+            editor.remove("disabled_workflows")
             editor.putBoolean("show_built_in_workflows", json.optBoolean("showBuiltInWorkflows", true))
         }
         if (json.has("promptSpellCheckEnabled")) {
             editor.putBoolean("prompt_spell_check", json.optBoolean("promptSpellCheckEnabled", false))
-        }
-        if (json.has("promptExpandEnabled")) {
-            editor.putBoolean("prompt_expand", json.optBoolean("promptExpandEnabled", false))
         }
 
         editor.apply()
@@ -389,6 +463,9 @@ class BackupManager(private val context: Context) {
             }
             serverPrefs.optJSONObject("imageToVideo")?.let {
                 restoreImageToVideoPrefs(it, actualServerId)
+            }
+            serverPrefs.optJSONObject("videoToVideo")?.let {
+                restoreVideoScreenPrefs(PREFS_VIDEO_TO_VIDEO, it, actualServerId)
             }
         }
     }
@@ -419,6 +496,11 @@ class BackupManager(private val context: Context) {
                     putString("${serverId}_positivePrompt", it)
                 }
             }
+            json.optString("editingPositivePrompt").takeIf { it.isNotEmpty() }?.let { prompt ->
+                validator.validateAndSanitizePrompt(prompt)?.let {
+                    putString("${serverId}_editingPositivePrompt", it)
+                }
+            }
             json.optString("mode").takeIf { it == "INPAINTING" || it == "EDITING" }?.let {
                 putString("${serverId}_mode", it)
             }
@@ -431,6 +513,22 @@ class BackupManager(private val context: Context) {
 
     private fun restoreTextToVideoPrefs(json: JSONObject, serverId: String) {
         val prefs = context.getSharedPreferences(PREFS_TEXT_TO_VIDEO, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            json.optString("selectedWorkflowId").takeIf { it.isNotEmpty() }?.let {
+                putString("${serverId}_selectedWorkflowId", it)
+            }
+            json.optString("positivePrompt").takeIf { it.isNotEmpty() }?.let { prompt ->
+                validator.validateAndSanitizePrompt(prompt)?.let {
+                    putString("${serverId}_positivePrompt", it)
+                }
+            }
+            apply()
+        }
+    }
+
+    /** A video screen's own choices back: the selected workflow and the prompt (Video to Video). */
+    private fun restoreVideoScreenPrefs(prefsName: String, json: JSONObject, serverId: String) {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         prefs.edit().apply {
             json.optString("selectedWorkflowId").takeIf { it.isNotEmpty() }?.let {
                 putString("${serverId}_selectedWorkflowId", it)
@@ -523,10 +621,12 @@ class BackupManager(private val context: Context) {
                     put("frameRate", it)
                 }
 
-                // Model names - must match WorkflowValues field names exactly
+                // Model names - must match WorkflowValues field names exactly (every model slot: a missing one is
+                // silently dropped on restore)
                 listOf(
-                    "model",  // Unified model (checkpoint or UNET)
-                    "loraModel", "vaeModel", "clipModel",
+                    "model",  // Checkpoint
+                    "unetModel", "textEncoderModel", "latentUpscaleModel",
+                    "loraModel", "vaeModel", "audioVaeModel", "clipModel",
                     "clip1Model", "clip2Model", "clip3Model", "clip4Model",  // All 4 CLIP slots
                     "highnoiseUnetModel", "lownoiseUnetModel",
                     "highnoiseLoraModel", "lownoiseLoraModel"
@@ -578,10 +678,10 @@ class BackupManager(private val context: Context) {
 
     /**
      * Restore user workflows.
-     * Returns the count of skipped workflows.
+     * Returns the names of the skipped workflows (unnamed ones by their position).
      */
-    private fun restoreUserWorkflows(workflows: JSONArray): Int {
-        var skipped = 0
+    private fun restoreUserWorkflows(workflows: JSONArray): List<String> {
+        val skippedNames = mutableListOf<String>()
         var restored = 0
         val dir = File(context.filesDir, USER_WORKFLOWS_DIR)
         if (!dir.exists()) dir.mkdirs()
@@ -601,6 +701,8 @@ class BackupManager(private val context: Context) {
         }
 
         for (i in 0 until workflows.length()) {
+            val shownName = workflows.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() } ?: "#${i + 1}"
+            fun skip() { skippedNames += shownName }
             try {
                 val workflow = workflows.getJSONObject(i)
                 val id = workflow.getString("id")
@@ -612,9 +714,8 @@ class BackupManager(private val context: Context) {
 
                 // Validate
                 if (!validator.validateWorkflowName(name) ||
-                    !validator.validateWorkflowDescription(description) ||
                     !validator.validateWorkflowType(typeStr)) {
-                    skipped++
+                    skip()
                     continue
                 }
 
@@ -622,18 +723,25 @@ class BackupManager(private val context: Context) {
                 try {
                     JSONObject(fileContent)
                 } catch (e: Exception) {
-                    skipped++
+                    skip()
                     continue
                 }
 
-                // Skip if workflow with same ID already exists
-                if (id in existingIds) {
-                    skipped++
+                // Already here (the same backup restored again): nothing to restore, and not a skipped one
+                if (id in existingIds) continue
+
+                // The file name comes from the backup: a plain .json name in the workflows folder only, never a path
+                // out of it (a crafted name like "../shared_prefs/…" would write elsewhere in the app's data)
+                if (!isSafeWorkflowFilename(filename)) {
+                    skip()
                     continue
                 }
-
-                // Save workflow file
-                val file = File(dir, filename)
+                // Another workflow's file keeps its content: a name already taken gets a number
+                val file = uniqueFile(dir, filename)
+                if (!file.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                    skip()
+                    continue
+                }
                 file.writeText(fileContent)
 
                 // Add to metadata
@@ -642,28 +750,40 @@ class BackupManager(private val context: Context) {
                     put("name", name)
                     put("description", description)
                     put("type", typeStr)
-                    put("filename", filename)
+                    put("filename", file.name)
                 }
                 existingArray.put(metadata)
                 existingIds.add(id)
                 restored++
             } catch (e: Exception) {
-                skipped++
+                skip()
             }
         }
 
         // Save updated metadata
         prefs.edit().putString("user_workflows_json", existingArray.toString()).apply()
 
-        DebugLogger.i(TAG, "User workflows restored: $restored, skipped: $skipped")
-        return skipped
+        DebugLogger.i(TAG, "User workflows restored: $restored, skipped: ${skippedNames.size}")
+        return skippedNames
+    }
+
+    /** A workflow file name a backup may use: one plain `.json` name, no folders, not hidden. */
+    private fun isSafeWorkflowFilename(name: String): Boolean =
+        name.length <= 200 && WORKFLOW_FILENAME.matches(name) && !name.startsWith(".")
+
+    /** [name] in [dir], or with a number before `.json` when that file already exists. */
+    private fun uniqueFile(dir: File, name: String): File {
+        val base = name.removeSuffix(".json")
+        return generateSequence(1) { it + 1 }
+            .map { n -> File(dir, if (n == 1) name else "${base}_$n.json") }
+            .first { !it.exists() }
     }
 
     /**
      * Restore prompt presets.
-     * Merges with existing presets, skipping duplicates by ID.
+     * Merges with existing presets, skipping duplicates by ID. Returns the names of the skipped presets.
      */
-    private fun restorePromptPresets(presets: JSONArray) {
+    private fun restorePromptPresets(presets: JSONArray): List<String> {
         val prefs = context.getSharedPreferences(PREFS_PROMPT_PRESETS, Context.MODE_PRIVATE)
         val existingJson = prefs.getString("presets_json", null)
         val existingArray = if (existingJson != null) {
@@ -679,9 +799,11 @@ class BackupManager(private val context: Context) {
         }
 
         var restored = 0
-        var skipped = 0
+        val skippedNames = mutableListOf<String>()
 
         for (i in 0 until presets.length()) {
+            val shownName = presets.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() } ?: "#${i + 1}"
+            fun skip() { skippedNames += shownName }
             try {
                 val preset = presets.getJSONObject(i)
                 val id = preset.optString("id")
@@ -695,15 +817,12 @@ class BackupManager(private val context: Context) {
                 // Validate required fields
                 if (id.isBlank() || !validator.validateScreenType(screenType) ||
                     !validator.validatePresetName(name)) {
-                    skipped++
+                    skip()
                     continue
                 }
 
-                // Skip if preset with same ID already exists
-                if (id in existingIds) {
-                    skipped++
-                    continue
-                }
+                // Already here (the same backup restored again): not a skipped one
+                if (id in existingIds) continue
 
                 // Validate and sanitize tags
                 val validTags = JSONArray()
@@ -735,14 +854,15 @@ class BackupManager(private val context: Context) {
                 existingIds.add(id)
                 restored++
             } catch (e: Exception) {
-                skipped++
+                skip()
             }
         }
 
         // Save updated presets
         prefs.edit().putString("presets_json", existingArray.toString()).apply()
 
-        DebugLogger.i(TAG, "Prompt presets restored: $restored, skipped: $skipped")
+        DebugLogger.i(TAG, "Prompt presets restored: $restored, skipped: ${skippedNames.size}")
+        return skippedNames
     }
 
     /**
@@ -787,18 +907,76 @@ class BackupManager(private val context: Context) {
 
     private fun getAppVersionName(): String {
         return try {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.PackageInfoFlags.of(0)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(context.packageName, 0)
-            }
+            val packageInfo = context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0)
+            )
             packageInfo.versionName ?: "unknown"
         } catch (e: PackageManager.NameNotFoundException) {
             "unknown"
+        }
+    }
+
+    private val h3ExtensionPrefNames = listOf(
+        "PromptProviderPrefs",
+        "PromptTemplatesPrefs",
+        "h3_studio_draft",
+        "h3_presets",
+        "h3_choices",
+        "tag_composer_state",
+        "story_composer_state",
+        "LocalCachePolicyPrefs"
+    )
+
+    private fun readH3Extensions(): JSONObject = JSONObject().apply {
+        for (prefName in h3ExtensionPrefNames) {
+            val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+            val all = prefs.all
+            if (all.isEmpty()) continue
+            val obj = JSONObject()
+            for ((k, v) in all) {
+                when (v) {
+                    is String -> obj.put(k, JSONObject().put("t", "s").put("v", v))
+                    is Boolean -> obj.put(k, JSONObject().put("t", "b").put("v", v))
+                    is Int -> obj.put(k, JSONObject().put("t", "i").put("v", v))
+                    is Long -> obj.put(k, JSONObject().put("t", "l").put("v", v))
+                    is Float -> obj.put(k, JSONObject().put("t", "f").put("v", v.toDouble()))
+                    is Set<*> -> {
+                        val arr = JSONArray()
+                        v.filterIsInstance<String>().sorted().forEach { arr.put(it) }
+                        obj.put(k, JSONObject().put("t", "set").put("v", arr))
+                    }
+                }
+            }
+            put(prefName, obj)
+        }
+    }
+
+    private fun restoreH3Extensions(ext: JSONObject) {
+        for (prefName in h3ExtensionPrefNames) {
+            val obj = ext.optJSONObject(prefName) ?: continue
+            val editor = context.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val entry = obj.optJSONObject(k) ?: continue
+                when (entry.optString("t")) {
+                    "s" -> editor.putString(k, entry.optString("v"))
+                    "b" -> editor.putBoolean(k, entry.optBoolean("v"))
+                    "i" -> editor.putInt(k, entry.optInt("v"))
+                    "l" -> editor.putLong(k, entry.optLong("v"))
+                    "f" -> editor.putFloat(k, entry.optDouble("v").toFloat())
+                    "set" -> {
+                        val arr = entry.optJSONArray("v") ?: JSONArray()
+                        val set = mutableSetOf<String>()
+                        for (i in 0 until arr.length()) {
+                            set.add(arr.optString(i))
+                        }
+                        editor.putStringSet(k, set)
+                    }
+                }
+            }
+            editor.apply()
         }
     }
 }

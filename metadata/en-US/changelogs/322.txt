@@ -1,0 +1,6 @@
+v0.9.8.8382.572-h3
+
+New:
+- Rebased onto upstream ComfyChair v0.9.6 (Material 3 Expressive, V2V, subgraph editor, TOFU certificate pinning)
+- Five-tab bottom bar: Image, Video, H3, Prompt, Gallery; Settings in top app bar
+- Full H3 Studio, Tag Composer, Story Composer, AI Prompt Optimizer, and in-app Update Checker

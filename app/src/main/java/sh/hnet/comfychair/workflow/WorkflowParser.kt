@@ -1,24 +1,42 @@
 package sh.hnet.comfychair.workflow
 
+import sh.hnet.comfychair.model.CustomFields
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.Obfuscator
 
 /**
  * Parses ComfyUI workflow JSON into a WorkflowGraph
+ *
+ * @param logDetails Log parsing details; disabled for thumbnails, which parse every workflow in
+ *        the list on each refresh and would otherwise push everything else out of the debug log.
+ *        Warnings are always logged.
  */
-class WorkflowParser {
+class WorkflowParser(private val logDetails: Boolean = true) {
 
     companion object {
         private const val TAG = "WorkflowParser"
+    }
+
+    private fun logD(message: String) {
+        if (logDetails) DebugLogger.d(TAG, message)
+    }
+
+    private fun logI(message: String) {
+        if (logDetails) DebugLogger.i(TAG, message)
     }
 
     /**
      * Parse workflow JSON content into a WorkflowGraph
      */
     fun parse(jsonContent: String, workflowName: String = "", workflowDescription: String = ""): WorkflowGraph {
-        DebugLogger.d(TAG, "Parsing workflow: name=$workflowName")
+        logD("Parsing workflow: name=$workflowName")
         val json = JSONObject(jsonContent)
+        // Subgraph instances show their values as inputs; the definitions are carried as stored
+        val definitionsJson = Subgraphs.definitionsOf(json)
+        val subgraphDefinitions = definitionsJson?.toString()
+        Subgraphs.expose(json)
 
         val nodes = mutableListOf<WorkflowNode>()
         val edges = mutableListOf<WorkflowEdge>()
@@ -28,16 +46,16 @@ class WorkflowParser {
 
         // Parse groups if present (at root level)
         if (json.has("groups")) {
-            DebugLogger.d(TAG, "Found 'groups' key in JSON at root level")
+            logD("Found 'groups' key in JSON at root level")
             val groupsArray = json.optJSONArray("groups")
             if (groupsArray != null) {
-                DebugLogger.d(TAG, "Groups array has ${groupsArray.length()} entries")
+                logD("Groups array has ${groupsArray.length()} entries")
                 groups.addAll(parseGroups(groupsArray))
             } else {
                 DebugLogger.w(TAG, "'groups' key exists but is not a JSON array")
             }
         } else {
-            DebugLogger.d(TAG, "No 'groups' key found in JSON root")
+            logD("No 'groups' key found in JSON root")
         }
 
         // Determine the structure: our custom format has "nodes" object, ComfyUI API format has nodes at top level
@@ -61,7 +79,7 @@ class WorkflowParser {
             val title = meta?.optString("title")?.takeIf { it.isNotEmpty() } ?: classType
 
             val inputsJson = nodeJson.optJSONObject("inputs") ?: JSONObject()
-            val inputs = parseInputs(inputsJson)
+            val inputs = parseInputs(inputsJson).toMutableMap()
 
             // Find inputs that contain template placeholders like {{positive_prompt}}
             val templateKeys = mutableSetOf<String>()
@@ -94,7 +112,7 @@ class WorkflowParser {
             // Parse node mode (0=active, 2=muted, 4=bypassed)
             val mode = nodeJson.optInt("mode", 0)
             if (mode != 0) {
-                DebugLogger.d(TAG, "Parsed node $nodeId with mode=$mode (${if (mode == 4) "bypassed" else if (mode == 2) "muted" else "unknown"})")
+                logD("Parsed node $nodeId with mode=$mode (${if (mode == 4) "bypassed" else if (mode == 2) "muted" else "unknown"})")
             }
 
             // Parse manual position from _meta.position array [x, y]
@@ -103,7 +121,14 @@ class WorkflowParser {
             val manualX = if (hasManualPosition) positionArray!!.optDouble(0, 0.0).toFloat() else 0f
             val manualY = if (hasManualPosition) positionArray!!.optDouble(1, 0.0).toFloat() else 0f
             if (hasManualPosition) {
-                DebugLogger.d(TAG, "Parsed node $nodeId with manual position: ($manualX, $manualY)")
+                logD("Parsed node $nodeId with manual position: ($manualX, $manualY)")
+            }
+
+            // An instance's subgraph inputs no link feeds and no value fills are sockets to link
+            definitionsJson?.let { definitions ->
+                Subgraphs.portsOf(definitions, classType, "inputs").forEach { (name, type) ->
+                    if (name !in inputs) inputs[name] = InputValue.UnconnectedSlot(type)
+                }
             }
 
             nodes.add(
@@ -111,7 +136,7 @@ class WorkflowParser {
                     id = nodeId,
                     classType = classType,
                     title = title,
-                    category = categorizeNode(classType),
+                    category = if (definitionsJson?.has(classType) == true) NodeCategory.SUBGRAPH else nodeCategoryOf(classType),
                     inputs = sortInputsForLayout(inputs),
                     templateInputKeys = templateKeys,
                     mode = mode,
@@ -138,27 +163,27 @@ class WorkflowParser {
 
         // Parse notes if present (at root level)
         val notes = if (json.has("notes")) {
-            DebugLogger.d(TAG, "Found 'notes' key in JSON at root level")
+            logD("Found 'notes' key in JSON at root level")
             val notesArray = json.optJSONArray("notes")
             if (notesArray != null) {
-                DebugLogger.d(TAG, "Notes array has ${notesArray.length()} entries")
+                logD("Notes array has ${notesArray.length()} entries")
                 parseNotes(notesArray)
             } else {
                 DebugLogger.w(TAG, "'notes' key exists but is not a JSON array")
                 emptyList()
             }
         } else {
-            DebugLogger.d(TAG, "No 'notes' key found in JSON root")
+            logD("No 'notes' key found in JSON root")
             emptyList()
         }
 
         // Parse manual placement mode flag from root level
         val isManualPlacementMode = json.optBoolean("manual_placement", false)
         if (isManualPlacementMode) {
-            DebugLogger.d(TAG, "Workflow has manual_placement mode enabled")
+            logD("Workflow has manual_placement mode enabled")
         }
 
-        DebugLogger.d(TAG, "Parsed workflow: ${nodes.size} nodes, ${edges.size} edges, ${groups.size} groups, ${notes.size} notes, ${allTemplateVars.size} template vars, ${mappedFields.size} mapped fields")
+        logD("Parsed workflow: ${nodes.size} nodes, ${edges.size} edges, ${groups.size} groups, ${notes.size} notes, ${allTemplateVars.size} template vars, ${mappedFields.size} mapped fields")
 
         return WorkflowGraph(
             name = workflowName,
@@ -169,7 +194,10 @@ class WorkflowParser {
             notes = notes,
             templateVariables = allTemplateVars,
             mappedFields = mappedFields,
-            isManualPlacementMode = isManualPlacementMode
+            isManualPlacementMode = isManualPlacementMode,
+            customFields = CustomFields.fromJson(json.optJSONArray(CustomFields.FIELDS_KEY)),
+            fieldLabels = CustomFields.labelsFromJson(json.optJSONObject(CustomFields.LABELS_KEY)),
+            subgraphs = subgraphDefinitions
         )
     }
 
@@ -182,7 +210,7 @@ class WorkflowParser {
      * Groups with no members are skipped.
      */
     private fun parseGroups(groupsArray: JSONArray): List<WorkflowGroup> {
-        DebugLogger.d(TAG, "parseGroups: parsing ${groupsArray.length()} group entries")
+        logD("parseGroups: parsing ${groupsArray.length()} group entries")
         val result = mutableListOf<WorkflowGroup>()
 
         for (i in 0 until groupsArray.length()) {
@@ -202,21 +230,21 @@ class WorkflowParser {
             val hasMemberNodes = groupJson.has("member_nodes")
             val hasBounding = groupJson.has("bounding")
 
-            DebugLogger.d(TAG, "parseGroups: entry $i - id=$id, title='$title', has member_nodes=$hasMemberNodes, has bounding=$hasBounding")
+            logD("parseGroups: entry $i - id=$id, title=${Obfuscator.title(title)}, has member_nodes=$hasMemberNodes, has bounding=$hasBounding")
 
             // Parse member node IDs (required for new format)
             val memberNodeIds = groupJson.optJSONArray("member_nodes")?.let { arr ->
                 val ids = (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotEmpty() } }.toSet()
-                DebugLogger.d(TAG, "parseGroups: group $id member_nodes array has ${arr.length()} entries, parsed ${ids.size} valid IDs: $ids")
+                logD("parseGroups: group $id member_nodes array has ${arr.length()} entries, parsed ${ids.size} valid IDs: $ids")
                 ids
             } ?: run {
-                DebugLogger.d(TAG, "parseGroups: group $id has no member_nodes array (legacy format?)")
+                logD("parseGroups: group $id has no member_nodes array (legacy format?)")
                 emptySet()
             }
 
             // Skip groups with no members (including legacy groups without member_nodes)
             if (memberNodeIds.isEmpty()) {
-                DebugLogger.w(TAG, "parseGroups: skipping group $id '$title': has no members")
+                DebugLogger.w(TAG, "parseGroups: skipping group $id ${Obfuscator.title(title)}: has no members")
                 continue
             }
 
@@ -227,10 +255,10 @@ class WorkflowParser {
                     memberNodeIds = memberNodeIds
                 )
             )
-            DebugLogger.i(TAG, "parseGroups: successfully parsed group $id '$title' with ${memberNodeIds.size} members")
+            logI("parseGroups: successfully parsed group $id ${Obfuscator.title(title)} with ${memberNodeIds.size} members")
         }
 
-        DebugLogger.i(TAG, "parseGroups: parsed ${result.size} valid groups out of ${groupsArray.length()} entries")
+        logI("parseGroups: parsed ${result.size} valid groups out of ${groupsArray.length()} entries")
         return result
     }
 
@@ -240,7 +268,7 @@ class WorkflowParser {
      * Format: { id, title, content }
      */
     private fun parseNotes(notesArray: JSONArray): List<WorkflowNote> {
-        DebugLogger.d(TAG, "parseNotes: parsing ${notesArray.length()} note entries")
+        logD("parseNotes: parsing ${notesArray.length()} note entries")
         val result = mutableListOf<WorkflowNote>()
 
         for (i in 0 until notesArray.length()) {
@@ -276,13 +304,13 @@ class WorkflowParser {
                 )
             )
             if (hasManualPosition) {
-                DebugLogger.d(TAG, "parseNotes: parsed note id=$id title='$title' with manual position: ($manualX, $manualY)")
+                logD("parseNotes: parsed note id=$id title=${Obfuscator.title(title)} with manual position: ($manualX, $manualY)")
             } else {
-                DebugLogger.d(TAG, "parseNotes: parsed note id=$id title='$title' (${content.length} chars)")
+                logD("parseNotes: parsed note id=$id title=${Obfuscator.title(title)} (${content.length} chars)")
             }
         }
 
-        DebugLogger.i(TAG, "parseNotes: parsed ${result.size} notes out of ${notesArray.length()} entries")
+        logI("parseNotes: parsed ${result.size} notes out of ${notesArray.length()} entries")
         return result
     }
 
@@ -304,11 +332,11 @@ class WorkflowParser {
                         )
                     } catch (e: Exception) {
                         // If parsing fails, treat as literal
-                        DebugLogger.w(TAG, "Failed to parse connection for input '$key': ${e.message}")
+                        DebugLogger.w(TAG, "Failed to parse connection for input '$key': ${Obfuscator.error(e)}")
                         InputValue.Literal(value.toString())
                     }
                 }
-                else -> InputValue.Literal(formatLiteralValue(value))
+                else -> InputValue.Literal(literalValue(value))
             }
         }
 
@@ -316,59 +344,15 @@ class WorkflowParser {
     }
 
     /**
-     * Format a literal value for display
+     * A literal input value, kept whole: the graph is saved back from it (long file names, expressions and prompts
+     * included). The canvas shortens what doesn't fit when it draws it.
      */
-    private fun formatLiteralValue(value: Any): Any {
+    private fun literalValue(value: Any): Any {
         return when (value) {
-            is String -> {
-                // Truncate long strings
-                if (value.length > 30) {
-                    value.take(27) + "..."
-                } else {
-                    value
-                }
-            }
-            is Number -> value
-            is Boolean -> value
+            // Objects and lists too (a region, a comparer's images…): ComfyUI takes them as they are, not as text
+            is String, is Number, is Boolean, is JSONObject, is JSONArray -> value
             else -> value.toString()
         }
     }
 
-    /**
-     * Categorize a node by its class type
-     */
-    private fun categorizeNode(classType: String): NodeCategory {
-        return when {
-            // Loaders
-            classType.contains("Loader", ignoreCase = true) -> NodeCategory.LOADER
-
-            // Text encoders
-            classType.contains("CLIPTextEncode", ignoreCase = true) ||
-            classType.contains("TextEncode", ignoreCase = true) -> NodeCategory.ENCODER
-
-            // Samplers
-            classType.contains("Sampler", ignoreCase = true) -> NodeCategory.SAMPLER
-
-            // Latent image creation
-            classType.contains("EmptyLatent", ignoreCase = true) ||
-            classType.contains("Empty") && classType.contains("Latent", ignoreCase = true) -> NodeCategory.LATENT
-
-            // Input nodes
-            classType.contains("LoadImage", ignoreCase = true) -> NodeCategory.INPUT
-
-            // Output nodes
-            classType.contains("Save", ignoreCase = true) ||
-            classType.contains("Preview", ignoreCase = true) -> NodeCategory.OUTPUT
-
-            // Processing nodes
-            classType.contains("Decode", ignoreCase = true) ||
-            classType.contains("Encode", ignoreCase = true) ||
-            classType.contains("Scale", ignoreCase = true) ||
-            classType.contains("Create", ignoreCase = true) ||
-            classType.contains("Sampling", ignoreCase = true) ||
-            classType.contains("ModelMerge", ignoreCase = true) -> NodeCategory.PROCESS
-
-            else -> NodeCategory.OTHER
-        }
-    }
 }

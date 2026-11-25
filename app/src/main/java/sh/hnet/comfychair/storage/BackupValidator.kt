@@ -29,7 +29,6 @@ class BackupValidator {
         // Max lengths for strings
         const val MAX_PROMPT_LENGTH = 10000
         val MAX_WORKFLOW_NAME_LENGTH = ValidationUtils.MAX_WORKFLOW_NAME_LENGTH
-        val MAX_WORKFLOW_DESCRIPTION_LENGTH = ValidationUtils.MAX_WORKFLOW_DESCRIPTION_LENGTH
 
         // Numeric ranges
         const val MIN_PORT = 1
@@ -43,7 +42,6 @@ class BackupValidator {
         const val MIN_MEGAPIXELS = 0.1f
         const val MAX_MEGAPIXELS = 8.3f
         const val MIN_LENGTH = 1
-        const val MAX_LENGTH = 129
         const val MIN_FRAME_RATE = 1
         const val MAX_FRAME_RATE = 120
 
@@ -161,10 +159,10 @@ class BackupValidator {
     }
 
     /**
-     * Validate video length value.
+     * Validate video length value: at least 1, no upper limit of the app's own.
      */
     fun validateLength(value: Int): Boolean {
-        return value in MIN_LENGTH..MAX_LENGTH
+        return value >= MIN_LENGTH
     }
 
     /**
@@ -216,13 +214,6 @@ class BackupValidator {
      */
     fun validateWorkflowName(name: String): Boolean {
         return name.isNotBlank() && name.length <= MAX_WORKFLOW_NAME_LENGTH
-    }
-
-    /**
-     * Validate workflow description.
-     */
-    fun validateWorkflowDescription(description: String): Boolean {
-        return description.length <= MAX_WORKFLOW_DESCRIPTION_LENGTH
     }
 
     /**

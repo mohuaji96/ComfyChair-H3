@@ -9,18 +9,25 @@ import sh.hnet.comfychair.model.ContentProfile
  */
 object AppSettings {
     private const val PREFS_NAME = "AppSettings"
+    private const val KEY_MEDIA_STORAGE_MODE = "media_storage_mode"
+    // Former switches, read only to migrate to KEY_MEDIA_STORAGE_MODE
     private const val KEY_MEDIA_CACHE_DISABLED = "media_cache_disabled"
     private const val KEY_MEMORY_FIRST_CACHE = "memory_first_cache"
     private const val KEY_LIVE_PREVIEW_ENABLED = "live_preview_enabled"
+    private const val KEY_VIEWER_LOOP = "viewer_loop"
     private const val KEY_DEBUG_LOGGING_ENABLED = "debug_logging_enabled"
     private const val KEY_AUTO_CONNECT = "autoConnect"
-    private const val KEY_SHOW_BUILT_IN_WORKFLOWS = "show_built_in_workflows"
     private const val KEY_DISABLED_WORKFLOWS = "disabled_workflows"
+    // Former switch hiding all built-in workflows, read only to migrate to KEY_DISABLED_WORKFLOWS
+    private const val KEY_SHOW_BUILT_IN_WORKFLOWS = "show_built_in_workflows"
     private const val KEY_OFFLINE_MODE = "offline_mode"
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
-    private const val KEY_RELAY_NOTIFY = "relay_notify"
+
+    /** Whether any app setting was ever stored (a fresh install, or one whose data was cleared, has none). */
+    fun hasAnyValue(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).all.isNotEmpty()
 
     /**
      * Check if live preview is enabled.
@@ -35,6 +42,14 @@ object AppSettings {
     /**
      * Set whether live preview should be enabled.
      */
+    /** Whether the media viewer loops videos (its loop toggle); on by default. Previews always loop. */
+    fun isViewerLoop(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_VIEWER_LOOP, true)
+
+    fun setViewerLoop(context: Context, loop: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_VIEWER_LOOP, loop).apply()
+    }
+
     fun setLivePreviewEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
@@ -43,44 +58,39 @@ object AppSettings {
     }
 
     /**
-     * Check if memory-first caching is enabled.
-     * When enabled (default), media is kept in RAM and persisted to disk on app background.
-     * When disabled, media is written directly to disk (disk-first mode for low-end devices).
+     * Where generated images and videos are kept. Defaults to [MediaStorageMode.MEMORY_ONLY]:
+     * nothing is written to the device unless the user chooses otherwise.
      */
-    fun isMemoryFirstCache(context: Context): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_MEMORY_FIRST_CACHE, false)  // H3 Beta: persist assets by default for new installs
+    fun getMediaStorageMode(context: Context): MediaStorageMode {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        MediaStorageMode.fromKey(prefs.getString(KEY_MEDIA_STORAGE_MODE, null))?.let { return it }
+        // H3 571 defaulted memory_first_cache to false (disk-first); keep that default when migrating.
+        return MediaStorageMode.migrate(prefs.getBoolean(KEY_MEMORY_FIRST_CACHE, false))
     }
 
     /**
-     * Set whether memory-first caching should be enabled.
+     * Set where generated images and videos are kept. Replaces the former two switches.
      */
-    fun setMemoryFirstCache(context: Context, enabled: Boolean) {
+    fun setMediaStorageMode(context: Context, mode: MediaStorageMode) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putBoolean(KEY_MEMORY_FIRST_CACHE, enabled)
+            .putString(KEY_MEDIA_STORAGE_MODE, mode.key)
+            .remove(KEY_MEMORY_FIRST_CACHE)
+            .remove(KEY_MEDIA_CACHE_DISABLED)
             .apply()
     }
 
     /**
-     * Check if media cache is disabled.
-     * When disabled, the app does not persist preview images and videos to disk.
-     * Only applicable in memory-first mode.
+     * Whether media is kept in RAM (both memory modes) rather than written directly to disk.
      */
-    fun isMediaCacheDisabled(context: Context): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_MEDIA_CACHE_DISABLED, false)
-    }
+    fun isMemoryFirstCache(context: Context): Boolean =
+        getMediaStorageMode(context) != MediaStorageMode.DEVICE
 
     /**
-     * Set whether media cache should be disabled.
+     * Whether media must never be written to the device ([MediaStorageMode.MEMORY_ONLY]).
      */
-    fun setMediaCacheDisabled(context: Context, disabled: Boolean) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_MEDIA_CACHE_DISABLED, disabled)
-            .apply()
-    }
+    fun isMediaCacheDisabled(context: Context): Boolean =
+        getMediaStorageMode(context) == MediaStorageMode.MEMORY_ONLY
 
     /**
      * Check if debug logging is enabled.
@@ -118,26 +128,6 @@ object AppSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_AUTO_CONNECT, enabled)
-            .apply()
-    }
-
-    /**
-     * Check if built-in workflows should be shown.
-     * When enabled (default), built-in workflows are displayed alongside user workflows.
-     * When disabled, only user-created workflows are shown.
-     */
-    fun isShowBuiltInWorkflows(context: Context): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_SHOW_BUILT_IN_WORKFLOWS, true)  // Default: true (show built-in)
-    }
-
-    /**
-     * Set whether built-in workflows should be shown.
-     */
-    fun setShowBuiltInWorkflows(context: Context, show: Boolean) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SHOW_BUILT_IN_WORKFLOWS, show)
             .apply()
     }
 
@@ -227,6 +217,9 @@ object AppSettings {
     }
 
     private const val KEY_PROMPT_EXPAND = "prompt_expand"
+    private const val KEY_RELAY_NOTIFY = "relay_notify"
+    private const val KEY_CONTENT_PROFILE = "content_profile"
+    private const val KEY_SFW_INTRO_SEEN = "sfw_intro_seen"
 
     fun isPromptExpandEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -240,7 +233,6 @@ object AppSettings {
             .apply()
     }
 
-    /** 完整连拍 progress notification + background keep-alive. Off by default. */
     fun isRelayNotifyEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_RELAY_NOTIFY, false)
@@ -251,18 +243,6 @@ object AppSettings {
             .putBoolean(KEY_RELAY_NOTIFY, enabled).apply()
     }
 
-    private const val KEY_CONTENT_PROFILE = "content_profile"
-    private const val KEY_SFW_INTRO_SEEN = "sfw_intro_seen"
-
-    /**
-     * 当前内容级别。
-     *
-     * 老用户默认「开」——升级不该让原有词库突然少一半；全新安装默认「关」，也不弹询问。
-     *
-     * 判断「老用户」用的是安装/更新时间差，而不是「有没有存过设置」：词库 Store 会在首次
-     * 启动时自己写出副本文件，若拿文件存在与否判断，全新安装第一次运行就会被误判成老用户。
-     * 安装时间差不受初始化顺序影响。
-     */
     fun getContentProfile(context: Context): ContentProfile {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.getString(KEY_CONTENT_PROFILE, null)?.let { return ContentProfile.fromKey(it) }
@@ -280,7 +260,6 @@ object AppSettings {
             .putString(KEY_CONTENT_PROFILE, profile.key).apply()
     }
 
-    /** 首次切到 SFW 的那张说明卡只弹一次。 */
     fun hasSeenSfwIntro(context: Context): Boolean =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_SFW_INTRO_SEEN, false)
@@ -288,5 +267,36 @@ object AppSettings {
     fun setSfwIntroSeen(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_SFW_INTRO_SEEN, true).apply()
+    }
+
+    /** Every app setting back to its default (restoring defaults); servers are stored elsewhere and stay. */
+    fun clearAll(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+    }
+}
+
+/**
+ * Where generated images and videos are kept.
+ */
+enum class MediaStorageMode(val key: String) {
+    /** RAM only: nothing is written to the device; results are gone when the app is closed. */
+    MEMORY_ONLY("memory_only"),
+
+    /** RAM, saved on the device when the app goes to the background, to survive process death. */
+    MEMORY_PERSISTED("memory_persisted"),
+
+    /** Written to the device directly; lower memory use, required for offline mode. */
+    DEVICE("device");
+
+    companion object {
+        fun fromKey(key: String?): MediaStorageMode? = entries.firstOrNull { it.key == key }
+
+        /**
+         * Mode for settings from before this setting existed. Disk-first stays on the device;
+         * memory-first becomes memory only, the privacy default, even where it used to save media
+         * on exit (that was the former default, so it can't be told apart from a deliberate choice).
+         */
+        fun migrate(memoryFirstCache: Boolean): MediaStorageMode =
+            if (memoryFirstCache) MEMORY_ONLY else DEVICE
     }
 }

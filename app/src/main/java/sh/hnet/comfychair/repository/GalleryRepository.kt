@@ -1039,4 +1039,17 @@ class GalleryRepository private constructor() {
         }
         return results
     }
+
+    fun deleteNow(promptIds: Set<String>) {
+        if (promptIds.isEmpty()) return
+        scope.launch {
+            deleteItems(promptIds)
+        }
+    }
+
+    fun deleteWithUndo(promptIds: Set<String>): Boolean {
+        if (comfyUIClient == null) return false
+        deleteNow(promptIds)
+        return true
+    }
 }

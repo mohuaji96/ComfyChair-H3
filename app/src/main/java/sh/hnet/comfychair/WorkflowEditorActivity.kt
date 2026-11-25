@@ -15,13 +15,13 @@ import androidx.compose.ui.Modifier
 import sh.hnet.comfychair.ui.screens.WorkflowEditorScreen
 import sh.hnet.comfychair.ui.theme.ComfyChairTheme
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.Obfuscator
 import sh.hnet.comfychair.viewmodel.WorkflowEditorEvent
 import sh.hnet.comfychair.viewmodel.WorkflowEditorViewModel
 import sh.hnet.comfychair.workflow.WorkflowMappingState
 
 /**
  * Fullscreen activity for editing workflow graphs.
- * Follows the MediaViewerActivity pattern.
  *
  * Can operate in two modes:
  * 1. View mode: Display an existing workflow graph
@@ -34,6 +34,7 @@ class WorkflowEditorActivity : ComponentActivity() {
     companion object {
         private const val TAG = "WorkflowEditor"
         private const val EXTRA_WORKFLOW_ID = "workflow_id"
+        private const val EXTRA_READ_ONLY = "read_only"
         private const val EXTRA_WORKFLOW_JSON = "workflow_json"
         private const val EXTRA_IS_MAPPING_MODE = "is_mapping_mode"
         private const val EXTRA_IS_CREATE_MODE = "is_create_mode"
@@ -43,14 +44,20 @@ class WorkflowEditorActivity : ComponentActivity() {
         private const val EXTRA_WORKFLOW_DESCRIPTION = "workflow_description"
 
         const val EXTRA_RESULT_MAPPINGS = "result_mappings"
+        /** The workflow's custom fields after mapping (JSON array), absent when it has none (spec §18.3) */
+        const val EXTRA_RESULT_CUSTOM_FIELDS = "result_custom_fields"
         const val EXTRA_RESULT_WORKFLOW_ID = "result_workflow_id"
 
         /**
          * Create intent to preview a workflow by ID
+         *
+         * @param readOnly Only to look at: no node attributes to change and no way into edit mode, even for the user's own
+         *   workflows
          */
-        fun createIntent(context: Context, workflowId: String): Intent {
+        fun createIntent(context: Context, workflowId: String, readOnly: Boolean = false): Intent {
             return Intent(context, WorkflowEditorActivity::class.java).apply {
                 putExtra(EXTRA_WORKFLOW_ID, workflowId)
+                putExtra(EXTRA_READ_ONLY, readOnly)
             }
         }
 
@@ -116,6 +123,7 @@ class WorkflowEditorActivity : ComponentActivity() {
         val mappingStateJson = intent.getStringExtra(EXTRA_MAPPING_STATE_JSON)
         val workflowName = intent.getStringExtra(EXTRA_WORKFLOW_NAME) ?: ""
         val workflowDescription = intent.getStringExtra(EXTRA_WORKFLOW_DESCRIPTION) ?: ""
+        val readOnly = intent.getBooleanExtra(EXTRA_READ_ONLY, false)
 
         // Initialize ViewModel based on mode
         when {
@@ -128,7 +136,7 @@ class WorkflowEditorActivity : ComponentActivity() {
                 viewModel.initializeForCreation(this)
             }
             isMappingMode && workflowJson != null && mappingStateJson != null -> {
-                DebugLogger.i(TAG, "Initializing for mapping mode: name=$workflowName")
+                DebugLogger.i(TAG, "Initializing for mapping mode: name=${Obfuscator.workflowName(workflowName)}")
                 val mappingState = WorkflowMappingState.fromJson(mappingStateJson)
                 if (mappingState != null) {
                     viewModel.initializeForMapping(
@@ -158,6 +166,7 @@ class WorkflowEditorActivity : ComponentActivity() {
                                 DebugLogger.i(TAG, "Mapping confirmed")
                                 setResult(Activity.RESULT_OK, Intent().apply {
                                     putExtra(EXTRA_RESULT_MAPPINGS, event.mappingsJson)
+                                    event.customFieldsJson?.let { putExtra(EXTRA_RESULT_CUSTOM_FIELDS, it) }
                                 })
                                 finish()
                             }
@@ -192,6 +201,7 @@ class WorkflowEditorActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     WorkflowEditorScreen(
                         viewModel = viewModel,
+                        readOnly = readOnly,
                         onClose = {
                             when {
                                 isEditExistingMode -> viewModel.handleEditExistingModeClose()

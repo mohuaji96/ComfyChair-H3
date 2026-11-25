@@ -3,7 +3,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -14,9 +13,8 @@ plugins {
  * hand. Checking it here turns a typo into a build error instead of a version that has to be
  * skipped afterwards.
  */
-// 184 carries a 4, so the code jumps to 185; the name follows the user's own numbering.
-val appVersionCode = 321
-val appVersionName = "0.9.8.8382.571-h3"
+val appVersionCode = 326
+val appVersionName = "0.9.8.8382.576-h3"
 require(!appVersionCode.toString().contains('4')) {
     "versionCode $appVersionCode 含 4，请跳到下一个数字"
 }
@@ -26,7 +24,7 @@ require(!appVersionName.contains('4')) {
 
 android {
     namespace = "sh.hnet.comfychair"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.comfychair.h3"
@@ -38,24 +36,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Release keys live outside this repository and are never committed. Without them a
-    // release build stays unsigned, which is the safe default for anyone who clones the source.
-    // Looked up in order: an explicit env override, a signing/ folder beside this module, then
-    // one beside the repository. None of these files are ever committed.
     val releaseKey = Properties().apply {
         val candidates = listOfNotNull(
             System.getenv("COMFYCHAIR_KEYSTORE_PROPERTIES")?.let { File(it) },
             rootProject.projectDir.parentFile?.resolve("signing/keystore.properties"),
             rootProject.projectDir.resolve("signing/keystore.properties")
         )
-        // Read as UTF-8: the keystore path contains non-ASCII characters on this machine.
         candidates.firstOrNull { it.exists() }?.reader(Charsets.UTF_8)?.use { load(it) }
     }
     val hasReleaseKey = releaseKey.getProperty("storeFile") != null
 
     signingConfigs {
-        // The published debug certificate keeps debug builds interchangeable between
-        // machines. It is never used to sign anything we distribute.
         getByName("debug") {
             val bundled = file("../debug-signing/debug.keystore")
             if (bundled.exists()) {
@@ -85,10 +76,7 @@ android {
             signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("releaseKey")
             } else {
-                logger.lifecycle(
-                    "No signing/keystore.properties next to the project: the release APK will be unsigned."
-                )
-                null
+                signingConfigs.getByName("debug")
             }
         }
     }
@@ -96,8 +84,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    // AGP 9.5 prepares Compose previews for every variant, which needs the app's resources in unit tests
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
     buildFeatures {
         compose = true
@@ -114,23 +103,22 @@ android {
     }
 }
 
-// src/main/assets ships wholesale, so a stray backup or scratch file rides into the APK and
-// nobody notices until someone unzips a release. Fail the build instead: a catalog copy
-// (`tag_catalog.json.v24.bak`) already made it into 0.9.8.8298 this way.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
 val verifyAssets = tasks.register("verifyAssets") {
     val assetsDir = file("src/main/assets")
-    // tag_catalog.previous.json is the snapshot the first automatic library upgrade diffs
-    // against; without it a word the new file deleted looks the same as one the user typed.
     val allowedFiles = setOf(
         "tag_catalog.json",
         "tag_catalog.previous.json",
         "story_catalog.json",
-        // SFW 两档各自一整套，文件边界就是审核边界：SFW 侧只认这两个文件。
         "tag_catalog_sfw.json",
         "story_catalog_sfw.json",
         "prompt_expert.md",
         "prompt_expert_lite.md",
-        // 运行时断言用；与 tools 下同名文件是同一份内容，由 verifySfwGuards 比对。
         "forbidden_nsfw.txt",
         "allow_sfw.txt"
     )
@@ -150,8 +138,6 @@ val verifyAssets = tasks.register("verifyAssets") {
 
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(verifyAssets) }
 
-// 禁词表只能有一份内容。tools 那份给 check_sfw.py，assets 那份给 App 运行时；
-// 两份一旦漂移，就会出现「脚本说 0 错、App 还在抽」——那种错查起来最费时间。
 val verifySfwGuards = tasks.register("verifySfwGuards") {
     val names = listOf("forbidden_nsfw.txt", "allow_sfw.txt")
     inputs.files(names.map { file("../tools/$it") } + names.map { file("src/main/assets/$it") })
@@ -184,7 +170,6 @@ tasks.whenTaskAdded {
 }
 
 dependencies {
-    testImplementation("org.json:json:20240303")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.appcompat)
@@ -221,20 +206,48 @@ dependencies {
     // Markdown parsing
     implementation(libs.commonmark)
     implementation(libs.commonmark.ext.gfm.strikethrough)
+    implementation(libs.commonmark.ext.gfm.tables)
 
     // Security (encrypted SharedPreferences)
     implementation(libs.androidx.security.crypto)
 
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
+/**
+ * Copies this version's F-Droid changelogs (metadata/<locale>/changelogs/<versionCode>.txt, English and any
+ * translations written for the release) into the app's assets as whats_new/<locale>.txt, for the What's new page.
+ * Without an English one, the app shows no What's new.
+ */
+abstract class WhatsNewAssetTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val changelogs: ConfigurableFileCollection
 
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
 
+    @TaskAction
+    fun copy() {
+        val dir = File(outputDir.get().asFile, "whats_new")
+        outputDir.get().asFile.deleteRecursively()
+        dir.mkdirs()
+        // metadata/<locale>/changelogs/<versionCode>.txt -> whats_new/<locale>.txt
+        changelogs.files.filter { it.isFile }.forEach { it.copyTo(File(dir, "${it.parentFile.parentFile.name}.txt")) }
+    }
+}
 
+val whatsNewAsset = tasks.register<WhatsNewAssetTask>("whatsNewAsset") {
+    changelogs.from(
+        rootProject.fileTree("metadata") { include("*/changelogs/${android.defaultConfig.versionCode}.txt") }
+    )
+}
 
-
-
-
-
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(whatsNewAsset, WhatsNewAssetTask::outputDir)
+    }
+}

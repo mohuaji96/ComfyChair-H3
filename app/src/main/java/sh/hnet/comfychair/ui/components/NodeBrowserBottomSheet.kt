@@ -1,114 +1,130 @@
 package sh.hnet.comfychair.ui.components
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
+import sh.hnet.comfychair.workflow.InputDefinition
+import sh.hnet.comfychair.ui.components.settings.groupShapes
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.ListItemShapes
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.runtime.key
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.FilterAltOff
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.storage.NodeBrowserPrefs
 import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
+import sh.hnet.comfychair.ui.components.shared.SearchCountLine
+import sh.hnet.comfychair.ui.components.shared.SearchEmptyState
+import sh.hnet.comfychair.ui.components.shared.SearchField
+import sh.hnet.comfychair.ui.components.shared.SearchFilter
+import sh.hnet.comfychair.ui.components.shared.SearchFilterChips
+import sh.hnet.comfychair.ui.components.shared.highlighted
 import sh.hnet.comfychair.util.ConnectionValidator
+import sh.hnet.comfychair.workflow.GraphColors
+import sh.hnet.comfychair.workflow.NodeBrowserTree
 import sh.hnet.comfychair.workflow.NodeTypeDefinition
+import sh.hnet.comfychair.workflow.nodeCategoryOf
 
-/** Split category into hierarchy levels (handles both "/" and "\" separators) */
-private fun parseCategoryLevels(category: String): List<String> {
-    return category.split("/", "\\").filter { it.isNotEmpty() }
+
+// Room above the list's first row
+private val LIST_TOP_PADDING = 8.dp
+
+// Each level of the tree in from the one above, as the model picker's tree
+private val TREE_INDENT = 16.dp
+
+/** One row of the browser's list. */
+private sealed interface BrowserRow {
+    val key: String
+    data class Section(val title: String) : BrowserRow { override val key = "section_$title" }
+    data class Folder(val folder: NodeBrowserTree.Folder, val depth: Int, val open: Boolean, val index: Int, val size: Int) : BrowserRow {
+        override val key = "folder_${folder.key}"
+    }
+    data class Node(val node: NodeTypeDefinition, val depth: Int, val index: Int, val size: Int, val group: String) : BrowserRow {
+        override val key = "node_${group}_${node.classType}"
+    }
 }
-
-/** Normalize category to use "/" separator consistently */
-private fun normalizeCategory(category: String): String {
-    return category.replace("\\", "/")
-}
-
-/** Get unique values at a specific level, optionally filtered by parent prefix */
-private fun getOptionsAtLevel(
-    categories: Set<String>,
-    level: Int,
-    parentPrefix: String?
-): List<String> {
-    return categories
-        .map { normalizeCategory(it) }
-        .filter { cat ->
-            if (parentPrefix == null) true
-            else cat.startsWith("$parentPrefix/") || cat == parentPrefix
-        }
-        .mapNotNull { cat ->
-            parseCategoryLevels(cat).getOrNull(level)
-        }
-        .distinct()
-        .sorted()
-}
-
-/** Build category prefix from selections */
-private fun buildCategoryPrefix(
-    level1: String?,
-    level2: String?,
-    level3: String?
-): String? {
-    return listOfNotNull(level1, level2, level3)
-        .takeIf { it.isNotEmpty() }
-        ?.joinToString("/")
-}
-
-/** Literal types that are not connection types */
-private val LITERAL_TYPES = setOf("INT", "FLOAT", "STRING", "BOOLEAN", "ENUM")
-
-/** Check if a type is a connection type (not a literal) */
-private fun isConnectionType(type: String): Boolean = type.uppercase() !in LITERAL_TYPES
 
 /**
- * Bottom sheet for browsing and selecting node types to add to the workflow.
+ * The node browser (spec §22), a full-height sheet: the title with the view switch (tree or list), the search field on
+ * the page, the held socket's filter under it, a count line while a query or the filter is on, then the list. The list
+ * view: every node by name under its first letter. The tree view, the tree of categories (open folders scrolled out of
+ * sight stay pinned at the top, root first): ComfyUI's own categories (Built-in, API nodes and the rest last) and the extension packs, each folder
+ * with its node count, opening in place one per level. Searching, one flat list of matches, best first, the match in
+ * bold. Tapping a node adds it (wired to the held socket when it came from one).
  *
- * @param nodeTypesByCategory All available node types grouped by category
- * @param sheetState The modal sheet state
- * @param onNodeTypeSelected Callback when user selects a node type
- * @param onDismiss Callback when sheet is dismissed
- * @param filterToOutputType If set, only show nodes with compatible inputs for this output type
- * @param filterToInputType If set, only show nodes with compatible outputs for this input type
+ * @param filterToOutputType Held output socket: nodes that take its type
+ * @param filterToInputType Held input socket: nodes that give its type
+ * @param filterToOutputOptions The held output's options when it carries a list
+ * @param filterToInputList The held input when it is a list (what it takes: [ConnectionValidator.acceptsListLink])
+ * @param fromSubgraphInput The held output is a subgraph's input
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,460 +134,413 @@ fun NodeBrowserBottomSheet(
     onNodeTypeSelected: (NodeTypeDefinition) -> Unit,
     onDismiss: () -> Unit,
     filterToOutputType: String? = null,
-    filterToInputType: String? = null
+    filterToInputType: String? = null,
+    filterToOutputOptions: List<String>? = null,
+    filterToInputList: InputDefinition? = null,
+    fromSubgraphInput: Boolean = false
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val search = rememberTextFieldState()
+    val query = search.text.toString()
+    val slotType = filterToOutputType ?: filterToInputType
+    var filterOn by remember { mutableStateOf(slotType != null) }
+    // The tree of categories, or every node by name (to look through without a name in mind)
+    var listView by remember { mutableStateOf(NodeBrowserPrefs.isListView(context)) }
 
-    // Category filter state
-    var level1Selection by remember { mutableStateOf<String?>(null) }
-    var level2Selection by remember { mutableStateOf<String?>(null) }
-    var level3Selection by remember { mutableStateOf<String?>(null) }
-
-    // Expansion state for each level
-    var level1Expanded by remember { mutableStateOf(false) }
-    var level2Expanded by remember { mutableStateOf(false) }
-    var level3Expanded by remember { mutableStateOf(false) }
-
-    // Compute available options for each level
-    val allCategories = remember(nodeTypesByCategory) {
-        nodeTypesByCategory.keys
+    val allNodes = remember(nodeTypesByCategory) { nodeTypesByCategory.values.flatten().distinctBy { it.classType } }
+    fun fits(node: NodeTypeDefinition): Boolean = when {
+        filterToOutputType != null -> ConnectionValidator.inputsTaking(node, filterToOutputType, filterToOutputOptions, fromSubgraphInput).isNotEmpty()
+        filterToInputType != null -> ConnectionValidator.outputsFeeding(node, filterToInputType, filterToInputList).isNotEmpty()
+        else -> true
     }
+    val compatible = remember(allNodes, slotType) { if (slotType == null) allNodes else allNodes.filter(::fits) }
+    val scope = if (filterOn) compatible else allNodes
+    val tree = remember(scope) { NodeBrowserTree.build(scope) }
+    // Each node's texts normalized once: sorting and searching thousands of them must not redo it
+    val index = remember(scope) { NodeBrowserTree.index(scope) }
+    val results = remember(index, query) { NodeBrowserTree.search(index, query) }
+    val searching = query.isNotBlank()
 
-    val level1Options = remember(allCategories) {
-        getOptionsAtLevel(allCategories, 0, null)
+    // Open folders, one per level; with the filter on, the folder holding most compatible nodes opens first
+    var openKeys by remember {
+        mutableStateOf(
+            if (slotType != null) listOfNotNull((tree.builtIn + tree.extensions).maxByOrNull { it.count }?.key) else emptyList()
+        )
     }
+    var scrollTo by remember { mutableStateOf<String?>(null) }
 
-    val level2Options = remember(allCategories, level1Selection) {
-        if (level1Selection == null) emptyList()
-        else getOptionsAtLevel(allCategories, 1, level1Selection)
-    }
-
-    val level3Options = remember(allCategories, level1Selection, level2Selection) {
-        val prefix = buildCategoryPrefix(level1Selection, level2Selection, null)
-        if (prefix == null || level2Selection == null) emptyList()
-        else getOptionsAtLevel(allCategories, 2, prefix)
-    }
-
-    val categoryPrefix = buildCategoryPrefix(level1Selection, level2Selection, level3Selection)
-
-    // Filter nodes by compatibility, search query, and category filter
-    val filteredCategories = remember(nodeTypesByCategory, searchQuery, categoryPrefix, filterToOutputType, filterToInputType) {
-        var result = nodeTypesByCategory
-
-        // Apply compatibility filter for output->input (long-press on output slot)
-        if (filterToOutputType != null) {
-            result = result.mapValues { (_, nodes) ->
-                nodes.filter { nodeType ->
-                    // Node is compatible if it has any connection-type input that matches output type
-                    nodeType.inputs.any { input ->
-                        isConnectionType(input.type) &&
-                        ConnectionValidator.isTypeCompatible(filterToOutputType, input.type)
+    val sectionBuiltIn = stringResource(R.string.node_section_builtin)
+    val sectionExtensions = stringResource(R.string.node_section_extensions)
+    val rows = remember(tree, openKeys, searching, results, listView, index) {
+        buildList {
+            if (searching) {
+                results.forEachIndexed { i, node -> add(BrowserRow.Node(node, 0, i, results.size, "found")) }
+                return@buildList
+            }
+            if (listView) {
+                // Every node by name, under its first letter (anything not a letter under "#")
+                NodeBrowserTree.byName(index)
+                    .groupBy { it.name.firstOrNull()?.takeIf { c -> c.isLetter() }?.uppercaseChar() ?: '#' }
+                    .entries.sortedBy { (letter, _) -> if (letter == '#') "~" else letter.toString() }
+                    .forEach { (letter, entries) ->
+                        add(BrowserRow.Section(letter.toString()))
+                        entries.forEachIndexed { i, entry -> add(BrowserRow.Node(entry.node, 0, i, entries.size, "letter_$letter")) }
                     }
+                return@buildList
+            }
+            for ((title, folders) in listOf(sectionBuiltIn to tree.builtIn, sectionExtensions to tree.extensions)) {
+                if (folders.isEmpty()) continue
+                add(BrowserRow.Section(title))
+                // One segmented group per section: its folders and what open ones show
+                val group = mutableListOf<BrowserRow>()
+                fun addFolder(folder: NodeBrowserTree.Folder, depth: Int) {
+                    val open = folder.key in openKeys
+                    group += BrowserRow.Folder(folder, depth, open, 0, 0)
+                    if (!open) return
+                    folder.folders.forEach { addFolder(it, depth + 1) }
+                    folder.nodes.forEach { group += BrowserRow.Node(it, depth + 1, 0, 0, folder.key) }
                 }
-            }.filterValues { it.isNotEmpty() }
-        }
-
-        // Apply compatibility filter for input->output (long-press on input slot)
-        if (filterToInputType != null) {
-            result = result.mapValues { (_, nodes) ->
-                nodes.filter { nodeType ->
-                    // Node is compatible if it has any output that matches input type
-                    nodeType.outputs.any { output ->
-                        ConnectionValidator.isTypeCompatible(output.type, filterToInputType)
-                    }
+                folders.forEach { addFolder(it, 0) }
+                group.forEachIndexed { i, row ->
+                    add(
+                        when (row) {
+                            is BrowserRow.Folder -> row.copy(index = i, size = group.size)
+                            is BrowserRow.Node -> row.copy(index = i, size = group.size)
+                            else -> row
+                        }
+                    )
                 }
-            }.filterValues { it.isNotEmpty() }
-        }
-
-        // Apply category filter (normalize both sides for cross-platform matching)
-        if (categoryPrefix != null) {
-            result = result.filterKeys { category ->
-                val normalizedCategory = normalizeCategory(category)
-                normalizedCategory.startsWith(categoryPrefix) || normalizedCategory == categoryPrefix
             }
         }
-
-        // Apply search filter
-        if (searchQuery.isNotBlank()) {
-            val query = searchQuery.lowercase()
-            result = result.mapValues { (_, nodes) ->
-                nodes.filter { node ->
-                    node.classType.lowercase().contains(query) ||
-                    node.category.lowercase().contains(query) ||
-                    node.displayName?.lowercase()?.contains(query) == true ||
-                    node.description?.lowercase()?.contains(query) == true
-                }
-            }.filterValues { it.isNotEmpty() }
-        }
-
-        result
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
+    val listState = rememberLazyListState()
+    // Results start at the top; a tree's scroll would cut off the best match
+    LaunchedEffect(query) { if (query.isNotBlank()) listState.scrollToItem(0) }
+    // Another view starts at its top
+    LaunchedEffect(listView) { listState.scrollToItem(0) }
+    // The folder just opened scrolls to the top
+    // A folder row's height with its gap, as laid out (the pinned rows stack by it)
+    val density = LocalDensity.current
+    var rowStep by remember { mutableIntStateOf(with(density) { 50.dp.roundToPx() }) }
+    val listTopPadding = with(density) { LIST_TOP_PADDING.roundToPx() }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull { (it.key as? String)?.startsWith("folder_") == true }?.size }
+            .collect { size -> if (size != null && size > 0) rowStep = size }
+    }
+    // The folder just opened scrolls up to just under its open ancestors, which stay pinned at the top
+    LaunchedEffect(scrollTo, rows) {
+        val key = scrollTo ?: return@LaunchedEffect
+        val index = rows.indexOfFirst { it.key == "folder_$key" }
+        val ancestors = openKeys.indexOf(key).coerceAtLeast(0)
+        // The list's own top padding already lies above the item scrolled to
+        val offset = if (ancestors == 0) 0 else -(ancestors * rowStep - listTopPadding)
+        if (index >= 0) listState.animateScrollToItem(index, offset)
+        scrollTo = null
+    }
+    // The open folders whose rows went up under the top: kept there, one under another, root first
+    val pinned by remember(rows, openKeys, listView, searching) {
+        derivedStateOf {
+            if (listView || searching) return@derivedStateOf emptyList()
+            val visible = listState.layoutInfo.visibleItemsInfo
+            val first = listState.firstVisibleItemIndex
+            openKeys.mapIndexedNotNull { level, key ->
+                val index = rows.indexOfFirst { it.key == "folder_$key" }
+                if (index < 0) return@mapIndexedNotNull null
+                val offset = visible.firstOrNull { it.index == index }?.offset
+                val under = index < first || (offset != null && offset < level * rowStep)
+                if (under) rows[index] as? BrowserRow.Folder else null
+            }
+        }
+    }
+
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val palette = GraphColors.palette(dark)
+    val noSwatch = MaterialTheme.colorScheme.surfaceContainerHighest
+    val notConnected = slotType?.let { stringResource(R.string.node_not_connected, it) }
+
+    fun choose(node: NodeTypeDefinition) {
+        // The filter lifted: a node without a fitting socket is added on its own
+        if (slotType != null && !fits(node)) Toast.makeText(context, notConnected, Toast.LENGTH_SHORT).show()
+        onNodeTypeSelected(node)
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp)
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding()
         ) {
-            Text(
-                text = stringResource(R.string.node_browser_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Show filter chip when filtering by type compatibility
-            if (filterToOutputType != null || filterToInputType != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val filterText = when {
-                    filterToOutputType != null -> stringResource(R.string.node_browser_accepts_input, filterToOutputType)
-                    filterToInputType != null -> stringResource(R.string.node_browser_provides_output, filterToInputType)
-                    else -> ""
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.node_browser_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                ViewSwitch(listView) { list ->
+                    listView = list
+                    NodeBrowserPrefs.setListView(context, list)
                 }
-                AssistChip(
-                    onClick = { /* Filter is read-only in this mode */ },
-                    label = { Text(filterText) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.FilterList,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+            }
+            SearchField(
+                state = search,
+                placeholder = pluralStringResource(R.plurals.node_search_hint, scope.size, scope.size),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            )
+            if (slotType != null) {
+                val label = stringResource(if (filterToOutputType != null) R.string.node_browser_accepts_input else R.string.node_browser_provides_output, slotType)
+                val dot = palette.slot(slotType) ?: MaterialTheme.colorScheme.onSurfaceVariant
+                SearchFilterChips(
+                    filters = listOf(
+                        SearchFilter(
+                            key = "socket",
+                            label = label,
+                            selected = filterOn,
+                            onToggle = { filterOn = !filterOn },
+                            leading = { Box(Modifier.size(10.dp).clip(CircleShape).background(dot)) }
                         )
-                    }
+                    ),
+                    moreLabel = { "" },
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+                )
+            }
+            if (searching || (slotType != null && filterOn)) {
+                SearchCountLine(
+                    text = when {
+                        searching && !filterOn -> stringResource(R.string.node_count, results.size)
+                        searching -> stringResource(R.string.node_count_of, results.size, allNodes.size)
+                        else -> stringResource(R.string.node_count_of, compatible.size, allNodes.size)
+                    },
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Search field with M3 Expressive style
-            SearchBar(
-                inputField = {
-                    SearchBarDefaults.InputField(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        onSearch = { },
-                        expanded = false,
-                        onExpandedChange = { },
-                        placeholder = { Text(stringResource(R.string.placeholder_node_browser_search)) },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null)
-                        },
-                        trailingIcon = if (searchQuery.isNotEmpty()) {
-                            {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(
-                                        Icons.Default.Clear,
-                                        contentDescription = stringResource(R.string.button_clear_search)
+            if (rows.isEmpty()) {
+                SearchEmptyState(
+                    title = if (searching) stringResource(R.string.node_browser_no_match, query.trim()) else stringResource(R.string.node_browser_no_results),
+                    body = if (filterOn && slotType != null) stringResource(R.string.node_none_body) else null,
+                    liftLabel = if (filterOn && slotType != null) stringResource(R.string.node_search_all) else null,
+                    liftIcon = Icons.Rounded.FilterAltOff,
+                    onLift = { filterOn = false }
+                )
+            } else {
+                Box(Modifier.weight(1f)) {
+                // A new list for another view or for searching: its rows' animations are for folders opening, not for
+                // all rows changing at once (old and new would cross-fade over each other)
+                key(listView, searching) {
+                NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = LIST_TOP_PADDING, bottom = 16.dp)
+                    ) {
+                        items(rows, key = { it.key }) { row ->
+                            Box(Modifier.animateItem()) {
+                                when (row) {
+                                    is BrowserRow.Section -> Text(
+                                        row.title,
+                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp)
+                                    )
+                                    is BrowserRow.Folder -> FolderRow(
+                                        folder = row.folder,
+                                        depth = row.depth,
+                                        open = row.open,
+                                        shapes = groupShapes(row.index, row.size),
+                                        onClick = {
+                                            openKeys = if (row.open) NodeBrowserTree.close(openKeys, row.folder)
+                                            else NodeBrowserTree.open(openKeys, row.folder).also { scrollTo = row.folder.key }
+                                        }
+                                    )
+                                    is BrowserRow.Node -> NodeTypeRow(
+                                        nodeType = row.node,
+                                        depth = row.depth,
+                                        swatch = palette.categoryTint(nodeCategoryOf(row.node.classType)) ?: noSwatch,
+                                        shapes = groupShapes(row.index, row.size),
+                                        highlight = if (searching) query.trim() else null,
+                                        onClick = { choose(row.node) }
                                     )
                                 }
                             }
-                        } else null
-                    )
-                },
-                expanded = false,
-                onExpandedChange = { },
-                modifier = Modifier.fillMaxWidth()
-            ) { }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Category filters section with animated size changes
-            Column(
-                modifier = Modifier.animateContentSize()
-            ) {
-                // Level 1 filter chips
-                // Collapse to only selected chip when level 2 has options (user drilled down)
-                val level1DisplayOptions = remember(level1Selection, level2Options, level1Options) {
-                    if (level2Options.isNotEmpty() && level1Selection != null) {
-                        listOfNotNull(level1Selection)
-                    } else {
-                        level1Options
-                    }
-                }
-                if (level1DisplayOptions.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.node_browser_filter_category),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ExpandableFilterChipRow(
-                        options = level1DisplayOptions,
-                        selectedOption = level1Selection,
-                        onOptionSelected = { selection ->
-                            level1Selection = selection
-                            level2Selection = null  // Clear deeper levels
-                            level3Selection = null
-                            level2Expanded = false
-                            level3Expanded = false
-                        },
-                        expanded = level1Expanded,
-                        onExpandedChange = { level1Expanded = it }
-                    )
-                }
-
-                // Level 2 filter chips (only show if level 1 selected and options exist)
-                // Collapse to only selected chip when level 3 has options (user drilled down)
-                val level2DisplayOptions = remember(level2Selection, level3Options, level2Options) {
-                    if (level3Options.isNotEmpty() && level2Selection != null) {
-                        listOfNotNull(level2Selection)
-                    } else {
-                        level2Options
-                    }
-                }
-                if (level2DisplayOptions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.node_browser_filter_subcategory),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ExpandableFilterChipRow(
-                        options = level2DisplayOptions,
-                        selectedOption = level2Selection,
-                        onOptionSelected = { selection ->
-                            level2Selection = selection
-                            level3Selection = null  // Clear deeper level
-                            level3Expanded = false
-                        },
-                        expanded = level2Expanded,
-                        onExpandedChange = { level2Expanded = it }
-                    )
-                }
-
-                // Level 3 filter chips (only show if level 2 selected and options exist)
-                if (level3Options.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.node_browser_filter_group),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ExpandableFilterChipRow(
-                        options = level3Options,
-                        selectedOption = level3Selection,
-                        onOptionSelected = { selection ->
-                            level3Selection = selection
-                        },
-                        expanded = level3Expanded,
-                        onExpandedChange = { level3Expanded = it }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Flatten and sort all nodes alphabetically by display name (or classType)
-            val sortedNodes = remember(filteredCategories) {
-                filteredCategories.values.flatten().sortedBy {
-                    (it.displayName ?: it.classType).lowercase()
-                }
-            }
-
-            if (sortedNodes.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.node_browser_no_results),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                NoOverscrollContainer(modifier = Modifier.weight(1f, fill = false)) {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(
-                            items = sortedNodes,
-                            key = { "node_${it.classType}" }
-                        ) { nodeType ->
-                            NodeTypeRow(
-                                nodeType = nodeType,
-                                onClick = { onNodeTypeSelected(nodeType) }
-                            )
+                            // The segmented groups' gap between rows
+                            if (row !is BrowserRow.Section) Spacer(Modifier.height(2.dp))
                         }
                     }
+                }
+                }
+                // The open folders above the top, pinned (on the sheet's own colour, the list passing under)
+                if (pinned.isNotEmpty()) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(BottomSheetDefaults.ContainerColor)
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        pinned.forEachIndexed { i, row ->
+                            FolderRow(
+                                folder = row.folder,
+                                depth = row.depth,
+                                open = true,
+                                shapes = groupShapes(i, pinned.size),
+                                onClick = { openKeys = NodeBrowserTree.close(openKeys, row.folder) }
+                            )
+                            Spacer(Modifier.height(2.dp))
+                        }
+                    }
+                }
                 }
             }
         }
     }
 }
 
+/** Tree or list: connected toggle buttons, as the generation screens' source switch. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ViewSwitch(listView: Boolean, onChange: (Boolean) -> Unit) {
+    val label = stringResource(R.string.content_description_node_view)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        modifier = Modifier
+            .selectableGroup()
+            .semantics { contentDescription = label }
+    ) {
+        listOf(false to R.string.node_view_tree, true to R.string.node_view_list).forEachIndexed { index, (list, text) ->
+            ToggleButton(
+                checked = listView == list,
+                onCheckedChange = { if (it) onChange(list) },
+                shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                modifier = Modifier
+                    .heightIn(min = 40.dp)
+                    .semantics { role = Role.RadioButton }
+            ) {
+                Text(stringResource(text), maxLines = 1)
+            }
+        }
+    }
+}
+
+/**
+ * A category folder: its icon (an extension pack's, the API nodes', else a folder, open or not), its name, the nodes it
+ * holds and the arrow; open, on the secondary container.
+ */
+@Composable
+private fun FolderRow(folder: NodeBrowserTree.Folder, depth: Int, open: Boolean, shapes: ListItemShapes, onClick: () -> Unit) {
+    val name = when (folder.kind) {
+        NodeBrowserTree.Kind.API -> stringResource(R.string.node_folder_api)
+        NodeBrowserTree.Kind.OTHER -> stringResource(R.string.node_folder_other)
+        else -> folder.name
+    }
+    val icon = when {
+        folder.kind == NodeBrowserTree.Kind.PACK -> Icons.Rounded.Extension
+        folder.kind == NodeBrowserTree.Kind.API -> Icons.Rounded.Cloud
+        open -> Icons.Rounded.FolderOpen
+        else -> Icons.Rounded.Folder
+    }
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = shapes,
+        colors = ListItemDefaults.segmentedColors(
+            containerColor = if (open) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
+        ),
+        // The level's indent before the icon (the list item keeps its own padding)
+        leadingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (depth > 0) Spacer(Modifier.width(TREE_INDENT * depth))
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+            }
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    folder.count.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Icon(
+                    if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name)
+    }
+}
+
+/**
+ * A node type: a swatch in its category colour (the graph's colours, the one exception to theme roles), its name (the
+ * search's match in bold), "category (inputs: n, outputs: n)" with "– deprecated" / "– experimental" in italics, and
+ * the class name under it when it differs. Extension nodes carry the extension icon. The description is read out only.
+ */
 @Composable
 private fun NodeTypeRow(
     nodeType: NodeTypeDefinition,
+    depth: Int,
+    swatch: Color,
+    shapes: ListItemShapes,
+    highlight: String?,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 8.dp)
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            if (nodeType.category.isNotEmpty()) {
-                Text(
-                    text = nodeType.category,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    text = nodeType.displayName ?: nodeType.classType,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                // Show deprecated badge (error color - adapts to light/dark)
-                if (nodeType.deprecated) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = stringResource(R.string.node_browser_deprecated),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-                // Show experimental badge (tertiary color - adapts to light/dark)
-                if (nodeType.experimental) {
-                    Icon(
-                        imageVector = Icons.Default.Science,
-                        contentDescription = stringResource(R.string.node_browser_experimental),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-            }
-            // Show classType if different from displayName
-            if (nodeType.displayName != null && nodeType.displayName != nodeType.classType) {
-                Text(
-                    text = nodeType.classType,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-            if (nodeType.inputs.isNotEmpty() || nodeType.outputs.isNotEmpty()) {
-                Text(
-                    text = stringResource(
-                        R.string.node_browser_io_info,
-                        nodeType.inputs.size,
-                        nodeType.outputs.size
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+    val name = NodeBrowserTree.displayNameOf(nodeType)
+    val deprecated = stringResource(R.string.node_mark_deprecated)
+    val experimental = stringResource(R.string.node_mark_experimental)
+    val supporting = buildAnnotatedString {
+        append(
+            if (nodeType.category.isEmpty()) stringResource(R.string.node_row_io, nodeType.inputs.size, nodeType.outputs.size)
+            else stringResource(R.string.node_row_supporting, nodeType.category, nodeType.inputs.size, nodeType.outputs.size)
+        )
+        // The states after one dash, together (no chain of dashes)
+        val states = listOfNotNull(deprecated.takeIf { nodeType.deprecated }, experimental.takeIf { nodeType.experimental })
+        if (states.isNotEmpty()) {
+            append(" – ")
+            withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(states.joinToString(", ")) }
         }
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ExpandableFilterChipRow(
-    options: List<String>,
-    selectedOption: String?,
-    onOptionSelected: (String?) -> Unit,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (options.isEmpty()) return
-
-    // Only show expand/collapse if there are enough options
-    val canExpand = options.size > 3
-
-    if (expanded) {
-        // Expanded mode: wrapping flow layout with collapse button first
-        FlowRow(
-            modifier = modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Collapse button first (FilledTonalIconButton for visual distinction)
-            if (canExpand) {
-                FilledTonalIconButton(
-                    onClick = { onExpandedChange(false) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowUp,
-                        contentDescription = null
-                    )
+    val description = nodeType.description
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = shapes,
+        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        modifier = Modifier.semantics { if (!description.isNullOrBlank()) contentDescription = "$name, $description" },
+        leadingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (depth > 0) Spacer(Modifier.width(TREE_INDENT * depth))
+                Box(
+                    Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(swatch)
+                )
+            }
+        },
+        trailingContent = if (nodeType.isCustom) {
+            {
+                Icon(
+                    Icons.Rounded.Extension,
+                    contentDescription = stringResource(R.string.content_description_custom_node),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        } else null,
+        supportingContent = {
+            Column {
+                Text(supporting)
+                if (name != nodeType.classType) {
+                    Text(nodeType.classType, style = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace))
                 }
             }
-            options.forEach { option ->
-                key(option) {
-                    val isSelected = option == selectedOption
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            onOptionSelected(if (isSelected) null else option)
-                        },
-                        label = { Text(option) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Done,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
-    } else {
-        // Collapsed mode: horizontal scrolling with expand button first
-        NoOverscrollContainer(modifier = modifier.fillMaxWidth()) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Expand button first (FilledTonalIconButton for visual distinction)
-                if (canExpand) {
-                    item(key = "expand_chip") {
-                        FilledTonalIconButton(
-                            onClick = { onExpandedChange(true) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowDown,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                }
-                items(
-                    items = options,
-                    key = { "chip_$it" }
-                ) { option ->
-                    val isSelected = option == selectedOption
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            onOptionSelected(if (isSelected) null else option)
-                        },
-                        label = { Text(option) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Done,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
+        },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(highlighted(name, highlight))
     }
 }

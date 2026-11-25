@@ -1,9 +1,9 @@
 package sh.hnet.comfychair.ui.components.config
 
-import android.graphics.Bitmap
-import android.net.Uri
 import androidx.compose.runtime.Stable
+import androidx.compose.ui.graphics.vector.ImageVector
 import sh.hnet.comfychair.model.LoraSelection
+import sh.hnet.comfychair.ui.components.generation.WorkflowGroup
 import sh.hnet.comfychair.ui.components.shared.WorkflowItemBase
 import sh.hnet.comfychair.viewmodel.ImageToImageMode
 
@@ -14,7 +14,6 @@ import sh.hnet.comfychair.viewmodel.ImageToImageMode
 @Stable
 data class BottomSheetConfig(
     val workflow: WorkflowConfig,
-    val prompts: PromptConfig,
     val itiConfig: ItiConfig? = null,
     val models: ModelConfig,
     val parameters: ParameterConfig,
@@ -29,34 +28,18 @@ data class WorkflowConfig(
     val selectedWorkflow: String,
     val availableWorkflows: List<WorkflowItemBase>,
     val onWorkflowChange: (String) -> Unit,
-    val onViewWorkflow: () -> Unit
+    /** The workflow menu's groups (Image to Image: one per mode) */
+    val groups: List<WorkflowGroup>,
+    val icon: ImageVector
 )
 
 /**
- * Prompt fields configuration
- */
-@Stable
-data class PromptConfig(
-    val negativePrompt: String,
-    val onNegativePromptChange: (String) -> Unit,
-    val hasNegativePrompt: Boolean = true
-)
-
-/**
- * ITI-specific configuration (mode selector and reference images)
+ * ITI-specific configuration: the mode (reference images are set on the source image, not in the sheet)
  */
 @Stable
 data class ItiConfig(
     val mode: ImageToImageMode,
-    val onModeChange: (ImageToImageMode) -> Unit,
-    val referenceImage1: Bitmap? = null,
-    val onReferenceImage1Change: (Uri) -> Unit,
-    val onClearReferenceImage1: () -> Unit,
-    val hasReferenceImage1: Boolean = false,
-    val referenceImage2: Bitmap? = null,
-    val onReferenceImage2Change: (Uri) -> Unit,
-    val onClearReferenceImage2: () -> Unit,
-    val hasReferenceImage2: Boolean = false
+    val onModeChange: (ImageToImageMode) -> Unit
 )
 
 /**
@@ -68,6 +51,7 @@ data class ModelConfig(
     val unet: ModelField? = null,
     val latentUpscaleModel: ModelField? = null,
     val vae: ModelField? = null,
+    val audioVae: ModelField? = null,
     val clip: ModelField? = null,
     val clip1: ModelField? = null,
     val clip2: ModelField? = null,

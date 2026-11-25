@@ -1526,4 +1526,11 @@ object MediaCache {
             tempFile.delete()
         }
     }
+
+    fun hasDiskCache(context: Context): Boolean = diskUsageBytes(context) > 0L
+
+    fun deleteDiskCache(context: Context) {
+        ensureInitialized(context)
+        clearAll()
+    }
 }

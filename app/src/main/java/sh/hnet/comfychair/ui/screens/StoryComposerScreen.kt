@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -631,6 +632,14 @@ private fun StoryHeader(
                 "$fieldCount 分项 · $wordCount 词" + if (version.isBlank()) "" else " · $version",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        sh.hnet.comfychair.ui.components.ServerStatusLamp()
+        val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
+        IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
+            Icon(
+                androidx.compose.material.icons.Icons.Outlined.Settings,
+                contentDescription = "设置"
             )
         }
         Box {

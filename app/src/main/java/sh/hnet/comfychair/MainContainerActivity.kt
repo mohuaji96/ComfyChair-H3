@@ -9,38 +9,45 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LockClock
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaStateHolder
+import sh.hnet.comfychair.cache.ResultThumbnails
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.model.AuthCredentials
 import sh.hnet.comfychair.navigation.MainRoute
 import sh.hnet.comfychair.repository.GalleryRepository
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.CredentialStorage
+import sh.hnet.comfychair.storage.GalleryMetadataCache
+import sh.hnet.comfychair.storage.MediaStorageMode
 import sh.hnet.comfychair.ui.components.ConnectionAlertDialog
+import sh.hnet.comfychair.ui.components.WhatsNew
+import sh.hnet.comfychair.ui.components.dialogs.ActionDialog
+import sh.hnet.comfychair.ui.components.dialogs.DialogAction
 import sh.hnet.comfychair.ui.navigation.MainNavHost
 import sh.hnet.comfychair.ui.theme.ComfyChairTheme
-import sh.hnet.comfychair.update.UpdateCenter
 import sh.hnet.comfychair.util.DebugLogger
+import sh.hnet.comfychair.util.PrivacyUtils
 import sh.hnet.comfychair.util.ServerUrlUtils
+import sh.hnet.comfychair.viewmodel.GalleryViewModel
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
 import sh.hnet.comfychair.viewmodel.ImageToImageViewModel
 import sh.hnet.comfychair.viewmodel.ImageToVideoViewModel
+import sh.hnet.comfychair.viewmodel.MediaViewerViewModel
+import sh.hnet.comfychair.viewmodel.SettingsEvent
+import sh.hnet.comfychair.viewmodel.SettingsViewModel
 import sh.hnet.comfychair.viewmodel.TextToImageViewModel
 import sh.hnet.comfychair.viewmodel.TextToVideoViewModel
+import sh.hnet.comfychair.viewmodel.VideoToVideoViewModel
+import sh.hnet.comfychair.viewmodel.WorkflowManagementViewModel
 
 /**
  * Container activity that hosts the main navigation graph.
@@ -48,15 +55,27 @@ import sh.hnet.comfychair.viewmodel.TextToVideoViewModel
  */
 class MainContainerActivity : ComponentActivity() {
 
-    // Constants
     companion object {
-        const val RESULT_REFRESH_NEEDED = 100
+        /** Route to show after a restart, e.g. the screen the user went to when leaving Settings. */
+        private const val EXTRA_START_ROUTE = "start_route"
     }
 
     // ViewModels
     private val generationViewModel: GenerationViewModel by viewModels()
+    // Screen view models belong to the activity, so a screen visited twice in the history shares its state
+    private val textToImageViewModel: TextToImageViewModel by viewModels()
     private val imageToImageViewModel: ImageToImageViewModel by viewModels()
+    private val textToVideoViewModel: TextToVideoViewModel by viewModels()
     private val imageToVideoViewModel: ImageToVideoViewModel by viewModels()
+    private val videoToVideoViewModel: VideoToVideoViewModel by viewModels()
+    private val galleryViewModel: GalleryViewModel by viewModels()
+    private val mediaViewerViewModel: MediaViewerViewModel by viewModels()
+    private val settingsViewModel: SettingsViewModel by viewModels()
+    private val workflowManagementViewModel: WorkflowManagementViewModel by viewModels()
+
+    // Set by turning offline mode on or off, the one Settings change that needs a restart (the connection itself
+    // changes); applied when the user leaves the Settings tab. Everything else reaches the screens in place
+    private var restartPending = false
 
     // Credential storage — used to persist refreshed browser-session cookies
     private val credentialStorage by lazy { CredentialStorage(applicationContext) }
@@ -81,32 +100,12 @@ class MainContainerActivity : ComponentActivity() {
         // the session-expired dialog remains dismissible via Return to Login.
     }
 
-    // Activity result launchers
-    private val settingsLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        when (result.resultCode) {
-            RESULT_REFRESH_NEEDED -> {
-                // Settings cleared/restored or workflows changed - restart activity fresh
-                val intent = Intent(this, MainContainerActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                finish()
-            }
-            SettingsContainerActivity.RESULT_CONNECTION_CHANGED -> {
-                // Connection settings changed - return to login screen
-                val intent = Intent(this, MainActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                finish()
-            }
-        }
-    }
-
     // Lifecycle methods
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Before anything is shown: after an update, the main screens offer What's new once
+        WhatsNew.recordStart(this)
 
         // Guard check - redirect to login if not connected (unless in offline mode)
         val isOfflineMode = AppSettings.isOfflineMode(this)
@@ -125,13 +124,6 @@ class MainContainerActivity : ComponentActivity() {
         DebugLogger.setEnabled(AppSettings.isDebugLoggingEnabled(this))
         DebugLogger.i("MainContainer", "onCreate - debug logging enabled")
 
-        // 更新检查：一天最多问一次，失败不打扰。等界面先画出来再说，别和首屏抢网络。
-        // 「关于」页里能关掉，也能手动点一次。
-        lifecycleScope.launch {
-            delay(3_000)
-            UpdateCenter.check(applicationContext)
-        }
-
         // Initialize the ViewModel (uses ConnectionManager internally)
         generationViewModel.initialize(this)
 
@@ -140,34 +132,35 @@ class MainContainerActivity : ComponentActivity() {
         DebugLogger.d("MainContainer", "setCurrentServerId: ${serverId?.take(8) ?: "NULL"}...")
         MediaStateHolder.setCurrentServerId(serverId)
 
-        // Set caching mode based on user preference
-        val isMemoryFirst = AppSettings.isMemoryFirstCache(this)
-        DebugLogger.d("MainContainer", "caching mode: ${if (isMemoryFirst) "memory-first" else "disk-first"}")
-        MediaStateHolder.setMemoryFirstMode(isMemoryFirst, applicationContext)
-        MediaCache.setMemoryFirstMode(isMemoryFirst)
+        // Set media storage based on user preference
+        val storageMode = AppSettings.getMediaStorageMode(this)
+        val isMemoryFirst = storageMode != MediaStorageMode.DEVICE
+        DebugLogger.d("MainContainer", "media storage: $storageMode")
+        // The gallery list is kept only for offline mode, i.e. with storage on the device
+        if (isMemoryFirst) GalleryMetadataCache.clearAllCaches(applicationContext)
+        if (storageMode == MediaStorageMode.MEMORY_ONLY) {
+            MediaCache.setMemoryFirstMode(true)
+            MediaCache.deleteDiskCache(applicationContext)
+        } else {
+            MediaCache.setMemoryFirstMode(isMemoryFirst)
+        }
 
         // Initialize MediaCache with context for image/video fetching
         MediaCache.ensureInitialized(applicationContext)
 
-        // Load saved media state before screens initialize
-        if (isMemoryFirst) {
-            // Memory-first: load everything from disk into memory
-            DebugLogger.d("MainContainer", "loading media from disk (memory-first mode)")
-            runBlocking {
-                MediaStateHolder.loadFromDisk(applicationContext)
-            }
-        } else {
-            // Disk-first: just discover video promptIds (bytes read on-demand)
-            DebugLogger.d("MainContainer", "discovering video promptIds (disk-first mode)")
-            MediaStateHolder.discoverVideoPromptIds(applicationContext)
-        }
+        // Cleanup and loading of stored media run in the background; the screens restore their
+        // previews once MediaStateHolder announces the media are ready
+        MediaStateHolder.prepareForStorageMode(applicationContext, storageMode)
 
-        // Determine start destination based on active generation owner
-        val startDestination = when (generationViewModel.generationState.value.ownerId) {
+        settingsViewModel.initialize(applicationContext)
+
+        // Determine start destination: the screen chosen before a reload, else the active generation's owner
+        val startDestination = intent.getStringExtra(EXTRA_START_ROUTE) ?: when (generationViewModel.generationState.value.ownerId) {
             TextToImageViewModel.OWNER_ID -> MainRoute.TextToImage.route
             ImageToImageViewModel.OWNER_ID -> MainRoute.ImageToImage.route
             TextToVideoViewModel.OWNER_ID -> MainRoute.TextToVideo.route
             ImageToVideoViewModel.OWNER_ID -> MainRoute.ImageToVideo.route
+            VideoToVideoViewModel.OWNER_ID -> MainRoute.VideoToVideo.route
             else -> MainRoute.TextToImage.route
         }
 
@@ -179,14 +172,39 @@ class MainContainerActivity : ComponentActivity() {
                 val isReconnecting by ConnectionManager.isReconnecting.collectAsState()
                 val sessionExpired by ConnectionManager.sessionExpired.collectAsState()
 
+                // Settings changes reach the screens in place (workflows by themselves, through WorkflowManager);
+                // only offline mode, a change of the connection, restarts when leaving the Settings tab
+                LaunchedEffect(Unit) {
+                    val screens = listOf(textToImageViewModel, imageToImageViewModel, textToVideoViewModel, imageToVideoViewModel, videoToVideoViewModel)
+                    settingsViewModel.events.collect { event ->
+                        when (event) {
+                            is SettingsEvent.SavedStateChanged -> screens.forEach { it.reloadSavedState() }
+                            is SettingsEvent.MediaCleared -> {
+                                ResultThumbnails.clear()
+                                screens.forEach { it.clearShownMedia() }
+                            }
+                            is SettingsEvent.MediaStorageChanged -> screens.forEach { it.onMediaStorageChanged() }
+                            is SettingsEvent.RestartNeeded -> restartPending = true
+                            is SettingsEvent.NavigateToLogin -> returnToLogin()
+                            else -> Unit // Toasts and dialogs are handled by the settings pages
+                        }
+                    }
+                }
+
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MainNavHost(
                         generationViewModel = generationViewModel,
+                        textToImageViewModel = textToImageViewModel,
                         imageToImageViewModel = imageToImageViewModel,
+                        textToVideoViewModel = textToVideoViewModel,
                         imageToVideoViewModel = imageToVideoViewModel,
-                        onNavigateToSettings = { openSettings() },
-                        onNavigateToGallery = { openGallery() },
+                        videoToVideoViewModel = videoToVideoViewModel,
+                        galleryViewModel = galleryViewModel,
+                        mediaViewerViewModel = mediaViewerViewModel,
+                        settingsViewModel = settingsViewModel,
+                        workflowManagementViewModel = workflowManagementViewModel,
                         onLogout = { logout() },
+                        onLeftSettings = { route -> if (restartPending) reloadAt(route) },
                         startDestination = startDestination
                     )
                 }
@@ -194,12 +212,18 @@ class MainContainerActivity : ComponentActivity() {
                 // Session-expired dialog for browser-based (Cookie) authentication.
                 // Shown when the AuthInterceptor detects a 401/403 or SSO redirect.
                 if (sessionExpired) {
-                    AlertDialog(
+                    ActionDialog(
+                        icon = Icons.Rounded.LockClock,
+                        title = stringResource(R.string.title_session_expired),
+                        text = stringResource(R.string.msg_session_expired),
                         onDismissRequest = { ConnectionManager.resetSessionExpired() },
-                        title = { Text(stringResource(R.string.title_session_expired)) },
-                        text = { Text(stringResource(R.string.msg_session_expired)) },
-                        confirmButton = {
-                            Button(onClick = {
+                        actions = listOf(
+                            DialogAction(stringResource(R.string.action_return_to_login), {
+                                ConnectionManager.resetSessionExpired()
+                                generationViewModel.logout()
+                                finish()
+                            }),
+                            DialogAction(stringResource(R.string.button_reauthenticate), {
                                 ConnectionManager.resetSessionExpired()
                                 val serverUrl = ServerUrlUtils.buildServerUrl(
                                     ConnectionManager.protocol,
@@ -209,19 +233,8 @@ class MainContainerActivity : ComponentActivity() {
                                 browserAuthLauncher.launch(
                                     BrowserAuthActivity.createIntent(activity, serverUrl)
                                 )
-                            }) {
-                                Text(stringResource(R.string.button_reauthenticate))
-                            }
-                        },
-                        dismissButton = {
-                            OutlinedButton(onClick = {
-                                ConnectionManager.resetSessionExpired()
-                                generationViewModel.logout()
-                                finish()
-                            }) {
-                                Text(stringResource(R.string.action_return_to_login))
-                            }
-                        }
+                            })
+                        )
                     )
                 }
 
@@ -252,19 +265,23 @@ class MainContainerActivity : ComponentActivity() {
 
     // Navigation helpers
     /**
-     * Open the Settings activity
+     * Start this activity fresh at [route], so the generation screens load workflows and settings again. Until an
+     * in-place reload exists, this is how changes made in Settings take effect, as when Settings was its own activity.
      */
-    private fun openSettings() {
-        val intent = Intent(this, SettingsContainerActivity::class.java)
-        settingsLauncher.launch(intent)
+    private fun reloadAt(route: String) {
+        val intent = Intent(this, MainContainerActivity::class.java)
+            .putExtra(EXTRA_START_ROUTE, route)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+        finish()
     }
 
-    /**
-     * Open the Gallery activity
-     */
-    private fun openGallery() {
-        val intent = Intent(this, GalleryContainerActivity::class.java)
+    /** Back to the login screen, e.g. after the connection settings changed. */
+    private fun returnToLogin() {
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
+        finish()
     }
 
     /**
@@ -281,22 +298,19 @@ class MainContainerActivity : ComponentActivity() {
         // Save generation state when going to background
         generationViewModel.saveGenerationState(this)
 
-        // Persist all dirty media to disk synchronously to ensure completion before process death
-        // Only persist in memory-first mode (disk-first writes immediately, no persistence needed)
-        // Also skip if media cache is disabled
-        val isMemoryFirst = AppSettings.isMemoryFirstCache(this)
-        val isCacheDisabled = AppSettings.isMediaCacheDisabled(this)
-        DebugLogger.d("MainContainer", "onStop - memoryFirst=$isMemoryFirst, cacheDisabled=$isCacheDisabled")
-        if (isMemoryFirst && !isCacheDisabled) {
-            DebugLogger.d("MainContainer", "onStop - persisting media to disk (background)")
-            // Off the main thread: this write grows with the library and used to stall the
-            // transition out of the app. The scope outlives the Activity so it still completes.
-            MediaStateHolder.persistInBackground(applicationContext)
+        // "Memory, saved on exit": write dirty media in the background (atomic writes, serialized with
+        // loads and cleanups). Memory-only never writes; device storage writes when media arrives.
+        val storageMode = AppSettings.getMediaStorageMode(this)
+        DebugLogger.d("MainContainer", "onStop - media storage: $storageMode")
+        if (storageMode == MediaStorageMode.MEMORY_PERSISTED) {
+            DebugLogger.d("MainContainer", "onStop - persisting media to disk")
+            MediaStateHolder.persistToDiskInBackground(applicationContext)
         }
     }
 
     override fun onResume() {
         super.onResume()
+        PrivacyUtils.applyRecentsScreenshotPolicy(this)
         val isGenerating = generationViewModel.generationState.value.isGenerating
 
         // Only attempt reconnection if generating (need the connection)

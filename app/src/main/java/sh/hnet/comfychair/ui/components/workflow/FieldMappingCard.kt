@@ -1,0 +1,329 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
+package sh.hnet.comfychair.ui.components.workflow
+
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.model.CustomField
+import sh.hnet.comfychair.model.FieldTarget
+import sh.hnet.comfychair.ui.components.settings.groupShapes
+import sh.hnet.comfychair.ui.components.shared.boldNamesResource
+import sh.hnet.comfychair.workflow.FieldMappingState
+import sh.hnet.comfychair.workflow.FieldPick
+
+/*
+ * Map fields (spec §10.3): one field at a time on a card above the toolbar, the full list in a sheet.
+ */
+
+/**
+ * The current field: "Field n of m" with All fields, the progress, the field and its match between Previous and Next,
+ * and what to do. Tapping a highlighted node assigns it and moves on to the next unmapped field.
+ *
+ * @param fields In the card's order (required first)
+ */
+@Composable
+fun FieldMappingCard(
+    fields: List<FieldMappingState>,
+    currentKey: String?,
+    onSelectField: (String) -> Unit,
+    onAllFields: () -> Unit,
+    modifier: Modifier = Modifier,
+    pick: FieldPick? = null,
+    pickFieldName: String? = null,
+    onCancelPick: () -> Unit = {}
+) {
+    if (pick != null) {
+        PickCard(pickFieldName, onCancelPick, modifier)
+        return
+    }
+    if (fields.isEmpty()) return
+    val index = fields.indexOfFirst { it.field.fieldKey == currentKey }.coerceAtLeast(0)
+    val current = fields[index]
+    val mapped = fields.count { it.isMapped }
+
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.label_field_n_of_m, index + 1, fields.size),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onAllFields) { Text(stringResource(R.string.button_all_fields)) }
+            }
+            LinearProgressIndicator(
+                progress = { mapped.toFloat() / fields.size },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 8.dp, bottom = 8.dp)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onSelectField(fields[(index - 1).mod(fields.size)].field.fieldKey) }) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = stringResource(R.string.content_description_previous_field))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    Text(
+                        current.field.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    MatchText(current)
+                }
+                IconButton(onClick = { onSelectField(fields[(index + 1).mod(fields.size)].field.fieldKey) }) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = stringResource(R.string.content_description_next_field))
+                }
+            }
+            if (current.candidates.isNotEmpty()) {
+                Text(
+                    stringResource(if (current.isRequiredField) R.string.hint_mapping_required else R.string.hint_mapping_optional),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Picking a value on the graph for a custom field (spec §18.3): for a new field, or another value for
+ * [fieldName]'s. No progress and no Previous / Next; × or Back cancels.
+ */
+@Composable
+private fun PickCard(fieldName: String?, onCancel: () -> Unit, modifier: Modifier) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (fieldName == null) AnnotatedString(stringResource(R.string.title_new_field))
+                    else boldNamesResource(R.string.label_pick_add_to, fieldName),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onCancel) {
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = stringResource(
+                            if (fieldName == null) R.string.content_description_cancel_new_field else R.string.button_cancel
+                        )
+                    )
+                }
+            }
+            Text(
+                stringResource(R.string.title_pick_value),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+            Text(
+                stringResource(R.string.hint_pick_value),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
+}
+
+/** The field's node, or why there is none. */
+@Composable
+private fun MatchText(field: FieldMappingState) {
+    val (text, color) = when {
+        field.selectedCandidate != null -> field.selectedCandidate!!.nodeName to MaterialTheme.colorScheme.primary
+        field.candidates.isEmpty() -> stringResource(R.string.msg_no_matching_nodes) to
+            if (field.isRequiredField) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+        else -> stringResource(R.string.label_not_chosen) to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/**
+ * All fields, required first: each with its match and a status icon; tapping one makes it current. Mappings can be
+ * cleared one by one or all at once.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AllFieldsSheet(
+    fields: List<FieldMappingState>,
+    onSelectField: (String) -> Unit,
+    onClearField: (String) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit,
+    customFields: List<CustomField> = emptyList(),
+    targetLabel: (FieldTarget) -> String = { "${it.nodeId} – ${it.input}" },
+    onEditCustomField: (fieldId: String) -> Unit = {},
+    onAddField: () -> Unit = {}
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            modifier = Modifier.navigationBarsPadding()
+        ) {
+            item(key = "header") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.button_all_fields), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onClearAll, enabled = fields.any { it.isMapped }) {
+                        Text(stringResource(R.string.button_clear_all_mapping))
+                    }
+                }
+            }
+            listOf(true to R.string.section_necessary, false to R.string.section_optional).forEach { (required, titleRes) ->
+                val group = fields.filter { it.isRequiredField == required }
+                if (group.isNotEmpty()) {
+                    item(key = "title_$required") {
+                        Text(
+                            stringResource(titleRes),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+                    item(key = "group_$required") {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            group.forEachIndexed { index, field ->
+                                FieldRow(field, index, group.size, onSelectField, onClearField)
+                            }
+                        }
+                    }
+                }
+            }
+            // Custom fields (spec §18.3): each opens Edit field; Add a field picks a value on the graph. Shown with
+            // none too (then only Add a field)
+            item(key = "title_custom") {
+                Text(
+                    stringResource(R.string.section_custom_fields),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 16.dp, bottom = 8.dp)
+                        .semantics { heading() }
+                )
+            }
+            if (customFields.isNotEmpty()) {
+                item(key = "group_custom") {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        customFields.forEachIndexed { index, field ->
+                            SegmentedListItem(
+                                onClick = { onEditCustomField(field.id) },
+                                shapes = groupShapes(index, customFields.size),
+                                colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                                supportingContent = { Text(field.targets.joinToString(", ", transform = targetLabel)) },
+                                leadingContent = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(field.name)
+                            }
+                        }
+                    }
+                }
+            }
+            // Add a field apart from the fields: an action, not one of them
+            item(key = "add_field") {
+                // A lone action that creates something: a tonal button (the editor then asks for the value)
+                FilledTonalButton(
+                    onClick = onAddField,
+                    shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = if (customFields.isNotEmpty()) 12.dp else 0.dp)
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text(stringResource(R.string.menu_add_field))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FieldRow(
+    field: FieldMappingState,
+    index: Int,
+    count: Int,
+    onSelectField: (String) -> Unit,
+    onClearField: (String) -> Unit
+) {
+    val key = field.field.fieldKey
+    SegmentedListItem(
+        onClick = { onSelectField(key) },
+        shapes = groupShapes(index, count),
+        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        supportingContent = { MatchText(field) },
+        leadingContent = {
+            when {
+                field.isMapped -> Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                field.isRequiredField -> Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                else -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        trailingContent = if (field.isMapped) {
+            {
+                IconButton(onClick = { onClearField(key) }) {
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.content_description_clear))
+                }
+            }
+        } else null,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(field.field.displayName)
+    }
+}

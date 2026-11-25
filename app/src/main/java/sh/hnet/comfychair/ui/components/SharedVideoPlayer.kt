@@ -4,9 +4,21 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import sh.hnet.comfychair.cache.InMemoryVideo
+import sh.hnet.comfychair.storage.AppSettings
 
 /**
  * Singleton manager for a shared ExoPlayer instance.
@@ -27,6 +39,38 @@ import androidx.media3.exoplayer.ExoPlayer
  */
 object SharedVideoPlayer {
 
+    /** Where a video is shown: it decides the sound and the looping (spec §14.4: each surface has its own defaults). */
+    enum class Surface { PREVIEW, VIEWER }
+
+    /**
+     * What the controls show for the loaded video. The position isn't here: controls poll it while shown.
+     *
+     * @param hasAudio Null until the tracks are known
+     * @param frameRate Frames per second of the video track, null when the container doesn't say
+     * @param ended Stopped on the last frame (only with looping off, in the viewer)
+     */
+    data class State(
+        val isLoading: Boolean = true,
+        val isPlaying: Boolean = false,
+        val durationMs: Long? = null,
+        val hasAudio: Boolean? = null,
+        val frameRate: Float? = null,
+        val muted: Boolean = true,
+        val loop: Boolean = true,
+        val ended: Boolean = false
+    )
+
+    private val _state = MutableStateFlow(State())
+    val state: StateFlow<State> = _state.asStateFlow()
+
+    private var surface = Surface.PREVIEW
+    // The preview video the user turned the sound on for; any other preview video plays muted
+    private var previewSoundUri: Uri? = null
+    // The viewer's sound for this viewer session (on when it opens)
+    private var viewerMuted = false
+    // Where each video was left in this viewer session, to resume it there after swiping back to its page
+    private val viewerPositions = HashMap<Uri, Long>()
+
     private var exoPlayer: ExoPlayer? = null
     private var currentUri: Uri? = null
     private var isInitialized = false
@@ -38,11 +82,17 @@ object SharedVideoPlayer {
      * Get or create the shared ExoPlayer instance.
      * Must be called from a context that has access to Application context.
      */
+    @OptIn(UnstableApi::class)
     fun getPlayer(context: Context): ExoPlayer {
         if (exoPlayer == null) {
-            exoPlayer = ExoPlayer.Builder(context.applicationContext).build().apply {
-                repeatMode = Player.REPEAT_MODE_ALL
+            // In-memory videos (memory-first mode) are read straight from RAM, see InMemoryVideo
+            exoPlayer = ExoPlayer.Builder(context.applicationContext)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(InMemoryVideo.dataSourceFactory(context)))
+                .build().apply {
+                repeatMode = Player.REPEAT_MODE_ONE
                 playWhenReady = false
+                volume = 0f
+                addListener(stateListener)
             }
             isInitialized = true
         }
@@ -75,6 +125,7 @@ object SharedVideoPlayer {
             pendingStopRunnable?.let { handler.removeCallbacks(it) }
             pendingStopRunnable = Runnable {
                 if (consumerCount == 0) {
+                    rememberViewerPosition()
                     // Stop (not pause) so video resets to beginning on next play
                     exoPlayer?.stop()
                     currentUri = null  // Clear URI so prepareVideo will reload
@@ -89,13 +140,26 @@ object SharedVideoPlayer {
      * Prepare a video from the given URI without starting playback.
      * Call startPlayback() after the surface is ready to begin from frame 0.
      * Always resets to the beginning, even if the same URI is already loaded.
+     *
+     * @param surface Where it's shown: the preview plays muted (unless its sound was turned on for this very video)
+     *   and always loops; the viewer plays with this session's sound and loops as its setting says
      */
-    fun prepareVideo(context: Context, uri: Uri) {
+    fun prepareVideo(context: Context, uri: Uri, surface: Surface = Surface.PREVIEW) {
         // Cancel any pending stop
         pendingStopRunnable?.let { handler.removeCallbacks(it) }
         pendingStopRunnable = null
 
         val player = getPlayer(context)
+        if (uri != currentUri) rememberViewerPosition()
+        this.surface = surface
+        // Another preview video starts muted again (a new result, another page of results)
+        if (surface == Surface.PREVIEW && uri != previewSoundUri) previewSoundUri = null
+        player.repeatMode = if (surface == Surface.PREVIEW || AppSettings.isViewerLoop(context)) {
+            Player.REPEAT_MODE_ONE
+        } else {
+            Player.REPEAT_MODE_OFF
+        }
+        applySound(player, muted = if (surface == Surface.PREVIEW) previewSoundUri != uri else viewerMuted)
 
         if (currentUri != uri) {
             // New video - stop current, load new
@@ -117,9 +181,141 @@ object SharedVideoPlayer {
      */
     fun startPlayback() {
         exoPlayer?.let { player ->
-            player.seekTo(0)
+            // In the viewer, a video swiped back to resumes where it was left
+            val resumeAt = if (surface == Surface.VIEWER) currentUri?.let { viewerPositions.remove(it) } else null
+            player.seekTo(resumeAt ?: 0)
             player.playWhenReady = true
             player.play()
+        }
+    }
+
+    /** Turn the sound of the video shown off or on: in the preview for this video only, in the viewer for its session. */
+    fun setMuted(muted: Boolean) {
+        val player = exoPlayer ?: return
+        when (surface) {
+            Surface.PREVIEW -> previewSoundUri = if (muted) null else currentUri
+            Surface.VIEWER -> viewerMuted = muted
+        }
+        applySound(player, muted)
+    }
+
+    /** A new viewer session: sound on until the user mutes it. */
+    fun startViewerSession() {
+        viewerMuted = false
+        viewerPositions.clear()
+    }
+
+    private fun rememberViewerPosition() {
+        val player = exoPlayer ?: return
+        val uri = currentUri ?: return
+        // One that ended starts over
+        if (surface == Surface.VIEWER) viewerPositions[uri] = if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition
+    }
+
+    /** The viewer's loop toggle: remembered app-wide, applied at once when the viewer shows the video. */
+    fun setViewerLoop(context: Context, loop: Boolean) {
+        AppSettings.setViewerLoop(context, loop)
+        if (surface == Surface.VIEWER) exoPlayer?.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+    }
+
+    /** Play, or pause; a video that ended (looping off) starts again from the beginning. */
+    fun togglePlayback() {
+        val player = exoPlayer ?: return
+        when {
+            player.playbackState == Player.STATE_ENDED -> {
+                player.seekTo(0)
+                player.play()
+            }
+            player.isPlaying -> player.pause()
+            else -> player.play()
+        }
+    }
+
+    /** Current position, for controls that poll it while shown. */
+    fun positionMs(): Long = exoPlayer?.currentPosition?.coerceAtLeast(0L) ?: 0L
+
+    /** Seek to [positionMs]: [exact] lands on that very frame (frame steps), otherwise the player may pick a near one. */
+    @OptIn(UnstableApi::class)
+    fun seekTo(positionMs: Long, exact: Boolean = true) {
+        val player = exoPlayer ?: return
+        player.setSeekParameters(if (exact) SeekParameters.EXACT else SeekParameters.CLOSEST_SYNC)
+        player.seekTo(positionMs.coerceAtLeast(0L))
+    }
+
+    /** One frame back ([direction] -1) or forward (+1), pausing first; it doesn't wrap past either end. */
+    fun stepFrame(direction: Int) {
+        val player = exoPlayer ?: return
+        if (player.isPlaying) player.pause()
+        val fps = _state.value.frameRate?.toDouble() ?: DEFAULT_FRAME_RATE
+        val duration = _state.value.durationMs ?: return
+        val target = frameStartMs(frameIndexAt(player.currentPosition, fps) + direction, fps).coerceIn(0L, duration)
+        seekTo(target, exact = true)
+    }
+
+    /**
+     * The slider's drag begins: ExoPlayer's scrubbing mode, made for many frequent seeks (a seek per finger movement,
+     * frames decoded as fast as they're asked for). End it with [endScrub].
+     */
+    @OptIn(UnstableApi::class)
+    fun startScrub() {
+        exoPlayer?.setScrubbingModeEnabled(true)
+    }
+
+    /** Follow the finger: a plain seek per movement, as Media3's own scrubber bar does in scrubbing mode. */
+    fun scrubTo(positionMs: Long) {
+        exoPlayer?.seekTo(positionMs.coerceAtLeast(0L))
+    }
+
+    /** The finger is lifted: leave scrubbing mode and land exactly on the frame let go on ([seekToFrameAt]). */
+    @OptIn(UnstableApi::class)
+    fun endScrub(positionMs: Long) {
+        exoPlayer?.setScrubbingModeEnabled(false)
+        seekToFrameAt(positionMs)
+    }
+
+    /** Seek with the slider: to the start of the frame at [positionMs], so the frame shown is exactly that frame. */
+    fun seekToFrameAt(positionMs: Long) {
+        val fps = _state.value.frameRate?.toDouble() ?: DEFAULT_FRAME_RATE
+        seekTo(frameStartMs(frameIndexAt(positionMs, fps), fps), exact = true)
+    }
+
+    /**
+     * The frame shown at [positionMs]: the one started by then. Positions are whole milliseconds, floored from a
+     * frame's start when seeking ([frameStartMs]), so up to 1 ms before a frame counts as that frame.
+     */
+    fun frameIndexAt(positionMs: Long, fps: Double): Int = kotlin.math.floor((positionMs + 1) * fps / 1000.0).toInt().coerceAtLeast(0)
+
+    // A frame's start in whole milliseconds, floored: the exact seek then shows that very frame (the first starting
+    // at or after the position)
+    private fun frameStartMs(index: Int, fps: Double): Long = kotlin.math.floor(index.coerceAtLeast(0) * 1000.0 / fps).toLong()
+
+    // Mute by volume (instant, no rebuffering); only a video with sound takes the audio focus, so a muted preview
+    // never interrupts another app's audio
+    @OptIn(UnstableApi::class)
+    private fun applySound(player: ExoPlayer, muted: Boolean) {
+        player.volume = if (muted) 0f else 1f
+        val attributes = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build()
+        player.setAudioAttributes(attributes, !muted)
+        _state.update { it.copy(muted = muted) }
+    }
+
+    private val stateListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0L }
+            val tracks = player.currentTracks
+            val known = !tracks.isEmpty
+            val videoFormat = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }?.takeIf { it.length > 0 }?.getTrackFormat(0)
+            _state.value = State(
+                isLoading = player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_IDLE ||
+                    duration == null,
+                isPlaying = player.isPlaying,
+                durationMs = duration,
+                hasAudio = if (known) tracks.containsType(C.TRACK_TYPE_AUDIO) else null,
+                frameRate = videoFormat?.frameRate?.takeIf { it > 0f },
+                muted = player.volume == 0f,
+                loop = player.repeatMode != Player.REPEAT_MODE_OFF,
+                ended = player.playbackState == Player.STATE_ENDED
+            )
         }
     }
 
@@ -171,4 +367,7 @@ object SharedVideoPlayer {
      * Check if player is initialized.
      */
     fun isReady(): Boolean = isInitialized && exoPlayer != null
+
+    // Assumed when the video track doesn't give its frame rate
+    private const val DEFAULT_FRAME_RATE = 24.0
 }

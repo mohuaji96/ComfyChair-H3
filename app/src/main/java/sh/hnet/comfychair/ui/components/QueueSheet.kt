@@ -105,20 +105,21 @@ fun QueueIndicatorPill(
                     )
                     Text("连接中", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                // The chip stays put with an empty queue: it is the only way to open the queue by hand
-                ownCount == 0 && otherCount == 0 -> Icon(
-                    Icons.Default.Queue, contentDescription = "队列",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Always the same capsule, zeros included. It is the only way to open the queue by
+                // hand, and a button that changes shape once the queue empties reads as another control.
                 else -> {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(if (ownCount > 0) MaterialTheme.colorScheme.primary else Color(0xFFE28822), CircleShape)
+                    val dot = when {
+                        ownCount > 0 -> MaterialTheme.colorScheme.primary
+                        otherCount > 0 -> Color(0xFFE28822)
+                        // Nothing running, nothing waiting: the dot is only there to keep the row steady
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    }
+                    Box(modifier = Modifier.size(6.dp).background(dot, CircleShape))
+                    CountGlyph(
+                        Icons.Default.Person, ownCount,
+                        if (ownCount > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (ownCount > 0) CountGlyph(Icons.Default.Person, ownCount, MaterialTheme.colorScheme.onSurface)
-                    if (otherCount > 0) CountGlyph(Icons.Default.Group, otherCount, MaterialTheme.colorScheme.onSurfaceVariant)
+                    CountGlyph(Icons.Default.Group, otherCount, MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

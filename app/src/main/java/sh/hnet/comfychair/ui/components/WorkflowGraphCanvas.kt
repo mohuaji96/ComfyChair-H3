@@ -2,81 +2,109 @@ package sh.hnet.comfychair.ui.components
 
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.DrawableCompat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.ExtensionOff
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.DefaultShadowColor
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.VectorPainter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.workflow.SubgraphLevels
+import androidx.compose.ui.util.lerp
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import sh.hnet.comfychair.R
-import sh.hnet.comfychair.workflow.FieldDisplayRegistry
-import sh.hnet.comfychair.workflow.InputValue
-import sh.hnet.comfychair.workflow.MarkdownParser
-import sh.hnet.comfychair.workflow.NodeCategory
-import sh.hnet.comfychair.workflow.NodeTypeDefinition
-import sh.hnet.comfychair.workflow.getEffectiveDefault
-import sh.hnet.comfychair.workflow.SlotColors
+import sh.hnet.comfychair.util.ConnectionValidator
 import sh.hnet.comfychair.workflow.ConnectionDirection
 import sh.hnet.comfychair.workflow.ConnectionModeState
+import sh.hnet.comfychair.workflow.FieldDisplayRegistry
+import sh.hnet.comfychair.workflow.GraphColors
+import sh.hnet.comfychair.workflow.GraphDetailLevel
+import sh.hnet.comfychair.workflow.InputValue
+import sh.hnet.comfychair.workflow.NodeTypeDefinition
+import sh.hnet.comfychair.workflow.RenderedGroup
 import sh.hnet.comfychair.workflow.SlotPosition
+import sh.hnet.comfychair.workflow.Subgraphs
 import sh.hnet.comfychair.workflow.WorkflowEdge
 import sh.hnet.comfychair.workflow.WorkflowGraph
-import sh.hnet.comfychair.workflow.RenderedGroup
-import sh.hnet.comfychair.workflow.WorkflowGroup
 import sh.hnet.comfychair.workflow.WorkflowLayoutEngine
 import sh.hnet.comfychair.workflow.WorkflowMappingState
 import sh.hnet.comfychair.workflow.WorkflowNode
 import sh.hnet.comfychair.workflow.WorkflowNote
+import sh.hnet.comfychair.workflow.changedInputNames
+import sh.hnet.comfychair.workflow.getEffectiveDefault
 import sh.hnet.comfychair.workflow.routing.EdgeRouter
 import sh.hnet.comfychair.workflow.routing.RouterProvider
 
@@ -90,39 +118,153 @@ enum class NodeHighlightState {
 }
 
 /**
- * Data class to hold theme colors for canvas drawing
+ * The graph's colours (spec §12.2): theme roles for everything neutral, ComfyUI's hues ([GraphColors]) only for title
+ * tints and slot types.
  */
 private data class CanvasColors(
-    val nodeBackground: Color,
-    val nodeHeaderBackground: Color,
-    val nodeBorder: Color,
-    val templateTextHighlight: Color,
-    val candidateBorder: Color,
-    val selectedBorder: Color,
-    val textPrimary: Color,
-    val textSecondary: Color,
-    val edgeColor: Color,
-    val slotColors: Map<String, Color>,
-    val categoryColors: Map<NodeCategory, SlotColors.NodeColorPair>,
-    val positivePromptColors: SlotColors.NodeColorPair,
-    val negativePromptColors: SlotColors.NodeColorPair,
-    val isDarkTheme: Boolean,
-    val groupColor: Color = Color(0xFF3F789E)  // Blue for group outlines
-)
+    val isDark: Boolean,
+    val palette: GraphColors.Palette,
+    val canvas: Color,
+    val nodeBody: Color,
+    val onSurface: Color,
+    val onSurfaceVariant: Color,
+    val neutralTint: Color,
+    val pill: Color,
+    val linkedPill: Color,
+    val onLinkedPill: Color,
+    val primary: Color,
+    val outline: Color,
+    val outlineVariant: Color,
+    val errorContainer: Color,
+    val onErrorContainer: Color,
+    val groupArea: Color,
+    val groupChip: Color,
+    val note: Color,
+    val onNote: Color,
+    val shadow: Color,
+    // A subgraph instance's frame and its Open button (spec §19.1); a level's Inputs and Outputs strips (§19.2.4)
+    val instanceFrame: Color,
+    val onInstanceFrame: Color,
+    val openButton: Color,
+    val onOpenButton: Color,
+    val stripGlass: Color
+) {
+    /** Sockets, wires and port labels of a slot type; neutral when the type has no colour. */
+    fun slot(type: String?): Color = palette.slot(type) ?: onSurfaceVariant
+}
 
 /**
- * Note color scheme - sticky note style with single color
+ * The graph canvas's background, also for what surrounds the canvas, so there's no seam. Deeper than the spec's
+ * (surface, surfaceContainerLow), so the editor's top row and toolbar (surfaceContainer and up) stand out from it:
+ * the dimmest surface in the light theme, the lowest container in the dark one.
  */
-private object NoteColors {
-    // Light theme - classic yellow sticky note
-    val NoteLight = Color(0xFFFFE066)        // Warm yellow
-    val TextLight = Color(0xFF4A4A4A)        // Dark gray for text
-    val BorderLight = Color(0xFFD4B840)      // Darker yellow for border
+@Composable
+fun graphCanvasColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (scheme.surface.luminance() < 0.5f) scheme.surfaceContainerLowest else scheme.surfaceDim
+}
 
-    // Dark theme - golden yellow sticky note (distinct from brown sampler nodes)
-    val NoteDark = Color(0xFF6B5B20)         // Darker golden/mustard
-    val TextDark = Color(0xFFF0E8D8)         // Warm cream text
-    val BorderDark = Color(0xFF8B7B30)       // Lighter gold for border
+/** Node geometry in graph units: twice the spec's dp, as the layout's rows (40) are twice the spec's (20). */
+private object NodeStyle {
+    const val CORNER = 32f
+    const val TITLE_PADDING = 24f
+    const val TITLE_TEXT = 25f
+    // Notes a size above nodes (a wide note is read whole): title, text and its line height
+    const val NOTE_TITLE_TEXT = 28f
+    const val NOTE_TEXT = 22f
+    const val NOTE_LINE = 27f
+    const val ROW_PADDING = 20f
+    const val LABEL_TEXT = 22f
+    const val PILL_HEIGHT = 32f
+    const val PILL_PADDING = 14f
+    const val PILL_TEXT = 20f
+    const val PILL_ICON = 20f
+    const val PILL_ICON_GAP = 6f
+    const val SOCKET_RADIUS = 10f
+    const val SOCKET_RING = 4f
+    const val SOCKET_HALO = 4f
+    const val SELECTION_WIDTH = 6f
+    const val SELECTION_GAP = 4f
+    const val CHANGED_DOT_RADIUS = 6f
+    const val BADGE = 28f
+    // A bypassed node's badge chip (spec §20.1: 22 dp high, a 16 dp icon, 6 dp before it, 4 dp after, 9 dp at the end)
+    const val CHIP_HEIGHT = 44f
+    const val CHIP_ICON = 32f
+    const val CHIP_PADDING_START = 12f
+    const val CHIP_GAP = 8f
+    const val CHIP_PADDING_END = 18f
+    const val CHIP_TEXT = 22f
+    const val GROUP_CORNER = 40f
+    // A group's area is frosted glass: its colour at this opacity over the wires passing under it, blurred by this
+    // radius in graph units
+    const val GLASS_ALPHA = 0.7f
+    const val GROUP_CHIP_INSET = 16f
+    const val GROUP_CHIP_HEIGHT = 40f
+    const val GROUP_CHIP_PADDING = 16f
+    // A subgraph instance (spec §19.1): the frame's corners, its 4 dp bezel, the inner body's corners, the Open button
+    const val INSTANCE_CORNER = 28f
+    const val INSTANCE_BEZEL = 8f
+    const val INSTANCE_INNER_CORNER = 20f
+    const val OPEN_BUTTON_HEIGHT = 72f
+    const val OPEN_BUTTON_INSET = 12f
+    const val OPEN_BUTTON_PADDING = 24f
+    const val ICON = 32f
+    const val ICON_GAP = 12f
+    // A level's port strips (spec §19.2.4): labels this far outside the strip
+    const val STRIP_LABEL_GAP = 12f
+    // Inside a subgraph: the mark of a value its instance shows (13 dp)
+    const val SHOWN_MARK = 26f
+}
+
+/** Text paints, made once per canvas (drawing happens on the main thread only). */
+private class GraphPaints {
+    private val semiBold: Typeface = Typeface.create(Typeface.DEFAULT, 600, false)
+    val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.TITLE_TEXT; typeface = semiBold }
+    val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.LABEL_TEXT }
+    val labelStrong = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.LABEL_TEXT; typeface = semiBold }
+    val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.PILL_TEXT }
+    val pillStrong = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.PILL_TEXT; typeface = semiBold }
+    val groupLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = WorkflowLayoutEngine.GROUP_HEADER_HEIGHT; typeface = semiBold }
+    val noteTitle = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.NOTE_TITLE_TEXT; typeface = semiBold }
+    val shadow = Paint(Paint.ANTI_ALIAS_FLAG)
+    // A bypassed node's badge (labelSmall, weight 600)
+    val badge = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = NodeStyle.CHIP_TEXT; typeface = semiBold }
+    // Overview text: its size set when drawn (fixed on screen)
+    val blockTitle = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = semiBold }
+}
+
+/** Icons drawn on nodes: the state badges at the title's end and the link in pills the generation screen fills. */
+private class GraphIcons(
+    val bypassed: VectorPainter,
+    val muted: VectorPainter,
+    val missing: VectorPainter,
+    val link: VectorPainter,
+    // A subgraph instance (its title, its block), its Open button, a level's Inputs and Outputs strips
+    val subgraph: VectorPainter,
+    val open: VectorPainter,
+    val inputs: VectorPainter,
+    val outputs: VectorPainter,
+    // Inside a subgraph: a value its instance shows (spec §19.3)
+    val shown: VectorPainter
+)
+
+// Blur radius of the wires under a group's frosted area, in graph units
+private const val GLASS_BLUR = 10f
+// The blurred wires are drawn at this fraction of the screen's resolution
+private const val GLASS_LAYER_SCALE = 2f
+
+/**
+ * The soft shadow of elevation 1 (light theme: white nodes, sockets, notes and group labels on the light canvas), in
+ * graph units; [level] below 1 for what lies lower (a group's area, under its nodes).
+ */
+private fun Paint.setElevationShadow(colors: CanvasColors, alpha: Float, scale: Float = 1f, level: Float = 1f) {
+    setShadowLayer(4f * scale * level, 0f, 2f * scale * level, colors.shadow.copy(alpha = 0.3f * alpha * level).toArgb())
+}
+
+/** Baseline that centres a single line of [paint]'s text on [centerY]. */
+private fun Paint.baselineFor(centerY: Float): Float {
+    val metrics = fontMetrics
+    return centerY - (metrics.ascent + metrics.descent) / 2
 }
 
 /**
@@ -187,6 +329,7 @@ private data class AnimatedEdgeState(
 /**
  * Canvas component for rendering workflow graphs
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WorkflowGraphCanvas(
     graph: WorkflowGraph,
@@ -205,18 +348,20 @@ fun WorkflowGraphCanvas(
     isEditMode: Boolean = false,
     selectedNodeIds: Set<String> = emptySet(),
     connectionModeState: ConnectionModeState? = null,
+    /** Map fields: values that can be picked for a custom field (spec §18.3), each tappable on its whole row */
+    valuePickTargets: List<SlotPosition>? = null,
+    onValuePicked: ((SlotPosition) -> Unit)? = null,
     renderedGroups: List<RenderedGroup> = emptyList(),
     notes: List<WorkflowNote> = emptyList(),
     selectedNoteIds: Set<Int> = emptySet(),
     nodeDefinitions: Map<String, NodeTypeDefinition> = emptyMap(),
+    /** Shown names of fields by key, e.g. custom fields ("field_<id>") by the names the user gave them */
+    fieldNames: Map<String, String> = emptyMap(),
     onNodeTapped: ((String) -> Unit)? = null,
     onTapOutsideNodes: (() -> Unit)? = null,
     onOutputSlotTapped: ((SlotPosition) -> Unit)? = null,
     onInputSlotTapped: ((SlotPosition) -> Unit)? = null,
-    onRenameNodeTapped: ((String) -> Unit)? = null,
-    onRenameGroupTapped: ((Int) -> Unit)? = null,
     onNoteTapped: ((Int) -> Unit)? = null,
-    onRenameNoteTapped: ((Int) -> Unit)? = null,
     onNoteHeightsChanged: (() -> Unit)? = null,
     longPressSourceSlot: SlotPosition? = null,
     onOutputSlotLongPressed: ((SlotPosition) -> Unit)? = null,
@@ -237,13 +382,29 @@ fun WorkflowGraphCanvas(
     onNoteDragStart: ((Int) -> Unit)? = null,
     onNoteDragEnd: (() -> Unit)? = null,
     justDroppedNoteId: Int? = null,
-    onJustDroppedNoteRendered: (() -> Unit)? = null
+    onJustDroppedNoteRendered: (() -> Unit)? = null,
+    // Nodes, notes, groups and connections move and fade in on changes; off, they're drawn in place at once (a preview)
+    animateChanges: Boolean = true,
+    // Overview level: a tapped block asks to be zoomed to (scale and offset centring it); null: no zooming (a preview)
+    onZoomTo: ((scale: Float, offset: Offset) -> Unit)? = null,
+    // Always the overview, whatever the zoom (previews: small workflows look like the large ones)
+    forceOverview: Boolean = false,
+    // A subgraph instance's Open button was tapped (spec §19.1); null: no Open buttons (a preview)
+    onOpenSubgraph: ((String) -> Unit)? = null,
+    // What's there when the canvas first shows is drawn in place at once (a level entered or left: its own motion)
+    appearInPlace: Boolean = false,
+    // Inside a subgraph: the values its instance shows (node, input), marked on their rows (spec §19.3)
+    shownOnInstance: Set<Pair<String, String>> = emptySet(),
+    // Inside a bypassed subgraph instance: every node looks switched off, without badges (spec §20, owner's choice)
+    levelBypassed: Boolean = false
 ) {
     // Use rememberUpdatedState to always have access to current values in the gesture handler
     val currentScaleState = rememberUpdatedState(scale)
     val currentOffsetState = rememberUpdatedState(offset)
     val currentGraphState = rememberUpdatedState(graph)
     val currentConnectionModeState = rememberUpdatedState(connectionModeState)
+    val currentPickTargets = rememberUpdatedState(valuePickTargets)
+    val currentOnValuePicked = rememberUpdatedState(onValuePicked)
     val currentIsEditMode = rememberUpdatedState(isEditMode)
     val currentRenderedGroups = rememberUpdatedState(renderedGroups)
     val currentNotes = rememberUpdatedState(notes)
@@ -274,26 +435,24 @@ fun WorkflowGraphCanvas(
         }
     }
 
-    // Get UI field prefix for template display names
-    val uiFieldPrefix = stringResource(R.string.node_editor_ui_field_prefix)
-
     // Create display name resolver using Context for localized field names
     val context = LocalContext.current
+    // Custom fields by their own names (spec §18), built-in fields by the app's
+    val currentFieldNames = rememberUpdatedState(fieldNames)
     val displayNameResolver: (String) -> String = remember(context) {
-        { fieldKey -> FieldDisplayRegistry.getDisplayName(context, fieldKey) }
-    }
-
-    // Get the edge router from settings
-    val edgeRouter = remember { RouterProvider.getActiveRouter(context) }
-
-    // Load edit icon drawable
-    val editIconDrawable = remember(context) {
-        ContextCompat.getDrawable(context, R.drawable.edit_24px)
+        { fieldKey -> currentFieldNames.value[fieldKey] ?: FieldDisplayRegistry.getDisplayName(context, fieldKey) }
     }
 
     // TextMeasurer for markdown rendering in notes
     val textMeasurer = rememberTextMeasurer()
+    // Notes' content laid out once, not every frame
+    val noteLayouts = remember { NoteLayouts() }
     val density = LocalDensity.current
+
+    // The wire shape chosen in Settings
+    val edgeRouter = remember { RouterProvider.getActiveRouter(context) }
+    // Wires' shapes kept between frames (see WirePaths)
+    val wirePaths = remember(edgeRouter) { WirePaths() }
 
     // Track if note heights changed during drawing (triggers relayout)
     var noteHeightsChanged by remember { mutableStateOf(false) }
@@ -306,27 +465,103 @@ fun WorkflowGraphCanvas(
         }
     }
 
-    // Extract theme colors
-    val isDarkTheme = isSystemInDarkTheme()
-    val colors = CanvasColors(
-        nodeBackground = MaterialTheme.colorScheme.surfaceContainer,
-        nodeHeaderBackground = MaterialTheme.colorScheme.surfaceContainerHigh,
-        nodeBorder = MaterialTheme.colorScheme.outline,
-        templateTextHighlight = MaterialTheme.colorScheme.secondary,
-        candidateBorder = MaterialTheme.colorScheme.secondary,
-        selectedBorder = MaterialTheme.colorScheme.primary,
-        textPrimary = MaterialTheme.colorScheme.onSurface,
-        textSecondary = MaterialTheme.colorScheme.onSurfaceVariant,
-        edgeColor = MaterialTheme.colorScheme.outlineVariant,
-        slotColors = SlotColors.getSlotColorMap(isDarkTheme),
-        categoryColors = SlotColors.getCategoryColorMap(isDarkTheme),
-        positivePromptColors = SlotColors.getPositivePromptColors(isDarkTheme),
-        negativePromptColors = SlotColors.getNegativePromptColors(isDarkTheme),
-        isDarkTheme = isDarkTheme
-    )
+    // Theme roles, and ComfyUI's hues in the theme's tones; dark or light by the theme actually shown
+    val scheme = MaterialTheme.colorScheme
+    val isDark = scheme.surface.luminance() < 0.5f
+    val canvasColor = graphCanvasColor()
+    val colors = remember(scheme, isDark) {
+        CanvasColors(
+            isDark = isDark,
+            palette = GraphColors.palette(isDark),
+            canvas = canvasColor,
+            nodeBody = if (isDark) scheme.surfaceContainerHigh else scheme.surfaceContainerLowest,
+            onSurface = scheme.onSurface,
+            onSurfaceVariant = scheme.onSurfaceVariant,
+            neutralTint = scheme.surfaceContainerHighest,
+            pill = scheme.surfaceContainerHighest,
+            linkedPill = scheme.primaryContainer,
+            onLinkedPill = scheme.onPrimaryContainer,
+            primary = scheme.primary,
+            outline = scheme.outline,
+            outlineVariant = scheme.outlineVariant,
+            errorContainer = scheme.errorContainer,
+            onErrorContainer = scheme.onErrorContainer,
+            groupArea = scheme.surfaceContainer,
+            groupChip = scheme.surfaceContainerHighest,
+            note = scheme.tertiaryContainer,
+            onNote = scheme.onTertiaryContainer,
+            // Compose's own elevation shadow colour (the theme has no shadow role)
+            shadow = DefaultShadowColor,
+            instanceFrame = scheme.primaryContainer,
+            onInstanceFrame = scheme.onPrimaryContainer,
+            openButton = scheme.secondaryContainer,
+            onOpenButton = scheme.onSecondaryContainer,
+            // The lowest container would vanish on the dark canvas
+            stripGlass = if (isDark) scheme.surfaceContainerHighest else scheme.surfaceContainerLowest
+        )
+    }
+    val paints = remember { GraphPaints() }
 
-    // Constants for slot detection
-    val slotHitRadius = 30f  // Larger hit area for easier tapping
+    // Subgraph instances (spec §19.1): their subgraph's name where their title differs, the nodes inside, and the
+    // labels of the values they show from inside
+    val resources = LocalResources.current
+    val openLabel = stringResource(R.string.sg_open)
+    val inputsLabel = stringResource(R.string.sg_inputs)
+    val outputsLabel = stringResource(R.string.sg_outputs)
+    val addLabel = stringResource(R.string.sg_add_socket)
+    val definitionsJson = remember(graph.subgraphs) {
+        graph.subgraphs?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+    }
+    val instanceTexts: Map<String, InstanceText> = remember(definitionsJson, graph.nodes, resources, openLabel) {
+        val definitions = definitionsJson ?: return@remember emptyMap()
+        graph.nodes.filter { it.isSubgraphInstance && definitions.has(it.classType) }.associate { node ->
+            val name = SubgraphLevels.nameOf(definitions, node.classType)
+            val count = SubgraphLevels.nodeCount(definitions, node.classType)
+            node.id to InstanceText(
+                open = openLabel,
+                name = name.takeIf { it != node.title },
+                count = resources.getQuantityString(R.plurals.sg_nodes_count, count, count),
+                labels = SubgraphLevels.promotedLabels(definitions, node.classType, node.inputs.keys)
+            )
+        }
+    }
+    val currentInstanceTexts = rememberUpdatedState(instanceTexts)
+    val currentOnOpenSubgraph = rememberUpdatedState(onOpenSubgraph)
+
+    // Sockets: a touch target of about 48 dp on screen while editing (spec §10.4), at least 30 graph units, at most 60
+    // so a tap near a node's edge still reaches the node; the nearest socket wins
+    val slotHitRadius = 30f
+    val touchSlotRadiusPx = with(density) { 24.dp.toPx() }
+    // State badges at the end of the title bar, and the link icon of pills the generation screen fills
+    val icons = GraphIcons(
+        bypassed = rememberVectorPainter(Icons.Rounded.DoNotDisturbOn),
+        muted = rememberVectorPainter(Icons.Rounded.Block),
+        missing = rememberVectorPainter(Icons.Rounded.ExtensionOff),
+        link = rememberVectorPainter(Icons.Rounded.Link),
+        subgraph = rememberVectorPainter(Icons.Rounded.Layers),
+        open = rememberVectorPainter(Icons.Rounded.ChevronRight),
+        inputs = rememberVectorPainter(Icons.AutoMirrored.Rounded.Login),
+        outputs = rememberVectorPainter(Icons.AutoMirrored.Rounded.Logout),
+        shown = rememberVectorPainter(Icons.Rounded.Visibility)
+    )
+    fun socketRadius(scale: Float) = (touchSlotRadiusPx / scale).coerceIn(slotHitRadius, 60f)
+
+    // Bypassed nodes look switched off (spec §20): how far each one is, 0 on to 1 off, faded when Bypass is toggled;
+    // what's bypassed when the canvas first shows is off at once
+    val bypassedLabel = stringResource(R.string.node_bypassed_badge)
+    val bypassedIds = graph.nodes.filter { it.isBypassed }.mapTo(HashSet()) { it.id }
+    val offStates = remember { mutableStateMapOf<String, Animatable<Float, AnimationVector1D>>() }
+    val offSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    LaunchedEffect(bypassedIds) {
+        (bypassedIds + offStates.keys).forEach { id ->
+            val target = if (id in bypassedIds) 1f else 0f
+            val state = offStates[id]
+            if (state == null) offStates[id] = Animatable(target)
+            else if (state.targetValue != target) launch { state.animateTo(target, offSpec) }
+        }
+    }
+    fun offOf(node: WorkflowNode): Float =
+        if (levelBypassed) 1f else offStates[node.id]?.value ?: if (node.isBypassed) 1f else 0f
 
     // Animation state for nodes (position + alpha)
     val animatedNodeStates = remember { mutableStateMapOf<String, AnimatedNodeState>() }
@@ -340,47 +575,48 @@ fun WorkflowGraphCanvas(
     // Animation state for edges (alpha only)
     val animatedEdgeStates = remember { mutableStateMapOf<EdgeKey, AnimatedEdgeState>() }
 
-    // Animation spec for smooth transitions
-    val animationSpec = tween<Float>(
-        durationMillis = 350,
-        easing = FastOutSlowInEasing
-    )
+    // Animation spec for smooth transitions (none when changes aren't animated)
+    val animationSpec: FiniteAnimationSpec<Float> = if (animateChanges) {
+        tween(durationMillis = 350, easing = FastOutSlowInEasing)
+    } else snap()
 
-    // Pulsing glow animation for valid input sockets - only runs when in connection mode
-    val glowPulse = remember { Animatable(0f) }
     val inConnectionMode = connectionModeState != null
 
-    LaunchedEffect(inConnectionMode) {
-        if (inConnectionMode) {
-            // Run pulsing animation while in connection mode
-            while (true) {
-                glowPulse.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
-                glowPulse.animateTo(0f, tween(800, easing = FastOutSlowInEasing))
-            }
-        } else {
-            // Reset when exiting connection mode
-            glowPulse.snapTo(0f)
-        }
+    // Focus (spec §12.5): the selected nodes (Edit structure), the node whose values are open, or the node a pending
+    // connection starts from. Their wires are emphasised, all others recede; changes crossfade.
+    val focusedNodeIds: Set<String> = buildSet {
+        if (isEditMode) addAll(selectedNodeIds)
+        editingNodeId?.let(::add)
+        connectionModeState?.sourceSlot?.nodeId?.let(::add)
+    }
+    var shownFocus by remember { mutableStateOf(focusedNodeIds) }
+    var previousFocus by remember { mutableStateOf(focusedNodeIds) }
+    val focusProgress = remember { Animatable(1f) }
+    val focusSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    LaunchedEffect(focusedNodeIds) {
+        if (focusedNodeIds == shownFocus) return@LaunchedEffect
+        previousFocus = shownFocus
+        shownFocus = focusedNodeIds
+        focusProgress.snapTo(0f)
+        focusProgress.animateTo(1f, focusSpec)
     }
 
-    // Segment animation for highlighted wires - only runs when nodes are selected
-    val segmentTime = remember { Animatable(0f) }
-    val hasSelectedNodes = selectedNodeIds.isNotEmpty()
-
-    LaunchedEffect(hasSelectedNodes) {
-        if (hasSelectedNodes) {
-            // Run segment animation while nodes are selected
-            while (true) {
-                segmentTime.animateTo(1f, tween(1500, easing = LinearEasing))
-                segmentTime.snapTo(0f)
-            }
-        } else {
-            // Reset when no nodes selected
-            segmentTime.snapTo(0f)
-        }
+    // Level of detail (spec §12.6): from the zoom, with hysteresis. Crossing the threshold starts the change at
+    // once and runs it through: title bars spread over their nodes (and back), with standard spatial motion
+    val zoomLevel = rememberGraphDetailLevel(scale)
+    val level = if (forceOverview) GraphDetailLevel.OVERVIEW else zoomLevel
+    val overviewProgress = remember { Animatable(if (level == GraphDetailLevel.OVERVIEW) 1f else 0f) }
+    val spreadSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    LaunchedEffect(level) {
+        val target = if (level == GraphDetailLevel.OVERVIEW) 1f else 0f
+        if (animateChanges) overviewProgress.animateTo(target, spreadSpec) else overviewProgress.snapTo(target)
     }
+    val currentLevel = rememberUpdatedState(level)
+    val currentOnZoomTo = rememberUpdatedState(onZoomTo)
+    // Overview text: one size on screen for every block (smaller only when the zoom leaves no room for it)
+    val overviewTitlePx = with(density) { 8.5.sp.toPx() }
 
-    // Long-press glow animation state
+    // Long-press feedback: a ring growing around the slot until the press counts
     var longPressSlot by remember { mutableStateOf<SlotPosition?>(null) }
     val longPressProgress = remember { Animatable(0f) }
 
@@ -418,20 +654,26 @@ fun WorkflowGraphCanvas(
         }
     }
 
+    // Fade-outs of removed nodes, notes, groups and wires outlive the effects that start them
+    val fadeScope = rememberCoroutineScope()
+
     // Animate nodes when graph changes (position + fade in/out)
     LaunchedEffect(graph.nodes, justDroppedNodeId) {
         val currentNodeIds = graph.nodes.map { it.id }.toSet()
+        val inPlace = appearInPlace && animatedNodeStates.isEmpty()
 
         // Handle removed nodes - fade out then remove
         animatedNodeStates.keys.toList().forEach { nodeId ->
             if (nodeId !in currentNodeIds) {
                 val state = animatedNodeStates[nodeId] ?: return@forEach
                 if (!state.isFadingOut && state.nodeData != null) {
-                    // Start fade-out: mark as fading out and animate alpha to 0
-                    animatedNodeStates[nodeId] = state.copy(isFadingOut = true)
-                    launch {
+                    val fading = state.copy(isFadingOut = true)
+                    animatedNodeStates[nodeId] = fading
+                    // Not in this effect's scope: the graph changing again (a relayout) would cancel it half-way and
+                    // leave the removed one drawn for good; and one that came back meanwhile keeps its new state
+                    fadeScope.launch {
                         state.alpha.animateTo(0f, animationSpec)
-                        animatedNodeStates.remove(nodeId)
+                        if (animatedNodeStates[nodeId] === fading) animatedNodeStates.remove(nodeId)
                     }
                 }
             }
@@ -459,6 +701,8 @@ fun WorkflowGraphCanvas(
                 if (existing.alpha.value != 1f) {
                     launch { existing.alpha.animateTo(1f, animationSpec) }
                 }
+            } else if (inPlace) {
+                animatedNodeStates[node.id] = AnimatedNodeState(Animatable(node.x), Animatable(node.y), Animatable(1f), node)
             } else {
                 // New node - start at origin with alpha 0, fade in
                 val newState = AnimatedNodeState(
@@ -478,16 +722,20 @@ fun WorkflowGraphCanvas(
     // Animate notes when notes change (position + fade in/out)
     LaunchedEffect(notes, justDroppedNoteId) {
         val currentNoteIds = notes.map { it.id }.toSet()
+        val inPlace = appearInPlace && animatedNoteStates.isEmpty()
 
         // Handle removed notes - fade out then remove
         animatedNoteStates.keys.toList().forEach { noteId ->
             if (noteId !in currentNoteIds) {
                 val state = animatedNoteStates[noteId] ?: return@forEach
                 if (!state.isFadingOut && state.noteData != null) {
-                    animatedNoteStates[noteId] = state.copy(isFadingOut = true)
-                    launch {
+                    val fading = state.copy(isFadingOut = true)
+                    animatedNoteStates[noteId] = fading
+                    // Not in this effect's scope: the graph changing again (a relayout) would cancel it half-way and
+                    // leave the removed one drawn for good; and one that came back meanwhile keeps its new state
+                    fadeScope.launch {
                         state.alpha.animateTo(0f, animationSpec)
-                        animatedNoteStates.remove(noteId)
+                        if (animatedNoteStates[noteId] === fading) animatedNoteStates.remove(noteId)
                     }
                 }
             }
@@ -514,6 +762,8 @@ fun WorkflowGraphCanvas(
                 if (existing.alpha.value != 1f) {
                     launch { existing.alpha.animateTo(1f, animationSpec) }
                 }
+            } else if (inPlace) {
+                animatedNoteStates[note.id] = AnimatedNoteState(Animatable(note.x), Animatable(note.y), Animatable(1f), note)
             } else {
                 val newState = AnimatedNoteState(
                     x = Animatable(0f),
@@ -532,16 +782,20 @@ fun WorkflowGraphCanvas(
     // Animate groups when groups change (bounds + fade in/out)
     LaunchedEffect(renderedGroups) {
         val currentGroupIds = renderedGroups.map { it.id }.toSet()
+        val inPlace = appearInPlace && animatedGroupStates.isEmpty()
 
         // Handle removed groups - fade out then remove
         animatedGroupStates.keys.toList().forEach { groupId ->
             if (groupId !in currentGroupIds) {
                 val state = animatedGroupStates[groupId] ?: return@forEach
                 if (!state.isFadingOut && state.groupData != null) {
-                    animatedGroupStates[groupId] = state.copy(isFadingOut = true)
-                    launch {
+                    val fading = state.copy(isFadingOut = true)
+                    animatedGroupStates[groupId] = fading
+                    // Not in this effect's scope: the graph changing again (a relayout) would cancel it half-way and
+                    // leave the removed one drawn for good; and one that came back meanwhile keeps its new state
+                    fadeScope.launch {
                         state.alpha.animateTo(0f, animationSpec)
-                        animatedGroupStates.remove(groupId)
+                        if (animatedGroupStates[groupId] === fading) animatedGroupStates.remove(groupId)
                     }
                 }
             }
@@ -562,6 +816,10 @@ fun WorkflowGraphCanvas(
                 if (existing.alpha.value != 1f) {
                     launch { existing.alpha.animateTo(1f, animationSpec) }
                 }
+            } else if (inPlace) {
+                animatedGroupStates[group.id] = AnimatedGroupState(
+                    Animatable(group.x), Animatable(group.y), Animatable(group.width), Animatable(group.height), Animatable(1f), group
+                )
             } else {
                 // New group - start at origin with actual size and alpha 0
                 val newState = AnimatedGroupState(
@@ -585,16 +843,20 @@ fun WorkflowGraphCanvas(
         val currentEdgeKeys = graph.edges.map { edge ->
             EdgeKey(edge.sourceNodeId, edge.sourceOutputIndex, edge.targetNodeId, edge.targetInputName)
         }.toSet()
+        val inPlace = appearInPlace && animatedEdgeStates.isEmpty()
 
         // Handle removed edges - fade out then remove
         animatedEdgeStates.keys.toList().forEach { edgeKey ->
             if (edgeKey !in currentEdgeKeys) {
                 val state = animatedEdgeStates[edgeKey] ?: return@forEach
                 if (!state.isFadingOut && state.edgeData != null) {
-                    animatedEdgeStates[edgeKey] = state.copy(isFadingOut = true)
-                    launch {
+                    val fading = state.copy(isFadingOut = true)
+                    animatedEdgeStates[edgeKey] = fading
+                    // Not in this effect's scope: the graph changing again (a relayout) would cancel it half-way and
+                    // leave the removed one drawn for good; and one that came back meanwhile keeps its new state
+                    fadeScope.launch {
                         state.alpha.animateTo(0f, animationSpec)
-                        animatedEdgeStates.remove(edgeKey)
+                        if (animatedEdgeStates[edgeKey] === fading) animatedEdgeStates.remove(edgeKey)
                     }
                 }
             }
@@ -609,6 +871,8 @@ fun WorkflowGraphCanvas(
                 if (existing.alpha.value != 1f) {
                     launch { existing.alpha.animateTo(1f, animationSpec) }
                 }
+            } else if (inPlace) {
+                animatedEdgeStates[key] = AnimatedEdgeState(alpha = Animatable(1f), edgeData = edge)
             } else {
                 val newState = AnimatedEdgeState(alpha = Animatable(0f), edgeData = edge)
                 animatedEdgeStates[key] = newState
@@ -721,9 +985,8 @@ fun WorkflowGraphCanvas(
         }
     }
 
-    // Edit icon hit area constants
-    val editIconSize = 32f
-    val editIconPadding = 12f
+    // Wires passing through groups, blurred under their frosted areas
+    val glassLayer = rememberGraphicsLayer()
 
     Canvas(
         modifier = modifier
@@ -875,12 +1138,15 @@ fun WorkflowGraphCanvas(
                     val graphX = (down.position.x - currentOffsetState.value.x) / currentScaleState.value
                     val graphY = (down.position.y - currentOffsetState.value.y) / currentScaleState.value
 
+                    // Sockets can be pressed at full detail only
+                    if (currentLevel.value != GraphDetailLevel.FULL) return@awaitEachGesture
+
                     // Check if down is on an output slot
                     val hitSlot = findOutputSlotAt(
                         graphX = graphX,
                         graphY = graphY,
                         nodes = currentGraphState.value.nodes,
-                        slotHitRadius = slotHitRadius
+                        slotHitRadius = socketRadius(currentScaleState.value)
                     )
                     if (hitSlot == null) {
                         return@awaitEachGesture
@@ -950,12 +1216,16 @@ fun WorkflowGraphCanvas(
                     val graphY = (down.position.y - currentOffsetState.value.y) / currentScaleState.value
 
                     // Check if down is on an input slot
+                    // Sockets can be pressed at full detail only
+                    if (currentLevel.value != GraphDetailLevel.FULL) return@awaitEachGesture
+
                     val hitSlot = findInputSlotAt(
                         graphX = graphX,
                         graphY = graphY,
                         nodes = currentGraphState.value.nodes,
-                        slotHitRadius = slotHitRadius,
-                        nodeDefinitions = currentNodeDefinitions.value
+                        slotHitRadius = socketRadius(currentScaleState.value),
+                        nodeDefinitions = currentNodeDefinitions.value,
+                        valueSockets = currentConnectionModeState.value == null
                     )
                     if (hitSlot == null) {
                         return@awaitEachGesture
@@ -1010,8 +1280,8 @@ fun WorkflowGraphCanvas(
                     }
                 }
             }
-            .pointerInput(onNodeTapped, onTapOutsideNodes, onOutputSlotTapped, onInputSlotTapped, onRenameNodeTapped, onRenameGroupTapped, onNoteTapped, onRenameNoteTapped) {
-                if (onNodeTapped != null || onTapOutsideNodes != null || onOutputSlotTapped != null || onInputSlotTapped != null || onRenameNodeTapped != null || onRenameGroupTapped != null || onNoteTapped != null || onRenameNoteTapped != null) {
+            .pointerInput(onNodeTapped, onTapOutsideNodes, onOutputSlotTapped, onInputSlotTapped, onNoteTapped) {
+                if (onNodeTapped != null || onTapOutsideNodes != null || onOutputSlotTapped != null || onInputSlotTapped != null || onNoteTapped != null) {
                     detectTapGestures { tapOffset ->
                         // Transform tap position to graph coordinates
                         val graphX = (tapOffset.x - currentOffsetState.value.x) / currentScaleState.value
@@ -1020,14 +1290,58 @@ fun WorkflowGraphCanvas(
                         val connectionState = currentConnectionModeState.value
                         val inConnectionMode = connectionState != null
                         val inEditMode = currentIsEditMode.value
+                        val radius = socketRadius(currentScaleState.value)
 
-                        // In connection mode, check for taps on valid target slots
-                        if (connectionState != null) {
-                            val tappedTargetSlot = connectionState.validTargetSlots.find { slot ->
-                                val dx = graphX - slot.center.x
-                                val dy = graphY - slot.center.y
-                                (dx * dx + dy * dy) <= slotHitRadius * slotHitRadius
+                        // Overview: a tapped block is zoomed to (full detail, centred); in Edit structure also selected
+                        val zoomTo = currentOnZoomTo.value
+                        if (currentLevel.value == GraphDetailLevel.OVERVIEW && zoomTo != null) {
+                            val hitNode = graph.nodes.findLast { graphX in it.x..(it.x + it.width) && graphY in it.y..(it.y + it.height) }
+                            val hitNote = currentNotes.value.findLast { graphX in it.x..(it.x + it.width) && graphY in it.y..(it.y + it.height) }
+                            val (centerX, centerY) = when {
+                                hitNode != null -> hitNode.x + hitNode.width / 2 to hitNode.y + hitNode.height / 2
+                                hitNote != null -> hitNote.x + hitNote.width / 2 to hitNote.y + hitNote.height / 2
+                                else -> null to null
                             }
+                            if (centerX != null && centerY != null) {
+                                // 100 % of the spec: one dp per spec unit, two graph units
+                                val targetScale = (density.density / 2f).coerceIn(0.2f, 3f)
+                                zoomTo(
+                                    targetScale,
+                                    Offset(size.width / 2f - centerX * targetScale, size.height / 2f - centerY * targetScale)
+                                )
+                                if (inEditMode && hitNode != null) onNodeTapped?.invoke(hitNode.id)
+                                return@detectTapGestures
+                            }
+                        }
+                        // Sockets can be tapped at full detail only; zoomed out, a tap selects the node
+                        val socketsActive = currentLevel.value == GraphDetailLevel.FULL
+
+                        // Picking a value for a custom field: a target's socket or anywhere on its row; other taps do
+                        // nothing (they'd assign built-in fields)
+                        currentPickTargets.value?.let { targets ->
+                            if (socketsActive) {
+                                targets.firstOrNull { slot ->
+                                    val node = graph.nodes.find { it.id == slot.nodeId }
+                                    node != null && graphX in (node.x - radius)..(node.x + node.width) &&
+                                        abs(graphY - (node.y + WorkflowLayoutEngine.inputSlotY(node, slot.slotName))) <= WorkflowLayoutEngine.INPUT_ROW_HEIGHT / 2
+                                }?.let { currentOnValuePicked.value?.invoke(it) }
+                            }
+                            return@detectTapGestures
+                        }
+
+                        // In connection mode, check for taps on valid target slots (the nearest one)
+                        if (connectionState != null && socketsActive) {
+                            fun distance(slot: SlotPosition) = (graphX - slot.center.x).let { it * it } + (graphY - slot.center.y).let { it * it }
+                            val tappedTargetSlot = connectionState.validTargetSlots
+                                .filter { distance(it) <= radius * radius }
+                                .minByOrNull { distance(it) }
+                                // A value row that can take the link counts anywhere on its row (a bigger target)
+                                ?: connectionState.validTargetSlots.firstOrNull { slot ->
+                                    val node = graph.nodes.find { it.id == slot.nodeId }
+                                    node != null && node.inputs[slot.slotName] is InputValue.Literal &&
+                                        graphX in node.x..(node.x + node.width) &&
+                                        abs(graphY - slot.center.y) <= WorkflowLayoutEngine.INPUT_ROW_HEIGHT / 2
+                                }
                             if (tappedTargetSlot != null) {
                                 // Call appropriate callback based on direction
                                 when (connectionState.direction) {
@@ -1038,108 +1352,38 @@ fun WorkflowGraphCanvas(
                             }
                         }
 
-                        // In edit mode (not connection mode), check for taps on output slots to start connection
-                        if (inEditMode && !inConnectionMode && onOutputSlotTapped != null) {
-                            for (node in graph.nodes) {
-                                // Output slots are on the right side of the node
-                                val outputX = node.x + node.width
-
-                                // Check each output at its correct Y position
-                                node.outputs.forEachIndexed { outputIndex, output ->
-                                    val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-                                    val literalInputCount = node.inputs.count { (_, v) -> v is InputValue.Literal }
-                                    val outputY = node.y + headerHeight + 20f +
-                                            (literalInputCount * WorkflowLayoutEngine.INPUT_ROW_HEIGHT) +
-                                            (outputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
-
-                                    val dx = graphX - outputX
-                                    val dy = graphY - outputY
-                                    if (dx * dx + dy * dy <= slotHitRadius * slotHitRadius) {
-                                        val slotPosition = SlotPosition(
-                                            nodeId = node.id,
-                                            slotName = output.name,
-                                            isOutput = true,
-                                            outputIndex = outputIndex,
-                                            center = Offset(outputX, outputY),
-                                            slotType = output.type
-                                        )
-                                        onOutputSlotTapped(slotPosition)
-                                        return@detectTapGestures
-                                    }
-                                }
-                            }
-                        }
-
-                        // In edit mode (not connection mode), check for taps on input slots to start reverse connection
-                        if (inEditMode && !inConnectionMode && onInputSlotTapped != null) {
-                            val tappedInputSlot = findInputSlotAt(
-                                graphX = graphX,
-                                graphY = graphY,
-                                nodes = graph.nodes,
-                                slotHitRadius = slotHitRadius,
-                                nodeDefinitions = currentNodeDefinitions.value
-                            )
-                            if (tappedInputSlot != null) {
-                                onInputSlotTapped(tappedInputSlot)
+                        // A subgraph instance's Open button, in every mode (not while a connection waits)
+                        val open = currentOnOpenSubgraph.value
+                        if (socketsActive && !inConnectionMode && open != null) {
+                            graph.nodes.lastOrNull { node ->
+                                node.id in currentInstanceTexts.value && openButtonBounds(node).contains(Offset(graphX, graphY))
+                            }?.let {
+                                open(it.id)
                                 return@detectTapGestures
                             }
                         }
 
-                        // In edit mode, check for taps on header icons
-                        if (inEditMode) {
-                            val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-                            for (node in graph.nodes) {
-                                val iconTop = node.y + 8f
-                                val iconBottom = node.y + headerHeight - 8f
-
-                                // Edit icon is in the top-right corner of the header
-                                val editIconRight = node.x + node.width - 8f
-                                val editIconLeft = editIconRight - 32f
-
-                                if (graphX >= editIconLeft && graphX <= editIconRight &&
-                                    graphY >= iconTop && graphY <= iconBottom
-                                ) {
-                                    if (onRenameNodeTapped != null) {
-                                        onRenameNodeTapped(node.id)
-                                        return@detectTapGestures
-                                    }
-                                }
+                        // In edit mode (not connection mode), check for taps on output slots to start connection
+                        if (socketsActive && inEditMode && !inConnectionMode && onOutputSlotTapped != null) {
+                            findOutputSlotAt(graphX, graphY, graph.nodes, radius)?.let {
+                                onOutputSlotTapped(it)
+                                return@detectTapGestures
                             }
+                        }
 
-                            // Check for taps on group edit icon (top-right corner, same as nodes)
-                            for (group in currentRenderedGroups.value) {
-                                // Edit icon is in the top-right corner (same positioning as nodes)
-                                val editIconRight = group.x + group.width - 8f
-                                val editIconLeft = editIconRight - 32f
-                                val iconTop = group.y + 8f
-                                val iconBottom = group.y + WorkflowLayoutEngine.GROUP_HEADER_HEIGHT + 12f
-
-                                if (graphX >= editIconLeft && graphX <= editIconRight &&
-                                    graphY >= iconTop && graphY <= iconBottom
-                                ) {
-                                    if (onRenameGroupTapped != null) {
-                                        onRenameGroupTapped(group.id)
-                                        return@detectTapGestures
-                                    }
-                                }
-                            }
-
-                            // Check for taps on note edit icon (header)
-                            for (note in currentNotes.value) {
-                                val noteHeaderHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-                                val editIconRight = note.x + note.width - 8f
-                                val editIconLeft = editIconRight - 32f
-                                val noteIconTop = note.y + 8f
-                                val noteIconBottom = note.y + noteHeaderHeight - 8f
-
-                                if (graphX >= editIconLeft && graphX <= editIconRight &&
-                                    graphY >= noteIconTop && graphY <= noteIconBottom
-                                ) {
-                                    if (onRenameNoteTapped != null) {
-                                        onRenameNoteTapped(note.id)
-                                        return@detectTapGestures
-                                    }
-                                }
+                        // In edit mode (not connection mode), check for taps on input slots to start reverse connection
+                        if (socketsActive && inEditMode && !inConnectionMode && onInputSlotTapped != null) {
+                            val tappedInputSlot = findInputSlotAt(
+                                graphX = graphX,
+                                graphY = graphY,
+                                nodes = graph.nodes,
+                                slotHitRadius = radius,
+                                nodeDefinitions = currentNodeDefinitions.value,
+                                valueSockets = true
+                            )
+                            if (tappedInputSlot != null) {
+                                onInputSlotTapped(tappedInputSlot)
+                                return@detectTapGestures
                             }
                         }
 
@@ -1215,6 +1459,150 @@ fun WorkflowGraphCanvas(
         // Compute node IDs that are valid connection targets in connection mode
         val connectionCandidateNodeIds = connectionModeState?.validTargetSlots?.map { it.nodeId }?.toSet() ?: emptySet()
 
+        // The canvas itself (in a preview too, so sockets' halos match what's around them)
+        drawRect(colors.canvas)
+
+        // Level of detail: graph units per dp on screen (sizes fixed on screen), and the geometry of both levels
+        // while a switch crossfades
+        val unitsPerDp = density.density / scale
+        val specZoom = GraphDetailLevel.specZoom(scale, density.density)
+        // Overview: the title size shared by all blocks, at most what a line of the lowest block takes
+        val lowestBlock = minOf(
+            animatedNodes.minOfOrNull { it.node.height } ?: Float.MAX_VALUE,
+            animatedNotes.minOfOrNull { it.note.height } ?: Float.MAX_VALUE
+        )
+        val overviewTitleSize = minOf(overviewTitlePx / scale, lowestBlock * 0.5f)
+        val minSelectionWidth = 2f * unitsPerDp
+        // How far the title bars have spread over their nodes (0 full detail, 1 overview); a spring may overshoot
+        val spread = overviewProgress.value.coerceIn(0f, 1f)
+
+        // Build node positions map for edge drawing
+        val nodePositionsMap = animatedNodes.associate { it.node.id to it.node }
+
+        // What lies on screen, in graph units, with room for outlines, badges and shadows: only that is drawn (a
+        // large graph zoomed in shows a few of its nodes)
+        val cullMargin = 120f + 48f * unitsPerDp
+        val visibleLeft = -offset.x / scale - cullMargin
+        val visibleTop = -offset.y / scale - cullMargin
+        val visibleRight = (size.width - offset.x) / scale + cullMargin
+        val visibleBottom = (size.height - offset.y) / scale + cullMargin
+        fun onScreen(x: Float, y: Float, width: Float, height: Float) =
+            x < visibleRight && x + width > visibleLeft && y < visibleBottom && y + height > visibleTop
+        // A wire lies within its two nodes' box, widened by how far its curve can swing (a wire going back swings out
+        // above or below too)
+        fun wireOnScreen(edge: WorkflowEdge): Boolean {
+            val source = nodePositionsMap[edge.sourceNodeId] ?: return false
+            val target = nodePositionsMap[edge.targetNodeId] ?: return false
+            val left = minOf(source.x, target.x)
+            val right = maxOf(source.x + source.width, target.x + target.width)
+            val top = minOf(source.y, target.y)
+            val bottom = maxOf(source.y + source.height, target.y + target.height)
+            val swing = (right - left + bottom - top) * 0.4f + 100f
+            return onScreen(left - swing, top - swing, right - left + 2 * swing, bottom - top + 2 * swing)
+        }
+
+        // Wires: those of focused nodes over the others, which recede
+        val progress = focusProgress.value
+        val (focusedEdges, otherEdges) = animatedEdges.partition { (edge, _) ->
+            edge.sourceNodeId in shownFocus || edge.targetNodeId in shownFocus
+        }
+        val wiresInOrder = (otherEdges + focusedEdges).filter { (edge, alpha) -> alpha > 0.01f && wireOnScreen(edge) }
+        fun DrawScope.drawWireUnclipped(edge: WorkflowEdge, alpha: Float, before: WireEmphasis, after: WireEmphasis) {
+            drawEdge(
+                edge = edge,
+                nodesById = nodePositionsMap,
+                colors = colors,
+                router = edgeRouter,
+                alpha = alpha,
+                recede = lerp(before.recede, after.recede, progress),
+                // Scaling with the zoom, but at least 1.5 dp on screen (focused 2.25 dp)
+                width = lerp(before.width, after.width, progress).let { maxOf(it, it * 0.375f * unitsPerDp) },
+                draggingNodeId = draggingNodeId,
+                dragScale = dragScale.value,
+                wirePaths = wirePaths
+            )
+        }
+        fun DrawScope.drawWire(edge: WorkflowEdge, alpha: Float) {
+            val before = wireEmphasis(edge, previousFocus)
+            val after = wireEmphasis(edge, shownFocus)
+            // A wire leaves its socket with a curve that swings back past it, hidden under a node's body; a port strip
+            // is narrow glass, so its wires don't swing back ([drawEdge]) and are drawn whole: a wire bending past the
+            // strip on its way (a target close beside it, far above or below) stays visible
+            drawWireUnclipped(edge, alpha, before, after)
+        }
+
+        // Each wire's part under frosted glass: the groups (and a level's port strips, of the same glass) it passes
+        // through without reaching one of their members
+        val portStrips = animatedNodes.filter { (node, alpha) -> alpha > 0.01f && SubgraphLevels.isPortNode(node) }
+        val groupAreas = animatedGroups.filter { (group, alpha) ->
+            alpha > 0.01f && onScreen(group.x, group.y, group.width, group.height)
+        }.map { (group, _) ->
+            group.group.memberNodeIds to Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        group.x, group.y, group.x + group.width, group.y + group.height,
+                        CornerRadius(NodeStyle.GROUP_CORNER)
+                    )
+                )
+            }
+        } + portStrips.map { (node, _) ->
+            setOf(node.id) to Path().apply {
+                val bounds = portStripBounds(node)
+                addRoundRect(RoundRect(bounds, CornerRadius(bounds.width / 2)))
+            }
+        }
+        // Each wire's glass areas, by index. Clips are by single areas, each a rounded rectangle, which the renderer
+        // clips on the GPU; a shape made of several (or what lies outside one) would be a mask drawn on the CPU
+        // A wire's end is in an area when its node belongs there or stands in it: groups' areas cover the nodes laid
+        // out among their members (nested groups), whose wires lie over that glass too
+        val areaBounds = groupAreas.map { (_, shape) -> shape.getBounds() }
+        fun inArea(nodeId: String, area: Int): Boolean {
+            if (nodeId in groupAreas[area].first) return true
+            val node = nodePositionsMap[nodeId] ?: return false
+            return areaBounds[area].contains(Offset(node.x + node.width / 2, node.y + node.height / 2))
+        }
+        val underGlass: Map<WorkflowEdge, List<Int>> = wiresInOrder.mapNotNull { (edge, _) ->
+            val passed = groupAreas.indices.filter { i -> !inArea(edge.sourceNodeId, i) && !inArea(edge.targetNodeId, i) }
+            if (passed.isEmpty()) null else edge to passed
+        }.toMap()
+        val anyUnderGlass = underGlass.isNotEmpty()
+        // The wires in two layers, the focused nodes' over the others
+        val wireLayers = wiresInOrder.partition { (edge, _) ->
+            edge.sourceNodeId !in shownFocus && edge.targetNodeId !in shownFocus
+        }.toList()
+        // What lies outside the areas [areas] (from [from] on), one area at a time
+        fun DrawScope.outsideAreas(areas: List<Int>, from: Int = 0, block: DrawScope.() -> Unit) {
+            if (from == areas.size) block()
+            else clipPath(groupAreas[areas[from]].second, ClipOp.Difference) { outsideAreas(areas, from + 1, block) }
+        }
+
+        // Those parts, drawn on screen into a layer that blurs them (a frosted look, scaling with the zoom): each area
+        // with the wires passing under it. At half the screen's resolution (blurred, nothing tells it apart), so a
+        // quarter of the pixels to blur
+        if (anyUnderGlass) {
+            val layerSize = IntSize(
+                (size.width / GLASS_LAYER_SCALE).toInt().coerceAtLeast(1),
+                (size.height / GLASS_LAYER_SCALE).toInt().coerceAtLeast(1)
+            )
+            glassLayer.record(this, layoutDirection, layerSize) {
+                withTransform({
+                    scale(1f / GLASS_LAYER_SCALE, 1f / GLASS_LAYER_SCALE, Offset.Zero)
+                    translate(offset.x, offset.y)
+                    scale(scale, scale, Offset.Zero)
+                }) {
+                    groupAreas.forEachIndexed { area, (_, shape) ->
+                        clipPath(shape) {
+                            wireLayers.forEach { layer ->
+                                layer.forEach { (edge, alpha) -> if (underGlass[edge]?.contains(area) == true) drawWire(edge, alpha) }
+                            }
+                        }
+                    }
+                }
+            }
+            val blur = (GLASS_BLUR * scale / GLASS_LAYER_SCALE).coerceAtLeast(0.5f)
+            glassLayer.renderEffect = BlurEffect(blur, blur, TileMode.Decal)
+        }
+
         // Apply transformation
         withTransform({
             translate(offset.x, offset.y)
@@ -1222,7 +1610,7 @@ fun WorkflowGraphCanvas(
         }) {
             // Draw grid for manual node placement (behind everything)
             if (showGrid) {
-                val gridColor = colors.nodeBorder.copy(alpha = 0.12f)
+                val gridColor = colors.outlineVariant
                 val gridSize = WorkflowLayoutEngine.GRID_CELL_SIZE
 
                 // Calculate visible range in graph coordinates
@@ -1230,6 +1618,8 @@ fun WorkflowGraphCanvas(
                 val visibleMinY = -offset.y / scale - gridSize
                 val visibleMaxX = (size.width - offset.x) / scale + gridSize
                 val visibleMaxY = (size.height - offset.y) / scale + gridSize
+                // A hairline on screen at any zoom
+                val lineWidth = 1f / scale
 
                 // Draw vertical lines
                 var x = (visibleMinX / gridSize).toInt() * gridSize
@@ -1238,7 +1628,7 @@ fun WorkflowGraphCanvas(
                         color = gridColor,
                         start = Offset(x, visibleMinY),
                         end = Offset(x, visibleMaxY),
-                        strokeWidth = 1f
+                        strokeWidth = lineWidth
                     )
                     x += gridSize
                 }
@@ -1250,64 +1640,102 @@ fun WorkflowGraphCanvas(
                         color = gridColor,
                         start = Offset(visibleMinX, y),
                         end = Offset(visibleMaxX, y),
-                        strokeWidth = 1f
+                        strokeWidth = lineWidth
                     )
                     y += gridSize
                 }
+            } else if (isEditMode && specZoom >= 0.4f) {
+                // Dot grid while editing (spec §12.7): 24 dp pitch at 100 %, scaling with the zoom; dots 1 dp
+                val pitch = 48f
+                val minX = kotlin.math.floor(-offset.x / scale / pitch) * pitch
+                val minY = kotlin.math.floor(-offset.y / scale / pitch) * pitch
+                val maxX = (size.width - offset.x) / scale
+                val maxY = (size.height - offset.y) / scale
+                val dots = ArrayList<Offset>()
+                var dotX = minX
+                while (dotX <= maxX) {
+                    var dotY = minY
+                    while (dotY <= maxY) {
+                        dots.add(Offset(dotX, dotY))
+                        dotY += pitch
+                    }
+                    dotX += pitch
+                }
+                drawPoints(dots, PointMode.Points, colors.outlineVariant, strokeWidth = unitsPerDp, cap = StrokeCap.Round)
             }
 
-            // Draw groups first (behind everything) with alpha
+            // The wires that only pass through a group, blurred, under the group's frosted area
+            withTransform({
+                scale(1f / scale, 1f / scale, Offset.Zero)
+                translate(-offset.x, -offset.y)
+                // Recorded at a lower resolution: drawn back at the screen's
+                scale(GLASS_LAYER_SCALE, GLASS_LAYER_SCALE, Offset.Zero)
+            }) {
+                if (anyUnderGlass) drawLayer(glassLayer)
+            }
+
+            // Groups' areas: frosted glass over the wires passing under them; their labels go above the wires
             animatedGroups.forEach { (group, alpha) ->
-                if (alpha > 0.01f) {
-                    drawGroup(
-                        group = group,
-                        colors = colors,
-                        alpha = alpha,
-                        showEditIcon = isEditMode,
-                        editIconDrawable = editIconDrawable
-                    )
+                if (alpha > 0.01f && onScreen(group.x, group.y, group.width, group.height)) {
+                    drawGroupArea(group = group, colors = colors, paints = paints, alpha = alpha)
                 }
             }
 
-            // Build node positions map for edge drawing
-            val nodePositionsMap = animatedNodes.associate { it.node.id to it.node }
-
-            // Draw edges with alpha
-            animatedEdges.forEach { (edge, alpha) ->
-                if (alpha > 0.01f) {
-                    drawEdge(
-                        edge = edge,
-                        nodesById = nodePositionsMap,
-                        colors = colors,
-                        router = edgeRouter,
-                        alpha = alpha,
-                        selectedNodeIds = selectedNodeIds,
-                        segmentTime = segmentTime.value,
-                        draggingNodeId = draggingNodeId,
-                        dragScale = dragScale.value
-                    )
+            // A level's Inputs and Outputs strips, of the same glass; their own wires go over them
+            portStrips.forEach { (node, alpha) ->
+                val inputs = SubgraphLevels.isInputsNode(node)
+                val types = if (inputs) node.outputs.map { it.type } else node.inputs.keys.map { key ->
+                    (node.inputs[key] as? InputValue.UnconnectedSlot)?.slotType ?: nodeDefinitions[node.classType]?.inputs?.find { it.name == key }?.type
                 }
+                drawPortStrip(
+                    node = node,
+                    word = if (inputs) inputsLabel else outputsLabel,
+                    addWord = addLabel,
+                    socketTypes = types,
+                    socketNames = if (inputs) node.outputs.map { it.name } else node.inputs.keys.toList(),
+                    colors = colors, paints = paints, icons = icons, alpha = alpha,
+                    spread = spread
+                )
             }
 
-            // Build a map of node ID -> (input name -> wire color) for connected inputs
-            val nodeInputColors: Map<String, Map<String, Int>> = buildMap {
+            // The wires, sharp outside the groups they pass under (their own groups' wires stay above the glass)
+            wireLayers.forEach { layer ->
+                layer.forEach { (edge, alpha) -> if (edge !in underGlass) drawWire(edge, alpha) }
+                // Wires under the same areas together, outside them
+                layer.filter { (edge, _) -> edge in underGlass }.groupBy { (edge, _) -> underGlass.getValue(edge) }
+                    .forEach { (areas, wires) -> outsideAreas(areas) { wires.forEach { (edge, alpha) -> drawWire(edge, alpha) } } }
+            }
+
+            // A port strip's icon, and toward the overview its block growing over its wires' ends, as a node's title
+            // bar spreads over its sockets
+            portStrips.forEach { (node, alpha) -> drawPortStripBlock(node, colors, paints, icons, alpha, spread) }
+
+            // Wire colour of each connected input (its wire's type), and the outputs that have a wire
+            val inputWireColors: Map<String, Map<String, Color>> = buildMap<String, MutableMap<String, Color>> {
                 graph.edges.forEach { edge ->
-                    val wireColor = edge.slotType?.let { colors.slotColors[it.uppercase()] }
-                        ?: colors.edgeColor
-                    val nodeColors = getOrPut(edge.targetNodeId) { mutableMapOf() }
-                    (nodeColors as MutableMap)[edge.targetInputName] = wireColor.toArgb()
+                    getOrPut(edge.targetNodeId) { mutableMapOf() }[edge.targetInputName] = colors.slot(edge.slotType)
+                }
+            }
+            val connectedOutputs: Set<Pair<String, Int>> = graph.edges.mapTo(HashSet()) { it.sourceNodeId to it.sourceOutputIndex }
+
+            // Groups' labels over the wires, so a wire never runs across one
+            animatedGroups.forEach { (group, alpha) ->
+                if (alpha > 0.01f && onScreen(group.x, group.y, group.width, group.height)) {
+                    drawGroupLabel(group = group, colors = colors, paints = paints, alpha = alpha, chipAlpha = 1f - spread)
                 }
             }
 
             // Draw nodes with alpha - sort by ID for consistent z-order (higher IDs on top)
             val sortedAnimatedNodes = animatedNodes.sortedBy { it.node.id }
             sortedAnimatedNodes.forEach { (node, alpha) ->
-                if (alpha > 0.01f) {
+                // A level's port strips are drawn with the groups; nodes off screen aren't drawn
+                if (alpha > 0.01f && !SubgraphLevels.isPortNode(node) && onScreen(node.x, node.y, node.width, node.height)) {
                     val highlightState = when {
                         // Mapping mode selection
                         isFieldMappingMode && node.id in mappingSelectedNodeIds -> NodeHighlightState.SELECTED
                         isFieldMappingMode && node.id in highlightedNodeIds -> NodeHighlightState.CANDIDATE
-                        // Connection mode - highlight valid target nodes
+                        // Connection mode - the node it starts from (findable when zoomed out), and valid target nodes
+                        inConnectionMode && node.id == connectionModeState?.sourceSlot?.nodeId -> NodeHighlightState.SELECTED
                         inConnectionMode && node.id in connectionCandidateNodeIds -> NodeHighlightState.CANDIDATE
                         // Edit mode selection
                         isEditMode && node.id in selectedNodeIds -> NodeHighlightState.SELECTED
@@ -1316,67 +1744,66 @@ fun WorkflowGraphCanvas(
                         else -> NodeHighlightState.NONE
                     }
 
-                    // Determine color pair - special handling for positive/negative prompts
-                    val titleLower = node.title.lowercase()
-                    val colorPair = when {
-                        titleLower.contains("positive") -> colors.positivePromptColors
-                        titleLower.contains("negative") -> colors.negativePromptColors
-                        else -> colors.categoryColors[node.category]
-                    }
-
                     // Get edits for this node
                     val nodeEdits = nodeAttributeEdits[node.id] ?: emptyMap()
+                    val nodeDefinition = nodeDefinitions[node.classType]
+                    // Node values mode only (not while editing the structure or mapping)
+                    val showChangedDot = !isEditMode && !isFieldMappingMode && nodeEdits.isNotEmpty() &&
+                        changedInputNames(node, nodeDefinition, nodeEdits).isNotEmpty()
+                    // The server lacks this node type (only known once the server's definitions are there)
+                    val isMissing = nodeDefinitions.isNotEmpty() && nodeDefinition == null
 
                     // Editable inputs are only highlighted when this node is being edited
                     val highlightEditableInputs = editingNodeId == node.id
 
-                    // Check if this node is being dragged (for scale effect)
-                    // Note: Position already includes dragOffset via animatedNodes
-                    val isDraggingThis = draggingNodeId == node.id
-
-                    // Draw with scale transform for dragging node
-                    if (isDraggingThis) {
-                        val nodeCenter = Offset(
-                            node.x + node.width / 2,
-                            node.y + node.height / 2
-                        )
-                        withTransform({
-                            scale(dragScale.value, dragScale.value, nodeCenter)
-                        }) {
+                    // The node being dragged is drawn lifted (its position already includes dragOffset)
+                    val nodeScale = if (draggingNodeId == node.id) dragScale.value else 1f
+                    withTransform({
+                        scale(nodeScale, nodeScale, Offset(node.x + node.width / 2, node.y + node.height / 2))
+                    }) {
+                        // Full detail until the title bar has covered the node; then only the block
+                        if (spread < 1f) {
                             drawNode(
                                 node = node,
                                 colors = colors,
+                                paints = paints,
+                                icons = icons,
                                 alpha = alpha,
                                 highlightState = highlightState,
-                                colorPair = colorPair,
+                                isMissing = isMissing,
                                 nodeEdits = nodeEdits,
-                                nodeDefinition = nodeDefinitions[node.classType],
+                                nodeDefinition = nodeDefinition,
                                 editableInputNames = if (highlightEditableInputs) editableInputNames else emptySet(),
-                                uiFieldPrefix = uiFieldPrefix,
                                 displayNameResolver = displayNameResolver,
-                                inputWireColors = nodeInputColors[node.id] ?: emptyMap(),
-                                showEditIcon = isEditMode,
-                                editIconDrawable = editIconDrawable,
-                                mappedFields = graph.mappedFields
+                                inputWireColors = inputWireColors[node.id] ?: emptyMap(),
+                                mappedFields = graph.mappedFields,
+                                showChangedDot = showChangedDot,
+                                instance = instanceTexts[node.id],
+                                shownInputs = shownOnInstance.filter { it.first == node.id }.mapTo(HashSet()) { it.second },
+                                off = offOf(node),
+                                // The badge only for a node bypassed itself, not for one inside a bypassed instance
+                                bypassedLabel = bypassedLabel.takeIf { node.isBypassed }
                             )
                         }
-                    } else {
-                        drawNode(
-                            node = node,
-                            colors = colors,
-                            alpha = alpha,
-                            highlightState = highlightState,
-                            colorPair = colorPair,
-                            nodeEdits = nodeEdits,
-                            nodeDefinition = nodeDefinitions[node.classType],
-                            editableInputNames = if (highlightEditableInputs) editableInputNames else emptySet(),
-                            uiFieldPrefix = uiFieldPrefix,
-                            displayNameResolver = displayNameResolver,
-                            inputWireColors = nodeInputColors[node.id] ?: emptyMap(),
-                            showEditIcon = isEditMode,
-                            editIconDrawable = editIconDrawable,
-                            mappedFields = graph.mappedFields
-                        )
+                        if (spread > 0f) {
+                            val (tint, titleColor) = titleBarColors(node, isMissing, colors)
+                            val off = offOf(node)
+                            drawTitleSpread(
+                                left = node.x, top = node.y, width = node.width, height = node.height,
+                                title = node.title, tint = tint, titleColor = if (off > 0f) lerp(titleColor, colors.outline, off) else titleColor,
+                                spread = spread, overviewTitleSize = overviewTitleSize,
+                                colors = colors, paints = paints, alpha = alpha,
+                                icon = if (node.isSubgraphInstance) icons.subgraph else null,
+                                // A bypassed block: the icon at its end, no word (spec §20.2)
+                                trailingIcon = if (node.isBypassed) icons.bypassed else null
+                            )
+                            if (spread >= 1f && highlightState != NodeHighlightState.NONE) {
+                                drawBlockSelection(
+                                    node.x, node.y, node.width, node.height, colors, alpha, minSelectionWidth,
+                                    candidate = highlightState == NodeHighlightState.CANDIDATE
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1389,41 +1816,39 @@ fun WorkflowGraphCanvas(
                     val originalNote = originalNotesById[note.id]
                     val heightBefore = originalNote?.height ?: 0f
                     val isSelected = note.id in selectedNoteIds
+                    // Off screen only measured (the layout needs its height; laid out once, so it's cheap)
+                    val shown = onScreen(note.x, note.y, note.width, maxOf(note.height, 1f))
 
-                    // Check if this note is being dragged (for scale effect)
-                    val isDraggingThis = draggingNoteId == note.id
-
-                    // Draw with scale transform for dragging note
-                    if (isDraggingThis) {
-                        val noteCenter = Offset(
-                            note.x + note.width / 2,
-                            note.y + note.height / 2
-                        )
-                        withTransform({
-                            scale(dragScale.value, dragScale.value, noteCenter)
-                        }) {
+                    // The note being dragged is drawn lifted
+                    val noteScale = if (draggingNoteId == note.id) dragScale.value else 1f
+                    withTransform({
+                        scale(noteScale, noteScale, Offset(note.x + note.width / 2, note.y + note.height / 2))
+                    }) {
+                        // Full detail (which also measures the note's height) until its title bar has covered it
+                        if (spread < 1f || !shown) {
                             drawNote(
                                 note = note,
                                 colors = colors,
+                                paints = paints,
                                 alpha = alpha,
                                 isSelected = isSelected,
-                                showEditIcon = isEditMode,
-                                editIconDrawable = editIconDrawable,
                                 textMeasurer = textMeasurer,
-                                density = density
+                                density = density,
+                                noteLayouts = noteLayouts,
+                                drawIt = shown
                             )
                         }
-                    } else {
-                        drawNote(
-                            note = note,
-                            colors = colors,
-                            alpha = alpha,
-                            isSelected = isSelected,
-                            showEditIcon = isEditMode,
-                            editIconDrawable = editIconDrawable,
-                            textMeasurer = textMeasurer,
-                            density = density
-                        )
+                        if (spread > 0f && shown) {
+                            drawTitleSpread(
+                                left = note.x, top = note.y, width = note.width, height = note.height,
+                                title = note.title, tint = colors.note, titleColor = colors.onNote,
+                                spread = spread, overviewTitleSize = overviewTitleSize,
+                                colors = colors, paints = paints, alpha = alpha
+                            )
+                            if (spread >= 1f && isSelected) {
+                                drawBlockSelection(note.x, note.y, note.width, note.height, colors, alpha, minSelectionWidth, candidate = false)
+                            }
+                        }
                     }
 
                     // Copy measured height back to original note for layout
@@ -1437,248 +1862,125 @@ fun WorkflowGraphCanvas(
                 noteHeightsChanged = true
             }
 
-            // Draw slot circles for connection editing
-            if (isEditMode) {
-                // Build a set of outputs connected to selected nodes
-                val outputsConnectedToSelected: Set<Pair<String, Int>> = buildSet {
-                    graph.edges.forEach { edge ->
-                        if (edge.sourceNodeId in selectedNodeIds || edge.targetNodeId in selectedNodeIds) {
-                            add(Pair(edge.sourceNodeId, edge.sourceOutputIndex))
-                        }
-                    }
+            // Sockets on the nodes' edges, in every mode: filled when connected, a ring when free; those the spreading
+            // title bar has covered are gone, so none in overview
+            // (a level's port strips too: in the overview they're plain blocks)
+            if (spread < 1f) animatedNodes.forEach { (node, nodeAlpha) ->
+                if (nodeAlpha <= 0.01f || !onScreen(node.x, node.y, node.width, node.height)) return@forEach
+                val scaleMultiplier = if (node.id == draggingNodeId) dragScale.value else 1f
+                val coveredTo = WorkflowLayoutEngine.NODE_HEADER_HEIGHT + (node.height - WorkflowLayoutEngine.NODE_HEADER_HEIGHT) * spread
+                val off = offOf(node)
+
+                node.outputs.forEachIndexed { outputIndex, output ->
+                    if (WorkflowLayoutEngine.outputSlotY(node, outputIndex) < coveredTo) return@forEachIndexed
+                    val position = scaleSocketPosition(
+                        node, node.x + node.width, node.y + WorkflowLayoutEngine.outputSlotY(node, outputIndex),
+                        draggingNodeId, dragScale.value
+                    )
+                    // The slot a connection starts from (tapped, or long-pressed with the node browser open)
+                    val isSource = (inConnectionMode &&
+                        connectionModeState?.direction == ConnectionDirection.OUTPUT_TO_INPUT &&
+                        connectionModeState.sourceSlot.nodeId == node.id &&
+                        connectionModeState.sourceSlot.outputIndex == outputIndex) ||
+                        (longPressSourceSlot?.nodeId == node.id && longPressSourceSlot.isOutput &&
+                            longPressSourceSlot.outputIndex == outputIndex)
+                    val add = SubgraphLevels.isPortNode(node) && SubgraphLevels.isAddSocket(output.name)
+                    drawSocket(
+                        center = position,
+                        color = if (isSource) colors.primary else (if (add) colors.onSurfaceVariant else colors.slot(output.type)).switchedOff(off, colors),
+                        connected = isSource || (node.id to outputIndex) in connectedOutputs,
+                        colors = colors,
+                        paints = paints,
+                        alpha = nodeAlpha,
+                        scale = scaleMultiplier,
+                        dashed = add
+                    )
                 }
 
-                // Draw output slots on all nodes (one per output) - use animatedNodes with alpha
-                animatedNodes.forEach { (node, nodeAlpha) ->
-                    val outputX = node.x + node.width
-
-                    node.outputs.forEachIndexed { outputIndex, output ->
-                        val outputY = node.y + calculateOutputY(node, outputIndex)
-
-                        // Scale socket position and radii for dragging node
-                        val scaledPosition = scaleSocketPosition(node, outputX, outputY, draggingNodeId, dragScale.value)
-                        val scaleMultiplier = if (node.id == draggingNodeId) dragScale.value else 1f
-
-                        // Check if this is the source slot in connection mode
-                        val isSourceSlot = inConnectionMode &&
-                                connectionModeState?.direction == ConnectionDirection.OUTPUT_TO_INPUT &&
-                                connectionModeState?.sourceSlot?.nodeId == node.id &&
-                                connectionModeState?.sourceSlot?.outputIndex == outputIndex
-
-                        // Check if this is the source slot for long-press connection (Node Browser open)
-                        val isLongPressSource = longPressSourceSlot?.nodeId == node.id &&
-                                longPressSourceSlot?.outputIndex == outputIndex
-
-                        // Check if this output is connected to a selected node
-                        val isConnectedToSelected = Pair(node.id, outputIndex) in outputsConnectedToSelected
-
-                        // Get slot color based on output type (keep original color, only source slot changes)
-                        val typeColor = colors.slotColors[output.type.uppercase()] ?: colors.edgeColor
-                        val slotColor = (when {
-                            isSourceSlot -> colors.selectedBorder
-                            isLongPressSource -> colors.candidateBorder
-                            else -> typeColor
-                        }).copy(alpha = nodeAlpha)
-
-                        // Use larger size if connected to selected or is source/long-press slot
-                        val outerRadius = when {
-                            isSourceSlot -> 14f
-                            isLongPressSource -> 16f  // Slightly larger for visibility
-                            isConnectedToSelected -> 15f
-                            else -> 10f
+                node.inputs.forEach { (inputName, inputValue) ->
+                    val isPickTarget = level == GraphDetailLevel.FULL &&
+                        valuePickTargets?.any { slot -> slot.nodeId == node.id && slot.slotName == inputName } == true
+                    // In Edit structure every value row that can take a link has a socket, as in ComfyUI (the owner's
+                    // choice over the spec's selected nodes only); while a connection waits, only its targets and source
+                    val valueSocketType = if (isPickTarget) {
+                        valueRowType(node, inputName, nodeDefinitions)
+                    } else if (inputValue is InputValue.Literal && isEditMode && level == GraphDetailLevel.FULL) {
+                        val isTarget = connectionModeState?.validTargetSlots?.any { slot -> slot.nodeId == node.id && slot.slotName == inputName } == true
+                        val isValueSource = connectionModeState?.sourceSlot?.let { slot -> !slot.isOutput && slot.nodeId == node.id && slot.slotName == inputName } == true
+                        when {
+                            isTarget || isValueSource -> linkableValueType(node, inputName, nodeDefinitions)
+                            // Without a connection waiting, every value has its socket: lists too, for their field menu
+                            connectionModeState == null -> valueRowType(node, inputName, nodeDefinitions)
+                            else -> null
                         }
-                        val innerRadius = when {
-                            isSourceSlot -> 6f
-                            isLongPressSource -> 0f  // Solid circle for long-press source
-                            isConnectedToSelected -> 9f
-                            else -> 6f
-                        }
-
-                        drawCircle(
-                            color = slotColor,
-                            radius = outerRadius * scaleMultiplier,
-                            center = scaledPosition
-                        )
-
-                        // Draw inner circle for contrast (not for source/long-press slots)
-                        if (!isSourceSlot && !isLongPressSource) {
-                            drawCircle(
-                                color = colors.nodeBackground.copy(alpha = nodeAlpha),
-                                radius = innerRadius * scaleMultiplier,
-                                center = scaledPosition
-                            )
-                        }
+                    } else null
+                    if (inputValue !is InputValue.Connection && inputValue !is InputValue.UnconnectedSlot && valueSocketType == null) return@forEach
+                    if (WorkflowLayoutEngine.inputSlotY(node, inputName) < coveredTo) return@forEach
+                    val position = scaleSocketPosition(
+                        node, node.x, node.y + WorkflowLayoutEngine.inputSlotY(node, inputName),
+                        draggingNodeId, dragScale.value
+                    )
+                    val isSource = (inConnectionMode &&
+                        connectionModeState?.direction == ConnectionDirection.INPUT_TO_OUTPUT &&
+                        connectionModeState.sourceSlot.nodeId == node.id &&
+                        connectionModeState.sourceSlot.slotName == inputName) ||
+                        (longPressSourceSlot?.nodeId == node.id && !longPressSourceSlot.isOutput &&
+                            longPressSourceSlot.slotName == inputName)
+                    val typeColor = when {
+                        valueSocketType != null -> colors.slot(valueSocketType)
+                        inputValue is InputValue.UnconnectedSlot -> colors.slot(inputValue.slotType)
+                        else -> inputWireColors[node.id]?.get(inputName) ?: colors.onSurfaceVariant
                     }
+                    val add = SubgraphLevels.isPortNode(node) && SubgraphLevels.isAddSocket(inputName)
+                    drawSocket(
+                        center = position,
+                        color = if (isSource) colors.primary else (if (add) colors.onSurfaceVariant else typeColor).switchedOff(off, colors),
+                        connected = isSource || inputValue is InputValue.Connection,
+                        colors = colors,
+                        paints = paints,
+                        alpha = nodeAlpha,
+                        scale = scaleMultiplier,
+                        dashed = add
+                    )
+                }
+            }
+
+            // Values that can be picked for a custom field: the same ring as a connection's targets (spec §18.3)
+            if (level == GraphDetailLevel.FULL) {
+                val ringRadius = NodeStyle.SOCKET_RADIUS + NodeStyle.SOCKET_HALO + NodeStyle.SELECTION_WIDTH / 2
+                valuePickTargets?.forEach { slot ->
+                    val node = graph.nodes.find { it.id == slot.nodeId } ?: return@forEach
+                    drawCircle(
+                        color = colors.primary,
+                        radius = ringRadius,
+                        center = Offset(node.x, node.y + WorkflowLayoutEngine.inputSlotY(node, slot.slotName)),
+                        style = Stroke(NodeStyle.SELECTION_WIDTH)
+                    )
+                }
+            }
+
+            // Connection feedback while editing (sockets can be tapped at full detail only)
+            if (isEditMode && level == GraphDetailLevel.FULL) {
+                // Compatible slots of a pending connection: a ring in primary around the socket
+                val ringRadius = NodeStyle.SOCKET_RADIUS + NodeStyle.SOCKET_HALO + NodeStyle.SELECTION_WIDTH / 2
+                connectionModeState?.validTargetSlots?.forEach { slot ->
+                    drawCircle(
+                        color = colors.primary,
+                        radius = ringRadius,
+                        center = slot.center,
+                        style = Stroke(NodeStyle.SELECTION_WIDTH)
+                    )
                 }
 
-                // Build a set of inputs connected to selected nodes
-                val inputsConnectedToSelected: Set<Pair<String, String>> = buildSet {
-                    graph.edges.forEach { edge ->
-                        if (edge.sourceNodeId in selectedNodeIds || edge.targetNodeId in selectedNodeIds) {
-                            add(Pair(edge.targetNodeId, edge.targetInputName))
-                        }
-                    }
-                }
-
-                // Draw input slots for connection-type inputs on all nodes - use animatedNodes with alpha
-                animatedNodes.forEach { (node, nodeAlpha) ->
-                    var inputIndex = 0
-                    node.inputs.forEach { (inputName, inputValue) ->
-                        val isConnectionInput =
-                            inputValue is InputValue.Connection || inputValue is InputValue.UnconnectedSlot
-
-                        if (isConnectionInput) {
-                            val inputX = node.x
-                            val inputY = node.y + WorkflowLayoutEngine.NODE_HEADER_HEIGHT + 20f +
-                                    (inputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
-
-                            // Scale socket position and radii for dragging node
-                            val scaledPosition = scaleSocketPosition(node, inputX, inputY, draggingNodeId, dragScale.value)
-                            val scaleMultiplier = if (node.id == draggingNodeId) dragScale.value else 1f
-
-                            // Check if this is the source slot in reverse connection mode (INPUT_TO_OUTPUT)
-                            val isSourceSlot = inConnectionMode &&
-                                    connectionModeState?.direction == ConnectionDirection.INPUT_TO_OUTPUT &&
-                                    connectionModeState?.sourceSlot?.nodeId == node.id &&
-                                    connectionModeState?.sourceSlot?.slotName == inputName
-
-                            // Check if this is the source slot for long-press connection (Node Browser open)
-                            val isLongPressSource = longPressSourceSlot?.nodeId == node.id &&
-                                    longPressSourceSlot?.isOutput == false &&
-                                    longPressSourceSlot?.slotName == inputName
-
-                            // Check if this input is connected to a selected node
-                            val isConnectedToSelected = Pair(node.id, inputName) in inputsConnectedToSelected
-
-                            // Get slot color - use wire color for connected inputs, slot type for unconnected
-                            val typeColor = when (inputValue) {
-                                is InputValue.Connection -> {
-                                    // Use the wire color from the connected edge
-                                    nodeInputColors[node.id]?.get(inputName)?.let { Color(it) } ?: colors.edgeColor
-                                }
-                                is InputValue.UnconnectedSlot -> {
-                                    inputValue.slotType?.let { colors.slotColors[it.uppercase()] } ?: colors.edgeColor
-                                }
-                                else -> colors.edgeColor
-                            }
-                            val slotColor = (when {
-                                isSourceSlot -> colors.selectedBorder
-                                isLongPressSource -> colors.candidateBorder
-                                else -> typeColor
-                            }).copy(alpha = nodeAlpha)
-
-                            // Use larger size if connected to selected or is source/long-press slot
-                            val outerRadius = when {
-                                isSourceSlot -> 14f
-                                isLongPressSource -> 16f  // Slightly larger for visibility
-                                isConnectedToSelected -> 15f
-                                else -> 10f
-                            }
-                            val innerRadius = when {
-                                isSourceSlot -> 6f
-                                isLongPressSource -> 0f  // Solid circle for long-press source
-                                isConnectedToSelected -> 9f
-                                else -> 6f
-                            }
-
-                            drawCircle(
-                                color = slotColor,
-                                radius = outerRadius * scaleMultiplier,
-                                center = scaledPosition
-                            )
-
-                            // Draw inner circle for contrast (not for source/long-press slots)
-                            if (!isSourceSlot && !isLongPressSource) {
-                                drawCircle(
-                                    color = colors.nodeBackground.copy(alpha = nodeAlpha),
-                                    radius = innerRadius * scaleMultiplier,
-                                    center = scaledPosition
-                                )
-                            }
-                        }
-                        inputIndex++
-                    }
-                }
-
-                // Draw highlighted valid input slots when in connection mode
-                if (inConnectionMode) {
-                    val glowValue = glowPulse.value
-                    connectionModeState?.validTargetSlots?.forEach { slot ->
-                        // Draw pulsing glow effect around the input slot
-                        // glowValue ranges from 0 to 1, animating the glow intensity
-                        val baseAlpha = 0.3f + (glowValue * 0.4f)  // Alpha pulses between 0.3 and 0.7
-
-                        // Outer glow layer (largest, most transparent) - matches long-press glow size
-                        val outerGlowRadius = 15f + (glowValue * 35f)  // 15 -> 50
-                        drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.3f),
-                            radius = outerGlowRadius,
-                            center = slot.center
-                        )
-
-                        // Middle glow layer
-                        val midGlowRadius = 12f + (glowValue * 20f)  // 12 -> 32
-                        drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.5f),
-                            radius = midGlowRadius,
-                            center = slot.center
-                        )
-
-                        // Inner glow layer (smallest, most opaque)
-                        val innerGlowRadius = 10f + (glowValue * 10f)  // 10 -> 20
-                        drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.8f),
-                            radius = innerGlowRadius,
-                            center = slot.center
-                        )
-
-                        // Draw the actual input slot (solid circle with hole)
-                        // Pulse the socket color for brightness effect (towards white in dark mode, black in light mode)
-                        // Size matches highlighted output circle (14f)
-                        val pulseTargetColor = if (colors.isDarkTheme) Color.White else Color.Black
-                        val socketColor = lerp(colors.candidateBorder, pulseTargetColor, glowValue * 0.5f)
-                        drawCircle(
-                            color = socketColor,
-                            radius = 14f,
-                            center = slot.center
-                        )
-                        drawCircle(
-                            color = colors.nodeBackground,
-                            radius = 7f,
-                            center = slot.center
-                        )
-                    }
-                }
-
-                // Draw expanding glow during long-press gesture
+                // Long-press on a slot: the ring grows until the press counts
                 longPressSlot?.let { slot ->
-                    val progress = longPressProgress.value
-                    if (progress > 0f) {
-                        // Three-layer expanding glow effect (sized to be visible under finger)
-                        val baseAlpha = 0.3f + (progress * 0.4f)  // 0.3 -> 0.7
-
-                        // Outer glow - expands significantly
-                        val outerRadius = 30f + (progress * 70f)  // 30 -> 100
+                    val pressProgress = longPressProgress.value
+                    if (pressProgress > 0f) {
                         drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.3f),
-                            radius = outerRadius,
-                            center = slot.center
-                        )
-
-                        // Middle glow
-                        val midRadius = 24f + (progress * 40f)  // 24 -> 64
-                        drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.5f),
-                            radius = midRadius,
-                            center = slot.center
-                        )
-
-                        // Inner glow
-                        val innerRadius = 20f + (progress * 20f)  // 20 -> 40
-                        drawCircle(
-                            color = colors.candidateBorder.copy(alpha = baseAlpha * 0.8f),
-                            radius = innerRadius,
-                            center = slot.center
+                            color = colors.primary,
+                            radius = ringRadius + pressProgress * 24f,
+                            center = slot.center,
+                            style = Stroke(NodeStyle.SELECTION_WIDTH)
                         )
                     }
                 }
@@ -1687,406 +1989,477 @@ fun WorkflowGraphCanvas(
     }
 }
 
+/** The level of detail at [scale], with hysteresis (see [GraphDetailLevel.next]); the editor's status uses it too. */
+@Composable
+fun rememberGraphDetailLevel(scale: Float): GraphDetailLevel {
+    val density = LocalDensity.current.density
+    // The previous level, read and replaced as the scale changes: not state, the scale drives recomposition
+    val previous = remember { arrayOfNulls<GraphDetailLevel>(1) }
+    return GraphDetailLevel.next(GraphDetailLevel.specZoom(scale, density), previous[0]).also { previous[0] = it }
+}
+
+/** A node's title bar colours: its tint (neutral when muted or bypassed, error when the server lacks it) and text. */
+private fun titleBarColors(node: WorkflowNode, isMissing: Boolean, colors: CanvasColors): Pair<Color, Color> = when {
+    isMissing -> colors.errorContainer to colors.onErrorContainer
+    // A subgraph instance keeps its frame's colour whatever its state (the badge tells it)
+    node.isSubgraphInstance -> colors.instanceFrame to colors.onInstanceFrame
+    node.isMuted || node.isBypassed -> colors.neutralTint to colors.onSurface
+    else -> (colors.palette.titleTintOf(node) ?: colors.neutralTint) to colors.onSurface
+}
+
 /**
- * Draw a single node
+ * The title bar of a node or note spreading over all of it toward the overview (spec §12.6), and back. Its title
+ * (the one the user gave it) follows: from the top to the middle, from its own size to the overview's, on two lines
+ * once the bar has room for them. [spread] 0 is full detail (nothing drawn here), 1 the overview block, which then
+ * carries the light theme's shadow instead of the node.
+ */
+private fun DrawScope.drawTitleSpread(
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    title: String,
+    tint: Color,
+    titleColor: Color,
+    spread: Float,
+    overviewTitleSize: Float,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    alpha: Float,
+    // Before the title, at its size (a subgraph instance's block)
+    icon: VectorPainter? = null,
+    // At the block's end, at the title's size, in onSurfaceVariant (a bypassed node's block, spec §20.2)
+    trailingIcon: VectorPainter? = null
+) {
+    if (alpha <= 0.01f) return
+    val header = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
+    val corner = NodeStyle.CORNER
+    val barHeight = header + (height - header) * spread
+    if (spread >= 1f && !colors.isDark) {
+        paints.shadow.color = tint.copy(alpha = alpha).toArgb()
+        paints.shadow.setElevationShadow(colors, alpha)
+        drawContext.canvas.nativeCanvas.drawRoundRect(left, top, left + width, top + height, corner, corner, paints.shadow)
+    } else {
+        // The bar's bottom corners round off as it reaches the node's rounded bottom
+        val bottomCorner = CornerRadius((corner - (height - barHeight)).coerceAtLeast(0f))
+        drawPath(
+            path = Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        left = left, top = top, right = left + width, bottom = top + barHeight,
+                        topLeftCornerRadius = CornerRadius(corner), topRightCornerRadius = CornerRadius(corner),
+                        bottomRightCornerRadius = bottomCorner, bottomLeftCornerRadius = bottomCorner
+                    )
+                )
+            },
+            color = tint.copy(alpha = alpha)
+        )
+    }
+
+    val padding = NodeStyle.TITLE_PADDING
+    val paint = paints.blockTitle.apply {
+        textSize = NodeStyle.TITLE_TEXT + (overviewTitleSize - NodeStyle.TITLE_TEXT) * spread
+        color = titleColor.copy(alpha = alpha).toArgb()
+    }
+    val lineHeight = paint.fontSpacing
+    val iconSize = if (icon != null) paint.textSize else 0f
+    val iconSpace = if (icon != null) iconSize + paint.textSize * 0.4f else 0f
+    val trailingSize = paint.textSize * 1.2f
+    val trailingSpace = if (trailingIcon != null) trailingSize + paint.textSize * 0.4f else 0f
+    val textWidth = width - 2 * padding - iconSpace - trailingSpace
+    val lines = if (barHeight - 2 * padding >= 2 * lineHeight) {
+        wrapTwoLines(title, textWidth, paint)
+    } else {
+        listOf(ellipsizeEnd(title, textWidth, paint))
+    }
+    val firstCenter = top + barHeight / 2 - (lines.size - 1) * lineHeight / 2
+    if (icon != null) {
+        translate(left + padding, firstCenter - iconSize / 2) {
+            with(icon) { draw(Size(iconSize, iconSize), alpha = alpha, colorFilter = ColorFilter.tint(titleColor)) }
+        }
+    }
+    lines.forEachIndexed { index, line ->
+        drawContext.canvas.nativeCanvas.drawText(line, left + padding + iconSpace, paint.baselineFor(firstCenter + index * lineHeight), paint)
+    }
+    if (trailingIcon != null) {
+        translate(left + width - padding - trailingSize, top + barHeight / 2 - trailingSize / 2) {
+            with(trailingIcon) { draw(Size(trailingSize, trailingSize), alpha = alpha, colorFilter = ColorFilter.tint(colors.onSurfaceVariant)) }
+        }
+    }
+}
+
+/**
+ * A colour of a switched-off node's content (spec §20, without transparency as the owner chose): text toward
+ * `outline`, closer to the body, [off] of the way; sockets and marks toward `outlineVariant`.
+ */
+private fun Color.switchedOff(off: Float, colors: CanvasColors, text: Boolean = false): Color =
+    if (off <= 0f) this else lerp(this, if (text) colors.outline else colors.outlineVariant, off)
+
+/** Selection of an overview block: as at full detail, at least 2 dp on screen; candidates dashed. */
+private fun DrawScope.drawBlockSelection(
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    colors: CanvasColors,
+    alpha: Float,
+    minWidth: Float,
+    candidate: Boolean
+) {
+    val strokeWidth = maxOf(NodeStyle.SELECTION_WIDTH, minWidth)
+    val outset = NodeStyle.SELECTION_GAP + strokeWidth / 2
+    drawRoundRect(
+        color = colors.primary.copy(alpha = alpha),
+        topLeft = Offset(left - outset, top - outset),
+        size = Size(width + 2 * outset, height + 2 * outset),
+        cornerRadius = CornerRadius(NodeStyle.CORNER + outset),
+        style = Stroke(
+            width = strokeWidth,
+            pathEffect = if (candidate) PathEffect.dashPathEffect(floatArrayOf(3 * strokeWidth, 2 * strokeWidth)) else null
+        )
+    )
+}
+
+/** [text] on at most two lines of [maxWidth], broken between words, the second cut with "…" when it doesn't fit. */
+private fun wrapTwoLines(text: String, maxWidth: Float, paint: Paint): List<String> {
+    if (paint.measureText(text) <= maxWidth) return listOf(text)
+    val words = text.split(' ').filter { it.isNotEmpty() }
+    var first = ""
+    var used = 0
+    for (word in words) {
+        val candidate = if (first.isEmpty()) word else "$first $word"
+        if (paint.measureText(candidate) > maxWidth) break
+        first = candidate
+        used++
+    }
+    // A first word too long for the line: cut it there
+    if (used == 0) return listOf(ellipsizeEnd(text, maxWidth, paint))
+    val rest = words.drop(used).joinToString(" ")
+    return listOf(first, ellipsizeEnd(rest, maxWidth, paint)).filter { it.isNotEmpty() }
+}
+
+/**
+ * A node (spec §12.3): rounded, no outline, a title bar in its tint, rows of input labels (in their slot colour),
+ * widget values as pills (literal ones neutral, ones the generation screen fills tonal with a link icon) and output
+ * labels. Sockets are drawn separately, over everything ([drawSocket]).
  */
 private fun DrawScope.drawNode(
     node: WorkflowNode,
     colors: CanvasColors,
+    paints: GraphPaints,
+    icons: GraphIcons,
     alpha: Float = 1f,
     highlightState: NodeHighlightState = NodeHighlightState.NONE,
-    colorPair: SlotColors.NodeColorPair? = null,
+    isMissing: Boolean = false,
     nodeEdits: Map<String, Any> = emptyMap(),
     nodeDefinition: NodeTypeDefinition? = null,
     editableInputNames: Set<String> = emptySet(),
-    uiFieldPrefix: String = "UI: %1\$s",
     displayNameResolver: (String) -> String = { it },
-    inputWireColors: Map<String, Int> = emptyMap(),
-    showEditIcon: Boolean = false,
-    editIconDrawable: Drawable? = null,
-    mappedFields: Map<Pair<String, String>, String> = emptyMap()
+    inputWireColors: Map<String, Color> = emptyMap(),
+    mappedFields: Map<Pair<String, String>, String> = emptyMap(),
+    // Node values: a dot after the title when a value differs from the workflow's
+    showChangedDot: Boolean = false,
+    // A subgraph instance: drawn as a frame around its body, with its Open button (spec §19.1)
+    instance: InstanceText? = null,
+    // Inside a subgraph: values its instance shows, marked after their names (spec §19.3)
+    shownInputs: Set<String> = emptySet(),
+    // How switched off its content looks (spec §20): 0 on, 1 bypassed; [bypassedLabel] its badge's word
+    off: Float = 0f,
+    bypassedLabel: String? = null
 ) {
+    fun Color.faded() = copy(alpha = this.alpha * alpha)
+    fun Color.offText() = switchedOff(off, colors, text = true)
+    fun Color.offMark() = switchedOff(off, colors)
+
     val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-    val cornerRadius = 16f
+    val left = node.x
+    val top = node.y
+    val right = node.x + node.width
+    val bottom = node.y + node.height
 
-    // Helper to apply alpha to a color
-    fun Color.withAlpha() = this.copy(alpha = this.alpha * alpha)
-
-    // Use color pair for header and body if available, otherwise use defaults
-    val baseHeaderColor = (colorPair?.header ?: colors.nodeHeaderBackground).withAlpha()
-    val baseBodyColor = (colorPair?.body ?: colors.nodeBackground).withAlpha()
-
-    // Determine border color and width based on highlight state
-    // For NONE state, use a toned border matching the node's header color
-    // In dark mode, lighten the border; in light mode, use header color directly
-    val tonedBorderColor = if (colors.isDarkTheme) {
-        lerp(baseHeaderColor, Color.White, 0.3f)
-    } else {
-        baseHeaderColor.copy(alpha = 0.9f * alpha)
+    // A missing type, a muted or a bypassed node: a neutral (or error) title bar and a badge; the body stays as it is.
+    // A subgraph instance keeps its frame in every state (the badge tells it)
+    val (titleBar, titleText, badge) = when {
+        instance != null && node.isMuted -> Triple(colors.instanceFrame, colors.onInstanceFrame, icons.muted)
+        instance != null && node.isBypassed -> Triple(colors.instanceFrame, colors.onInstanceFrame, null)
+        instance != null -> Triple(colors.instanceFrame, colors.onInstanceFrame, null)
+        isMissing -> Triple(colors.errorContainer, colors.onErrorContainer, icons.missing)
+        node.isMuted -> Triple(colors.neutralTint, colors.onSurface, icons.muted)
+        node.isBypassed -> Triple(colors.neutralTint, colors.onSurface, null)
+        else -> Triple(colors.palette.titleTintOf(node) ?: colors.neutralTint, colors.onSurface, null)
     }
-    val (borderColor, borderWidth) = when (highlightState) {
-        NodeHighlightState.SELECTED -> colors.selectedBorder.withAlpha() to 8f
-        NodeHighlightState.CANDIDATE -> colors.candidateBorder.withAlpha() to 6f
-        NodeHighlightState.NONE -> tonedBorderColor to 3f
+    val badgeColor = when {
+        instance != null -> colors.onInstanceFrame
+        isMissing -> colors.onErrorContainer
+        else -> colors.onSurfaceVariant
     }
 
-    // Apply bypass dimming effect - lerp towards black (dark mode) or white (light mode)
-    val (headerColor, bodyColor, actualBorderColor) = if (node.isBypassed) {
-        val dimTarget = if (colors.isDarkTheme) Color.Black else Color.White
-        Triple(
-            lerp(baseHeaderColor, dimTarget, 0.6f),
-            lerp(baseBodyColor, dimTarget, 0.6f),
-            lerp(borderColor, dimTarget, 0.6f)
+    if (instance != null) {
+        // A rounded rectangle in a rounded rectangle: the frame (its top the title row, a thin bezel around the rest)
+        // and inside it the body
+        val corner = NodeStyle.INSTANCE_CORNER
+        if (colors.isDark) {
+            drawRoundRect(color = colors.instanceFrame.faded(), topLeft = Offset(left, top), size = Size(node.width, node.height), cornerRadius = CornerRadius(corner))
+        } else {
+            paints.shadow.color = colors.instanceFrame.faded().toArgb()
+            paints.shadow.setElevationShadow(colors, alpha)
+            drawContext.canvas.nativeCanvas.drawRoundRect(left, top, right, bottom, corner, corner, paints.shadow)
+        }
+        val bezel = NodeStyle.INSTANCE_BEZEL
+        drawRoundRect(
+            color = colors.nodeBody.faded(),
+            topLeft = Offset(left + bezel, top + headerHeight),
+            size = Size(node.width - 2 * bezel, node.height - headerHeight - bezel),
+            cornerRadius = CornerRadius(NodeStyle.INSTANCE_INNER_CORNER)
         )
     } else {
-        Triple(baseHeaderColor, baseBodyColor, borderColor)
+        // Body; in the light theme with a soft shadow (elevation 1), as white nodes need it on the light canvas
+        if (colors.isDark) {
+            drawRoundRect(
+                color = colors.nodeBody.faded(),
+                topLeft = Offset(left, top),
+                size = Size(node.width, node.height),
+                cornerRadius = CornerRadius(NodeStyle.CORNER)
+            )
+        } else {
+            paints.shadow.color = colors.nodeBody.faded().toArgb()
+            paints.shadow.setElevationShadow(colors, alpha)
+            drawContext.canvas.nativeCanvas.drawRoundRect(
+                left, top, right, bottom, NodeStyle.CORNER, NodeStyle.CORNER, paints.shadow
+            )
+        }
+
+        // Title bar: the top of the node's shape
+        drawPath(
+            path = Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        left = left, top = top, right = right, bottom = top + headerHeight,
+                        topLeftCornerRadius = CornerRadius(NodeStyle.CORNER),
+                        topRightCornerRadius = CornerRadius(NodeStyle.CORNER),
+                        bottomRightCornerRadius = CornerRadius.Zero,
+                        bottomLeftCornerRadius = CornerRadius.Zero
+                    )
+                )
+            },
+            color = titleBar.faded()
+        )
     }
 
-    // Create clip path for the entire node shape
-    val nodeClipPath = Path().apply {
-        addRoundRect(
-            RoundRect(
-                left = node.x,
-                top = node.y,
-                right = node.x + node.width,
-                bottom = node.y + node.height,
-                cornerRadius = CornerRadius(cornerRadius)
+    // Title (a subgraph instance's after its icon), leaving room for the changed dot and the badge
+    val titleCenterY = top + headerHeight / 2
+    val iconSpace = if (instance != null) NodeStyle.ICON + NodeStyle.ICON_GAP else 0f
+    if (instance != null) {
+        translate(left + NodeStyle.TITLE_PADDING, titleCenterY - NodeStyle.ICON / 2) {
+            with(icons.subgraph) { draw(Size(NodeStyle.ICON, NodeStyle.ICON), alpha = alpha, colorFilter = ColorFilter.tint(titleText)) }
+        }
+    }
+    val dotSpace = if (showChangedDot) 12f + 2 * NodeStyle.CHANGED_DOT_RADIUS else 0f
+    // A bypassed node's badge: a chip in the body's colour, at full strength (spec §20.1)
+    val chipPaint = paints.badge.apply { color = colors.onSurfaceVariant.faded().toArgb() }
+    val chipWidth = bypassedLabel?.let { NodeStyle.CHIP_PADDING_START + NodeStyle.CHIP_ICON + NodeStyle.CHIP_GAP + chipPaint.measureText(it) + NodeStyle.CHIP_PADDING_END }
+    val badgeSpace = (if (badge != null) NodeStyle.BADGE + 12f else 0f) + (chipWidth?.let { it + 12f } ?: 0f)
+    val titlePaint = paints.title.apply { color = titleText.offText().faded().toArgb() }
+    val title = ellipsizeEnd(node.title, node.width - 2 * NodeStyle.TITLE_PADDING - iconSpace - dotSpace - badgeSpace, titlePaint)
+    val nativeCanvas = drawContext.canvas.nativeCanvas
+    nativeCanvas.drawText(title, left + NodeStyle.TITLE_PADDING + iconSpace, titlePaint.baselineFor(titleCenterY), titlePaint)
+    if (showChangedDot) {
+        drawCircle(
+            color = colors.primary.offMark().faded(),
+            radius = NodeStyle.CHANGED_DOT_RADIUS,
+            center = Offset(
+                left + NodeStyle.TITLE_PADDING + iconSpace + titlePaint.measureText(title) + 12f + NodeStyle.CHANGED_DOT_RADIUS,
+                titleCenterY
             )
         )
     }
-
-    // Node background (body) - use category body color
-    drawRoundRect(
-        color = bodyColor,
-        topLeft = Offset(node.x, node.y),
-        size = Size(node.width, node.height),
-        cornerRadius = CornerRadius(cornerRadius)
-    )
-
-    // Header background - clipped to node shape so corners are rounded
-    clipPath(nodeClipPath) {
-        drawRect(
-            color = headerColor,
-            topLeft = Offset(node.x, node.y),
-            size = Size(node.width, headerHeight)
+    if (badge != null) {
+        translate(right - NodeStyle.TITLE_PADDING - NodeStyle.BADGE, titleCenterY - NodeStyle.BADGE / 2) {
+            with(badge) {
+                draw(Size(NodeStyle.BADGE, NodeStyle.BADGE), alpha = alpha, colorFilter = ColorFilter.tint(badgeColor))
+            }
+        }
+    }
+    if (bypassedLabel != null && chipWidth != null) {
+        val chipLeft = right - NodeStyle.TITLE_PADDING - chipWidth
+        drawRoundRect(
+            color = colors.nodeBody.faded(),
+            topLeft = Offset(chipLeft, titleCenterY - NodeStyle.CHIP_HEIGHT / 2),
+            size = Size(chipWidth, NodeStyle.CHIP_HEIGHT),
+            cornerRadius = CornerRadius(NodeStyle.CHIP_HEIGHT / 2)
+        )
+        translate(chipLeft + NodeStyle.CHIP_PADDING_START, titleCenterY - NodeStyle.CHIP_ICON / 2) {
+            with(icons.bypassed) {
+                draw(Size(NodeStyle.CHIP_ICON, NodeStyle.CHIP_ICON), alpha = alpha, colorFilter = ColorFilter.tint(colors.onSurfaceVariant))
+            }
+        }
+        nativeCanvas.drawText(
+            bypassedLabel,
+            chipLeft + NodeStyle.CHIP_PADDING_START + NodeStyle.CHIP_ICON + NodeStyle.CHIP_GAP,
+            chipPaint.baselineFor(titleCenterY),
+            chipPaint
         )
     }
 
-    // Node border
-    drawRoundRect(
-        color = actualBorderColor,
-        topLeft = Offset(node.x, node.y),
-        size = Size(node.width, node.height),
-        cornerRadius = CornerRadius(cornerRadius),
-        style = Stroke(width = borderWidth)
-    )
+    // Input rows: connection inputs as labels in their slot colour, widgets as a name and a value pill
+    val rowLeft = left + NodeStyle.ROW_PADDING
+    val rowRight = right - NodeStyle.ROW_PADDING
+    node.inputs.entries.forEachIndexed { rowIndex, (name, value) ->
+        val centerY = top + WorkflowLayoutEngine.rowCenterY(rowIndex)
+        val editable = name in editableInputNames
+        val labelPaint = if (editable) paints.labelStrong else paints.label
 
-    // Header separator line - use header color for consistency
-    drawLine(
-        color = headerColor.copy(alpha = 0.6f),
-        start = Offset(node.x, node.y + headerHeight),
-        end = Offset(node.x + node.width, node.y + headerHeight),
-        strokeWidth = 2f
-    )
+        if (value !is InputValue.Literal) {
+            val slotColor = when (value) {
+                is InputValue.UnconnectedSlot -> colors.slot(value.slotType)
+                else -> inputWireColors[name] ?: colors.onSurfaceVariant
+            }
+            labelPaint.color = (if (editable) colors.primary else slotColor).offText().faded().toArgb()
+            // Half the width: an output's label may share the row
+            val label = ellipsizeEnd(instance?.labels?.get(name) ?: Subgraphs.displayName(name), node.width / 2 - NodeStyle.ROW_PADDING, labelPaint)
+            nativeCanvas.drawText(label, rowLeft, labelPaint.baselineFor(centerY), labelPaint)
+            return@forEachIndexed
+        }
 
-    // Draw text using native canvas
-    // Dim text colors for bypassed nodes, and apply alpha
-    val dimTarget = if (colors.isDarkTheme) Color.Black else Color.White
-    val textPrimaryArgb = if (node.isBypassed) {
-        lerp(colors.textPrimary, dimTarget, 0.5f).withAlpha().toArgb()
-    } else {
-        colors.textPrimary.withAlpha().toArgb()
+        // The value shown: an edit, else the workflow's own (an empty one is the definition's default)
+        val inputDefinition = nodeDefinition?.inputs?.find { it.name == name }
+        val originalValue = value.value.takeUnless { it == "" } ?: inputDefinition?.getEffectiveDefault()
+        val editedValue = nodeEdits[name]
+        val currentValue = editedValue ?: originalValue
+        val isEdited = editedValue != null && !valuesEqual(editedValue, originalValue, inputDefinition?.type)
+        val linkedField = linkedFieldName(currentValue, node.id, name, mappedFields, displayNameResolver)
+
+        // The pill: at most 60 % of the node, so the name keeps room
+        val pillText = linkedField ?: currentValue?.let { formatPillValue(it) }
+        var pillLeft = rowRight
+        if (pillText != null) {
+            val pillPaint = if (isEdited && linkedField == null) paints.pillStrong else paints.pill
+            val iconSpace = if (linkedField != null) NodeStyle.PILL_ICON + NodeStyle.PILL_ICON_GAP else 0f
+            val maxText = node.width * 0.6f - NodeStyle.ROW_PADDING - 2 * NodeStyle.PILL_PADDING - iconSpace
+            val text = ellipsizeMiddle(pillText, maxText, pillPaint)
+            val pillWidth = pillPaint.measureText(text) + 2 * NodeStyle.PILL_PADDING + iconSpace
+            pillLeft = rowRight - pillWidth
+            val pillTop = centerY - NodeStyle.PILL_HEIGHT / 2
+            val (container, content) = when {
+                linkedField != null -> lerp(colors.linkedPill, colors.pill, off) to colors.onLinkedPill.offText()
+                isEdited -> colors.pill to colors.primary.offText()
+                else -> colors.pill to colors.onSurface.offText()
+            }
+            drawRoundRect(
+                color = container.faded(),
+                topLeft = Offset(pillLeft, pillTop),
+                size = Size(pillWidth, NodeStyle.PILL_HEIGHT),
+                cornerRadius = CornerRadius(NodeStyle.PILL_HEIGHT / 2)
+            )
+            var textLeft = pillLeft + NodeStyle.PILL_PADDING
+            if (linkedField != null) {
+                translate(textLeft, centerY - NodeStyle.PILL_ICON / 2) {
+                    with(icons.link) {
+                        draw(Size(NodeStyle.PILL_ICON, NodeStyle.PILL_ICON), alpha = alpha, colorFilter = ColorFilter.tint(content))
+                    }
+                }
+                textLeft += iconSpace
+            }
+            pillPaint.color = content.faded().toArgb()
+            nativeCanvas.drawText(text, textLeft, pillPaint.baselineFor(centerY), pillPaint)
+        }
+
+        labelPaint.color = (if (editable) colors.primary else colors.onSurfaceVariant).offText().faded().toArgb()
+        // A value shown from inside a subgraph by its label (spec §19.1), else by its own name without its path
+        val shown = name in shownInputs
+        val markSpace = if (shown) NodeStyle.SHOWN_MARK + NodeStyle.PILL_ICON_GAP else 0f
+        val label = ellipsizeEnd(instance?.labels?.get(name) ?: Subgraphs.displayName(name), pillLeft - rowLeft - 16f - markSpace, labelPaint)
+        nativeCanvas.drawText(label, rowLeft, labelPaint.baselineFor(centerY), labelPaint)
+        if (shown) {
+            translate(rowLeft + labelPaint.measureText(label) + NodeStyle.PILL_ICON_GAP, centerY - NodeStyle.SHOWN_MARK / 2) {
+                with(icons.shown) {
+                    draw(Size(NodeStyle.SHOWN_MARK, NodeStyle.SHOWN_MARK), alpha = alpha, colorFilter = ColorFilter.tint(colors.onSurfaceVariant.offMark()))
+                }
+            }
+        }
     }
-    val textSecondaryArgb = if (node.isBypassed) {
-        lerp(colors.textSecondary, dimTarget, 0.5f).withAlpha().toArgb()
-    } else {
-        colors.textSecondary.withAlpha().toArgb()
+
+    // Output rows: labels at the end, in their slot colour, beside the connection inputs
+    node.outputs.forEachIndexed { outputIndex, output ->
+        val centerY = top + WorkflowLayoutEngine.outputSlotY(node, outputIndex)
+        val paint = paints.label.apply { color = colors.slot(output.type).offText().faded().toArgb() }
+        val label = ellipsizeEnd(output.name, node.width / 2 - NodeStyle.ROW_PADDING, paint)
+        nativeCanvas.drawText(label, rowRight - paint.measureText(label), paint.baselineFor(centerY), paint)
     }
-    val templateHighlightArgb = if (node.isBypassed) {
-        lerp(colors.templateTextHighlight, dimTarget, 0.5f).withAlpha().toArgb()
-    } else {
-        colors.templateTextHighlight.withAlpha().toArgb()
-    }
-    val headerColorArgb = headerColor.toArgb()
-    val drawableAlpha = (alpha * 255).toInt()
 
-    drawContext.canvas.nativeCanvas.apply {
-        // Title text - leave space for icons if shown (edit + bypass = 2 icons)
-        val titleMaxWidth = if (showEditIcon) node.width - 104f else node.width - 32f
-        val titlePaint = Paint().apply {
-            color = textPrimaryArgb
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-        }
-        val title = truncateText(node.title, titleMaxWidth, titlePaint)
-        drawText(title, node.x + 16f, node.y + 40f, titlePaint)
+    if (instance != null) drawOpenButton(node, instance, colors, paints, icons, alpha)
 
-        // Draw icons in top-right corner of header when in edit mode
-        if (showEditIcon) {
-            val iconSize = 40
-            val iconTop = (node.y + 12f).toInt()
-
-            // Edit icon (rightmost)
-            if (editIconDrawable != null) {
-                val editIconLeft = (node.x + node.width - 48f).toInt()
-                val iconCopy = editIconDrawable.mutate().constantState?.newDrawable()?.mutate()
-                if (iconCopy != null) {
-                    DrawableCompat.setTint(iconCopy, textSecondaryArgb)
-                    iconCopy.alpha = drawableAlpha
-                    iconCopy.setBounds(editIconLeft, iconTop, editIconLeft + iconSize, iconTop + iconSize)
-                    iconCopy.draw(this)
-                }
-            }
-        }
-
-        // Input labels
-        val inputPaint = Paint().apply {
-            color = textSecondaryArgb
-            textSize = 22f
-            isAntiAlias = true
-        }
-
-        // Paint for editable inputs (when side sheet is open)
-        val editablePaint = Paint().apply {
-            color = colors.selectedBorder.withAlpha().toArgb()
-            textSize = 22f
-            typeface = Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-        }
-
-        // Paint for value text inside boxes
-        val valueTextPaint = Paint().apply {
-            color = textPrimaryArgb
-            textSize = 20f
-            isAntiAlias = true
-        }
-
-        // Paint for template value text (bold, no box)
-        val templateValuePaint = Paint().apply {
-            color = templateHighlightArgb
-            textSize = 20f
-            typeface = Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-        }
-
-        // Paint for value box background (uses header color)
-        val valueBoxPaint = Paint().apply {
-            color = headerColorArgb
-            isAntiAlias = true
-        }
-
-        // Red color for edited values
-        val editedColorArgb = android.graphics.Color.RED
-
-        var inputY = node.y + headerHeight + 32f
-        node.inputs.forEach { (name, value) ->
-            // Check if this is a connection-type input (Connection or UnconnectedSlot)
-            val isConnectionInput = value is InputValue.Connection || value is InputValue.UnconnectedSlot
-
-            // Get the original value (only for Literal inputs)
-            val rawOriginalValue = when (value) {
-                is InputValue.Literal -> value.value
-                is InputValue.Connection -> null
-                is InputValue.UnconnectedSlot -> null
-            }
-
-            // Normalize original value: if empty, use effective default from definition
-            val inputDefinition = nodeDefinition?.inputs?.find { it.name == name }
-            val originalValue = if (rawOriginalValue == null || rawOriginalValue == "") {
-                inputDefinition?.getEffectiveDefault()
-            } else {
-                rawOriginalValue
-            }
-
-            // Get the current value - use edit if available, otherwise original
-            val editedValue = nodeEdits[name]
-            val currentValue = editedValue ?: originalValue
-
-            // Check if this value has been edited AND is different from (normalized) original
-            val isEdited = editedValue != null && !valuesEqual(editedValue, originalValue, inputDefinition?.type)
-
-            // Only show value string for literal inputs (not connection-type)
-            val valueStr = if (!isConnectionInput) {
-                currentValue?.let { formatInputValue(it, node.id, name, mappedFields, uiFieldPrefix, displayNameResolver) }
-            } else {
-                null
-            }
-
-            // Check if value contains actual {{...}} template pattern
-            val hasTemplatePattern = currentValue?.toString()?.let { str ->
-                str.contains("{{") && str.contains("}}")
-            } ?: false
-
-            // Determine which paint to use for the key name
-            val wireColor = inputWireColors[name]
-            // For UnconnectedSlot, get color from slot type (with alpha applied)
-            val slotTypeColor = if (value is InputValue.UnconnectedSlot) {
-                colors.slotColors[value.slotType.uppercase()]?.withAlpha()?.toArgb()
-            } else null
-
-            val keyPaint = when {
-                // Editable inputs highlighted when side sheet is open
-                name in editableInputNames -> editablePaint
-                // Connected inputs: bold with blended wire color
-                wireColor != null -> {
-                    // Blend wire color with standard text color (50/50)
-                    val blendedColor = blendColors(wireColor, textSecondaryArgb, 0.5f)
-                    Paint().apply {
-                        color = blendedColor
-                        textSize = 22f
-                        typeface = Typeface.DEFAULT_BOLD
-                        isAntiAlias = true
-                    }
-                }
-                // Unconnected slot: bold with slot type color
-                slotTypeColor != null -> {
-                    val blendedColor = blendColors(slotTypeColor, textSecondaryArgb, 0.5f)
-                    Paint().apply {
-                        color = blendedColor
-                        textSize = 22f
-                        typeface = Typeface.DEFAULT_BOLD
-                        isAntiAlias = true
-                    }
-                }
-                // Normal
-                else -> inputPaint
-            }
-
-            // Draw key name on the left
-            drawText(name, node.x + 16f, inputY, keyPaint)
-
-            // Draw value on the right if present (only for literal inputs)
-            if (currentValue is Boolean) {
-                // Draw a toggle switch for boolean values
-                val toggleWidth = 44f
-                val toggleHeight = 24f
-                val toggleRight = node.x + node.width - 12f
-                val toggleLeft = toggleRight - toggleWidth
-                val toggleTop = inputY - 18f
-                val toggleBottom = toggleTop + toggleHeight
-                val toggleRadius = toggleHeight / 2
-
-                // Draw track (edited: blended red, on: selectedBorder/primary, off: nodeBorder/outline)
-                val trackPaint = Paint().apply {
-                    color = when {
-                        isEdited -> blendColors(textPrimaryArgb, editedColorArgb, 0.5f)
-                        currentValue -> colors.selectedBorder.withAlpha().toArgb()
-                        else -> colors.nodeBorder.withAlpha().toArgb()
-                    }
-                    isAntiAlias = true
-                }.also { it.alpha = drawableAlpha }
-                val trackRect = android.graphics.RectF(toggleLeft, toggleTop, toggleRight, toggleBottom)
-                drawRoundRect(trackRect, toggleRadius, toggleRadius, trackPaint)
-
-                // Draw thumb
-                // Light mode: always white; Dark mode: black when on, white when off
-                val thumbRadius = (toggleHeight - 8f) / 2
-                val thumbPadding = 4f
-                val thumbCenterY = toggleTop + toggleHeight / 2
-                val thumbCenterX = if (currentValue) {
-                    toggleRight - thumbPadding - thumbRadius
-                } else {
-                    toggleLeft + thumbPadding + thumbRadius
-                }
-
-                val thumbColor = if (colors.isDarkTheme && currentValue) {
-                    android.graphics.Color.BLACK
-                } else {
-                    android.graphics.Color.WHITE
-                }
-                val thumbPaint = Paint().apply {
-                    color = thumbColor
-                    isAntiAlias = true
-                }.also { it.alpha = drawableAlpha }
-                drawCircle(thumbCenterX, thumbCenterY, thumbRadius, thumbPaint)
-            } else if (valueStr != null) {
-                val boxPaddingH = 8f
-                val boxPaddingV = 6f
-                val textHeight = 20f // Approximate text height based on font size
-                val boxHeight = textHeight + boxPaddingV * 2
-                val boxRight = node.x + node.width - 12f
-                val boxWidth = node.width * 0.5f
-                val boxLeft = boxRight - boxWidth
-                val maxValueWidth = boxWidth - boxPaddingH * 2
-
-                // Choose paint based on whether this is a template or edited value
-                val valuePaint = when {
-                    hasTemplatePattern -> templateValuePaint
-                    isEdited -> Paint().apply {
-                        color = blendColors(textPrimaryArgb, editedColorArgb, 0.5f)
-                        textSize = 20f
-                        typeface = Typeface.DEFAULT_BOLD
-                        isAntiAlias = true
-                    }
-
-                    else -> valueTextPaint
-                }
-
-                // Truncate value to fit in available space
-                val truncatedValue = truncateText(valueStr, maxValueWidth, valuePaint)
-
-                // Center the box vertically on the text baseline
-                val boxTop = inputY - textHeight - boxPaddingV + 4f
-                val boxBottom = boxTop + boxHeight
-
-                // Draw rounded rectangle background only for non-template values
-                if (!hasTemplatePattern) {
-                    val boxRect = android.graphics.RectF(boxLeft, boxTop, boxRight, boxBottom)
-                    drawRoundRect(boxRect, 6f, 6f, valueBoxPaint)
-                }
-
-                // Draw value text left-aligned with padding
-                val textX = boxLeft + boxPaddingH
-                val textY = inputY
-                drawText(truncatedValue, textX, textY, valuePaint)
-            }
-
-            inputY += WorkflowLayoutEngine.INPUT_ROW_HEIGHT
-        }
-
-        // Calculate where outputs start (after literal inputs, aligned with connection inputs)
-        val literalInputCount = node.inputs.count { (_, value) -> value is InputValue.Literal }
-        var outputY = node.y + headerHeight + 32f + (literalInputCount * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
-
-        // Draw outputs on the right side
-        node.outputs.forEachIndexed { _, output ->
-            // Get color for output type (with alpha applied)
-            val outputColorInt = colors.slotColors[output.type.uppercase()]?.withAlpha()?.toArgb()
-
-            // Create paint for output name (right-aligned, colored)
-            val outputPaint = if (outputColorInt != null) {
-                val blendedColor = blendColors(outputColorInt, textSecondaryArgb, 0.5f)
-                Paint().apply {
-                    color = blendedColor
-                    textSize = 22f
-                    typeface = Typeface.DEFAULT_BOLD
-                    isAntiAlias = true
-                    textAlign = Paint.Align.RIGHT
-                }
-            } else {
-                Paint().apply {
-                    color = textSecondaryArgb
-                    textSize = 22f
-                    typeface = Typeface.DEFAULT_BOLD
-                    isAntiAlias = true
-                    textAlign = Paint.Align.RIGHT
-                }
-            }
-
-            // Draw output name (right-aligned, with padding from right edge)
-            val outputTextX = node.x + node.width - 16f
-            drawText(output.name, outputTextX, outputY, outputPaint)
-
-            outputY += WorkflowLayoutEngine.INPUT_ROW_HEIGHT
-        }
+    // Selection: an outline in primary just outside the shape; candidates (mapping, connecting) dashed
+    if (highlightState != NodeHighlightState.NONE) {
+        val outset = NodeStyle.SELECTION_GAP + NodeStyle.SELECTION_WIDTH / 2
+        drawRoundRect(
+            color = colors.primary.faded(),
+            topLeft = Offset(left - outset, top - outset),
+            size = Size(node.width + 2 * outset, node.height + 2 * outset),
+            cornerRadius = CornerRadius(NodeStyle.CORNER + outset),
+            style = Stroke(
+                width = NodeStyle.SELECTION_WIDTH,
+                pathEffect = if (highlightState == NodeHighlightState.CANDIDATE) {
+                    PathEffect.dashPathEffect(floatArrayOf(18f, 12f))
+                } else null
+            )
+        )
     }
 }
 
 /**
- * Draw an edge (connection) between two nodes.
- * Uses the configured edge router for path computation.
- * When connected to a selected node, animates interweaving colored segments along the wire.
+ * A socket centred on a node's edge: filled in its slot colour when connected, a ring around the node's body colour
+ * when free, with a halo in the canvas colour that separates it from wires (in the light theme lifted by a shadow).
+ */
+private fun DrawScope.drawSocket(
+    center: Offset,
+    color: Color,
+    connected: Boolean,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    alpha: Float,
+    scale: Float = 1f,
+    // A strip's add socket: a dashed ring (spec §19.2.4)
+    dashed: Boolean = false
+) {
+    val radius = NodeStyle.SOCKET_RADIUS * scale
+    val haloRadius = radius + NodeStyle.SOCKET_HALO * scale
+    if (colors.isDark) {
+        drawCircle(color = colors.canvas.copy(alpha = alpha), radius = haloRadius, center = center)
+    } else {
+        // Lifted like the nodes, so a socket stands out on a white node and on the light canvas alike
+        paints.shadow.color = colors.canvas.copy(alpha = alpha).toArgb()
+        paints.shadow.setElevationShadow(colors, alpha, scale)
+        drawContext.canvas.nativeCanvas.drawCircle(center.x, center.y, haloRadius, paints.shadow)
+    }
+    if (connected) {
+        drawCircle(color = color.copy(alpha = alpha), radius = radius, center = center)
+    } else {
+        val ring = NodeStyle.SOCKET_RING * scale
+        drawCircle(color = colors.nodeBody.copy(alpha = alpha), radius = radius, center = center)
+        val dash = if (dashed) PathEffect.dashPathEffect(floatArrayOf(2.6f * ring, 1.6f * ring)) else null
+        drawCircle(color = color.copy(alpha = alpha), radius = radius - ring / 2, center = center, style = Stroke(ring, pathEffect = dash))
+    }
+}
+
+/** How a wire is drawn for a focus: how far it recedes into `outlineVariant` (0–1) and its width in graph units. */
+private class WireEmphasis(val recede: Float, val width: Float)
+
+private val WIRE_PLAIN = WireEmphasis(recede = 0f, width = 4f)
+private val WIRE_FOCUSED = WireEmphasis(recede = 0f, width = 6f)
+private val WIRE_RECEDED = WireEmphasis(recede = 1f, width = 4f)
+
+/** Without focus every wire in its slot colour; with focus, the focused nodes' wires wider and the rest receding. */
+private fun wireEmphasis(edge: WorkflowEdge, focus: Set<String>): WireEmphasis = when {
+    focus.isEmpty() -> WIRE_PLAIN
+    edge.sourceNodeId in focus || edge.targetNodeId in focus -> WIRE_FOCUSED
+    else -> WIRE_RECEDED
+}
+
+/**
+ * A wire from an output socket to an input socket, shaped by the router chosen in Settings, in the slot colour of its
+ * output type (receding toward `outlineVariant` while other nodes are focused), round caps and a dot at each end
+ * under the sockets.
  */
 private fun DrawScope.drawEdge(
     edge: WorkflowEdge,
@@ -2094,176 +2467,117 @@ private fun DrawScope.drawEdge(
     colors: CanvasColors,
     router: EdgeRouter,
     alpha: Float = 1f,
-    selectedNodeIds: Set<String> = emptySet(),
-    segmentTime: Float = 0f,
+    recede: Float = 0f,
+    width: Float = 4f,
     draggingNodeId: String? = null,
-    dragScale: Float = 1f
+    dragScale: Float = 1f,
+    wirePaths: WirePaths? = null
 ) {
     val sourceNode = nodesById[edge.sourceNodeId] ?: return
     val targetNode = nodesById[edge.targetNodeId] ?: return
 
-    // Helper to apply alpha to a color
-    fun Color.withAlpha() = this.copy(alpha = this.alpha * alpha)
-
-    // Connection points: always exit right side of source, enter left side of target
-    // Apply scale transform when connected to a dragging node
-    val sourceSocketX = sourceNode.x + sourceNode.width
-    val sourceSocketY = sourceNode.y + calculateOutputY(sourceNode, edge.sourceOutputIndex)
-    val scaledStart = scaleSocketPosition(sourceNode, sourceSocketX, sourceSocketY, draggingNodeId, dragScale)
-    val startX = scaledStart.x
-    val startY = scaledStart.y
-
-    val targetSocketX = targetNode.x
-    val targetSocketY = targetNode.y + calculateInputY(targetNode, edge.targetInputName)
-    val scaledEnd = scaleSocketPosition(targetNode, targetSocketX, targetSocketY, draggingNodeId, dragScale)
-    val endX = scaledEnd.x
-    val endY = scaledEnd.y
-
-    // Resolve base color from slot type, fallback to default
-    val baseEdgeColor = (edge.slotType?.let { slotType ->
-        colors.slotColors[slotType.uppercase()]
-    } ?: colors.edgeColor).withAlpha()
-
-    // Check if this edge is connected to a selected node
-    val isConnectedToSelected = edge.sourceNodeId in selectedNodeIds || edge.targetNodeId in selectedNodeIds
-
-    // Make wires thicker when connected to selected node (same color as normal)
-    // Highlight segments use the selected node's frame color
-    val edgeColor: Color
-    val highlightColor: Color
-    val edgeWidth: Float
-    if (isConnectedToSelected) {
-        edgeColor = baseEdgeColor  // Wire stays same color
-        highlightColor = colors.selectedBorder.withAlpha()  // Same as highlighted node's frame
-        edgeWidth = 8f
-    } else {
-        edgeColor = baseEdgeColor
-        highlightColor = baseEdgeColor
-        edgeWidth = 4f
-    }
-
-    // Compute the path using the configured router
-    val startPoint = Offset(startX, startY)
-    val endPoint = Offset(endX, endY)
-    val routedPath = router.computeRoute(startPoint, endPoint)
-    val path = routedPath.path
-
-    // Draw the path - use animated interweaving segments for highlighted wires
-    if (isConnectedToSelected) {
-        val segmentLength = 20f  // Length of each colored segment
-        // Animate phase: negative to flow from output to input
-        val animatedPhase = -segmentTime * segmentLength * 2
-
-        // Draw base color segments (dashed)
-        drawPath(
-            path = path,
-            color = edgeColor,
-            style = Stroke(
-                width = edgeWidth,
-                pathEffect = PathEffect.dashPathEffect(
-                    intervals = floatArrayOf(segmentLength, segmentLength),
-                    phase = animatedPhase
-                )
-            )
-        )
-
-        // Draw highlight color segments (offset by segmentLength to interweave)
-        drawPath(
-            path = path,
-            color = highlightColor,
-            style = Stroke(
-                width = edgeWidth,
-                pathEffect = PathEffect.dashPathEffect(
-                    intervals = floatArrayOf(segmentLength, segmentLength),
-                    phase = animatedPhase + segmentLength
-                )
-            )
-        )
-    } else {
-        // Non-highlighted: solid color
-        drawPath(
-            path = path,
-            color = edgeColor,
-            style = Stroke(width = edgeWidth)
-        )
-    }
-
-    // Draw small circle at connection points (use highlight color when selected)
-    val endpointColor = if (isConnectedToSelected) highlightColor else edgeColor
-    drawCircle(
-        color = endpointColor,
-        radius = 8f,
-        center = Offset(startX, startY)
+    // Socket positions, following a node lifted while dragged
+    val start = scaleSocketPosition(
+        sourceNode, sourceNode.x + sourceNode.width,
+        sourceNode.y + WorkflowLayoutEngine.outputSlotY(sourceNode, edge.sourceOutputIndex), draggingNodeId, dragScale
     )
-    drawCircle(
-        color = endpointColor,
-        radius = 8f,
-        center = Offset(endX, endY)
+    val end = scaleSocketPosition(
+        targetNode, targetNode.x, targetNode.y + WorkflowLayoutEngine.inputSlotY(targetNode, edge.targetInputName),
+        draggingNodeId, dragScale
     )
+    // A port strip is narrow glass: its wires don't swing back behind its centre line, where their sockets are
+    val backAtStart = !SubgraphLevels.isInputsNode(sourceNode)
+    val backAtEnd = !SubgraphLevels.isOutputsNode(targetNode)
+    val path = wirePaths?.get(router, start, end, backAtStart, backAtEnd)
+        ?: router.computeRoute(start, end, backAtStart, backAtEnd).path
+
+    val color = lerp(colors.slot(edge.slotType), colors.outlineVariant, recede).copy(alpha = alpha)
+    drawPath(path = path, color = color, style = Stroke(width = width, cap = StrokeCap.Round))
+    drawCircle(color = color, radius = width, center = start)
+    drawCircle(color = color, radius = width, center = end)
 }
 
 /**
- * Draw a group container.
- * Groups are semi-transparent rectangles with titles.
+ * Wires' shapes kept between frames: the same path object for the same ends. The renderer prepares a thick smooth
+ * curve for the GPU once per path object, so a new one every frame (while panning and zooming nothing moves in graph
+ * units) is prepared again and again. Shapes of ends that changed (a node moved) are dropped once there are many.
  */
-private fun DrawScope.drawGroup(
-    group: RenderedGroup,
-    colors: CanvasColors,
-    alpha: Float = 1f,
-    showEditIcon: Boolean = false,
-    editIconDrawable: Drawable? = null
-) {
-    val groupColor = colors.groupColor
+internal class WirePaths {
+    private data class Key(val start: Offset, val end: Offset, val backAtStart: Boolean, val backAtEnd: Boolean)
+    private val paths = HashMap<Key, Path>()
 
-    val cornerRadius = 16f
-    val fontSize = WorkflowLayoutEngine.GROUP_HEADER_HEIGHT
-    val drawableAlpha = (alpha * 255).toInt()
-
-    // Draw semi-transparent background (0.15 base alpha * fade alpha)
-    drawRoundRect(
-        color = groupColor.copy(alpha = 0.15f * alpha),
-        topLeft = Offset(group.x, group.y),
-        size = Size(group.width, group.height),
-        cornerRadius = CornerRadius(cornerRadius)
-    )
-
-    // Draw border (0.6 base alpha * fade alpha)
-    drawRoundRect(
-        color = groupColor.copy(alpha = 0.6f * alpha),
-        topLeft = Offset(group.x, group.y),
-        size = Size(group.width, group.height),
-        cornerRadius = CornerRadius(cornerRadius),
-        style = Stroke(width = 3f)
-    )
-
-    // Draw title text and edit icon
-    drawContext.canvas.nativeCanvas.apply {
-        val titleColorArgb = groupColor.copy(alpha = alpha).toArgb()
-        val titlePaint = android.graphics.Paint().apply {
-            color = titleColorArgb
-            textSize = fontSize
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-        }
-        // Match node vertical positioning: title baseline at y + 12 + fontSize
-        val titleY = group.y + 12f + fontSize
-        drawText(group.title, group.x + 16f, titleY, titlePaint)
-
-        // Draw edit icon in top-right corner (same as nodes) when in edit mode
-        if (showEditIcon && editIconDrawable != null) {
-            val iconSize = 40
-            val iconLeft = (group.x + group.width - 48f).toInt()
-            val iconTop = (group.y + 12f).toInt()
-
-            val iconCopy = editIconDrawable.mutate().constantState?.newDrawable()?.mutate()
-            if (iconCopy != null) {
-                DrawableCompat.setTint(iconCopy, titleColorArgb)
-                iconCopy.alpha = drawableAlpha
-                iconCopy.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
-                iconCopy.draw(this)
-            }
+    fun get(router: EdgeRouter, start: Offset, end: Offset, backAtStart: Boolean, backAtEnd: Boolean): Path {
+        if (paths.size > MAX_KEPT) paths.clear()
+        return paths.getOrPut(Key(start, end, backAtStart, backAtEnd)) {
+            router.computeRoute(start, end, backAtStart, backAtEnd).path
         }
     }
+
+    private companion object {
+        const val MAX_KEPT = 4000
+    }
+}
+
+/**
+ * A group (spec §12.4): a filled rounded area beneath its nodes, its name in a chip at the top start.
+ */
+/**
+ * A group's area: the lowest level above the canvas, frosted glass over the wires passing under it (blurred
+ * beneath by the canvas), in the light theme with half a node's shadow.
+ */
+private fun DrawScope.drawGroupArea(group: RenderedGroup, colors: CanvasColors, paints: GraphPaints, alpha: Float = 1f) {
+    val glass = colors.groupArea.copy(alpha = NodeStyle.GLASS_ALPHA * alpha)
+    if (colors.isDark) {
+        drawRoundRect(
+            color = glass,
+            topLeft = Offset(group.x, group.y),
+            size = Size(group.width, group.height),
+            cornerRadius = CornerRadius(NodeStyle.GROUP_CORNER)
+        )
+    } else {
+        paints.shadow.color = glass.toArgb()
+        paints.shadow.setElevationShadow(colors, alpha, level = 0.5f)
+        drawContext.canvas.nativeCanvas.drawRoundRect(
+            group.x, group.y, group.x + group.width, group.y + group.height,
+            NodeStyle.GROUP_CORNER, NodeStyle.GROUP_CORNER, paints.shadow
+        )
+    }
+}
+
+/** A group's label chip, at a node's level above the wires (in the light theme with a node's shadow). */
+private fun DrawScope.drawGroupLabel(
+    group: RenderedGroup,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    alpha: Float = 1f,
+    // The label chip fades out toward the overview, which shows the area only
+    chipAlpha: Float = 1f
+) {
+    if (chipAlpha <= 0f) return
+    val chipHeight = NodeStyle.GROUP_CHIP_HEIGHT
+    val paint = paints.groupLabel.apply { color = colors.onSurface.copy(alpha = alpha * chipAlpha).toArgb() }
+    val inset = NodeStyle.GROUP_CHIP_INSET
+    val padding = NodeStyle.GROUP_CHIP_PADDING
+    val label = ellipsizeEnd(group.title, group.width - 2 * inset - 2 * padding, paint)
+    if (label.isEmpty()) return
+    val chipLeft = group.x + inset
+    val chipTop = group.y + inset
+    val chipWidth = paint.measureText(label) + 2 * padding
+    if (colors.isDark) {
+        drawRoundRect(
+            color = colors.groupChip.copy(alpha = alpha * chipAlpha),
+            topLeft = Offset(chipLeft, chipTop),
+            size = Size(chipWidth, chipHeight),
+            cornerRadius = CornerRadius(chipHeight / 2)
+        )
+    } else {
+        paints.shadow.color = colors.groupChip.copy(alpha = alpha * chipAlpha).toArgb()
+        paints.shadow.setElevationShadow(colors, alpha * chipAlpha)
+        drawContext.canvas.nativeCanvas.drawRoundRect(
+            chipLeft, chipTop, chipLeft + chipWidth, chipTop + chipHeight, chipHeight / 2, chipHeight / 2, paints.shadow
+        )
+    }
+    drawContext.canvas.nativeCanvas.drawText(label, chipLeft + padding, paint.baselineFor(chipTop + chipHeight / 2), paint)
 }
 
 /**
@@ -2297,59 +2611,48 @@ private fun scaleSocketPosition(
 private fun DrawScope.drawNote(
     note: WorkflowNote,
     colors: CanvasColors,
+    paints: GraphPaints,
     alpha: Float = 1f,
     isSelected: Boolean = false,
-    showEditIcon: Boolean = false,
-    editIconDrawable: Drawable? = null,
     textMeasurer: TextMeasurer? = null,
-    density: androidx.compose.ui.unit.Density? = null
+    density: androidx.compose.ui.unit.Density? = null,
+    noteLayouts: NoteLayouts? = null,
+    // False: only measure the note (off screen), so the layout knows its height
+    drawIt: Boolean = true
 ) {
     // Helper to apply alpha to a color
     fun Color.withAlpha() = this.copy(alpha = this.alpha * alpha)
 
-    // Select colors based on theme - sticky note style with single color
-    val noteColor = (if (colors.isDarkTheme) NoteColors.NoteDark else NoteColors.NoteLight).withAlpha()
-    val textColor = (if (colors.isDarkTheme) NoteColors.TextDark else NoteColors.TextLight).withAlpha()
-    val noteBorderColor = (if (colors.isDarkTheme) NoteColors.BorderDark else NoteColors.BorderLight).withAlpha()
-    val drawableAlpha = (alpha * 255).toInt()
+    // A tertiary container, like a sticky note
+    val noteColor = colors.note.withAlpha()
+    val textColor = colors.onNote.withAlpha()
 
-    val cornerRadius = 16f
+    val cornerRadius = NodeStyle.CORNER
     val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
     val contentPadding = 16f
 
-    // Measure text and calculate actual height
+    // Content laid out (once per content, width and colours) and the note's actual height from it
     var effectiveHeight = note.height
-    var textLayoutResult: androidx.compose.ui.text.TextLayoutResult? = null
+    var content: NoteLayout? = null
+    val contentColors = NoteColors(
+        text = colors.onNote,
+        // Two tones between the note and its text: code's background, a table's rules
+        codeBackground = lerp(colors.note, colors.onNote, 0.12f),
+        rule = lerp(colors.note, colors.onNote, 0.35f)
+    )
 
-    if (textMeasurer != null && density != null) {
-        val contentWidth = (note.width - contentPadding * 2).toInt()
-
-        // Convert pixel sizes to sp (20f pixels = same as node text)
-        val fontSizeSp = with(density) { 20f.toSp() }
-        val lineHeightSp = with(density) { 24f.toSp() }
-
-        // Parse markdown to AnnotatedString
-        val codeBackgroundColor = noteBorderColor.copy(alpha = noteBorderColor.alpha * 0.4f)
-        val annotatedContent = MarkdownParser.parse(
-            markdown = note.content,
-            codeBackgroundColor = codeBackgroundColor,
-            baseFontSize = fontSizeSp
+    if (textMeasurer != null && density != null && noteLayouts != null) {
+        // A size above node text, the line height to match
+        content = noteLayouts.layout(
+            content = note.content,
+            width = note.width - contentPadding * 2,
+            colors = contentColors,
+            fontSize = with(density) { NodeStyle.NOTE_TEXT.toSp() },
+            lineHeight = with(density) { NodeStyle.NOTE_LINE.toSp() },
+            textMeasurer = textMeasurer,
+            density = density
         )
-
-        // Measure text with constraints
-        textLayoutResult = textMeasurer.measure(
-            text = annotatedContent,
-            style = TextStyle(
-                color = textColor,
-                fontSize = fontSizeSp,
-                lineHeight = lineHeightSp
-            ),
-            constraints = Constraints(maxWidth = contentWidth)
-        )
-
-        // Calculate actual height from measured content
-        val measuredHeight = headerHeight + contentPadding * 2 + textLayoutResult.size.height
-        effectiveHeight = measuredHeight
+        effectiveHeight = headerHeight + contentPadding * 2 + content.height
 
         // Update note model for layout consistency
         if (note.height != effectiveHeight) {
@@ -2357,61 +2660,48 @@ private fun DrawScope.drawNote(
         }
     }
 
-    // Draw single-color sticky note background
-    drawRoundRect(
-        color = noteColor,
-        topLeft = Offset(note.x, note.y),
-        size = Size(note.width, effectiveHeight),
-        cornerRadius = CornerRadius(cornerRadius)
-    )
+    if (!drawIt) return
 
-    // Border
-    val borderWidth = if (isSelected) 6f else 3f
-    val borderColor = if (isSelected) colors.selectedBorder.withAlpha() else noteBorderColor
-    drawRoundRect(
-        color = borderColor,
-        topLeft = Offset(note.x, note.y),
-        size = Size(note.width, effectiveHeight),
-        cornerRadius = CornerRadius(cornerRadius),
-        style = Stroke(width = borderWidth)
-    )
+    // Single-colour sticky note background; at a node's level (in the light theme with a node's shadow)
+    if (colors.isDark) {
+        drawRoundRect(
+            color = noteColor,
+            topLeft = Offset(note.x, note.y),
+            size = Size(note.width, effectiveHeight),
+            cornerRadius = CornerRadius(cornerRadius)
+        )
+    } else {
+        paints.shadow.color = noteColor.toArgb()
+        paints.shadow.setElevationShadow(colors, alpha)
+        drawContext.canvas.nativeCanvas.drawRoundRect(
+            note.x, note.y, note.x + note.width, note.y + effectiveHeight, cornerRadius, cornerRadius, paints.shadow
+        )
+    }
+
+    // Selection: an outline in primary just outside the shape, as on nodes
+    if (isSelected) {
+        val outset = NodeStyle.SELECTION_GAP + NodeStyle.SELECTION_WIDTH / 2
+        drawRoundRect(
+            color = colors.primary.withAlpha(),
+            topLeft = Offset(note.x - outset, note.y - outset),
+            size = Size(note.width + 2 * outset, effectiveHeight + 2 * outset),
+            cornerRadius = CornerRadius(cornerRadius + outset),
+            style = Stroke(width = NodeStyle.SELECTION_WIDTH)
+        )
+    }
 
     // Draw title using native canvas
     val textColorArgb = textColor.toArgb()
     drawContext.canvas.nativeCanvas.apply {
-        val titleMaxWidth = if (showEditIcon) note.width - 104f else note.width - 32f
-        val titlePaint = android.graphics.Paint().apply {
-            color = textColorArgb
-            textSize = 24f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-        }
-        val title = truncateText(note.title, titleMaxWidth, titlePaint)
-        drawText(title, note.x + 16f, note.y + 40f, titlePaint)
+        val titlePaint = paints.noteTitle.apply { color = textColorArgb }
+        val title = ellipsizeEnd(note.title, note.width - 2 * NodeStyle.TITLE_PADDING, titlePaint)
+        drawText(title, note.x + NodeStyle.TITLE_PADDING, titlePaint.baselineFor(note.y + headerHeight / 2), titlePaint)
 
-        // Draw edit icon when in edit mode
-        if (showEditIcon && editIconDrawable != null) {
-            val iconSize = 40
-            val iconLeft = (note.x + note.width - 48f).toInt()
-            val iconTop = (note.y + 12f).toInt()
-
-            val iconCopy = editIconDrawable.mutate().constantState?.newDrawable()?.mutate()
-            if (iconCopy != null) {
-                DrawableCompat.setTint(iconCopy, textColorArgb)
-                iconCopy.alpha = drawableAlpha
-                iconCopy.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
-                iconCopy.draw(this)
-            }
-        }
     }
 
     // Draw markdown content with alpha
-    if (textLayoutResult != null) {
-        drawText(
-            textLayoutResult = textLayoutResult,
-            topLeft = Offset(note.x + contentPadding, note.y + headerHeight + contentPadding),
-            alpha = alpha
-        )
+    if (content != null) {
+        drawNoteContent(content, note.x + contentPadding, note.y + headerHeight + contentPadding, contentColors, alpha)
     } else {
         // Fallback: Draw content using native canvas (no markdown formatting)
         drawContext.canvas.nativeCanvas.apply {
@@ -2426,7 +2716,7 @@ private fun DrawScope.drawNote(
 
             var contentY = note.y + headerHeight + 28f
             for (line in lines) {
-                val truncatedLine = truncateText(line, note.width - 32f, contentPaint)
+                val truncatedLine = ellipsizeEnd(line, note.width - 32f, contentPaint)
                 drawText(truncatedLine, note.x + 16f, contentY, contentPaint)
                 contentY += lineHeight
             }
@@ -2434,181 +2724,61 @@ private fun DrawScope.drawNote(
     }
 }
 
-/**
- * Calculate a point along a cubic Bezier curve at parameter t (0-1).
- */
-private fun cubicBezierPoint(
-    start: Offset,
-    control1: Offset,
-    control2: Offset,
-    end: Offset,
-    t: Float
-): Offset {
-    val u = 1 - t
-    val tt = t * t
-    val uu = u * u
-    val uuu = uu * u
-    val ttt = tt * t
-
-    return Offset(
-        x = uuu * start.x + 3 * uu * t * control1.x + 3 * u * tt * control2.x + ttt * end.x,
-        y = uuu * start.y + 3 * uu * t * control1.y + 3 * u * tt * control2.y + ttt * end.y
-    )
-}
-
-/**
- * Approximate the arc length of a cubic Bezier curve by sampling.
- */
-private fun approximateBezierLength(
-    start: Offset,
-    control1: Offset,
-    control2: Offset,
-    end: Offset,
-    samples: Int = 30
-): Float {
-    var length = 0f
-    var prevPoint = start
-    for (i in 1..samples) {
-        val t = i.toFloat() / samples
-        val point = cubicBezierPoint(start, control1, control2, end, t)
-        length += (point - prevPoint).getDistance()
-        prevPoint = point
+/** [text] cut at the end with "…" to fit [maxWidth]; empty when not even that fits. */
+private fun ellipsizeEnd(text: String, maxWidth: Float, paint: Paint): String {
+    val limit = fittingChars(maxWidth, paint)
+    if (text.length <= limit && paint.measureText(text) <= maxWidth) return text
+    // The longest start that fits with "…", found by halving (values can be thousands of characters long, e.g. a
+    // system prompt, and this runs every frame)
+    val room = maxWidth - paint.measureText("…")
+    var low = 0
+    var high = minOf(text.length, limit)
+    while (low < high) {
+        val mid = (low + high + 1) / 2
+        if (paint.measureText(text, 0, mid) <= room) low = mid else high = mid - 1
     }
-    return length
+    return if (low == 0) "" else text.substring(0, low).trimEnd() + "…"
 }
 
-/**
- * Find the point on a Bezier curve at a given arc length distance from the start.
- * Returns null if distance exceeds curve length.
- */
-private fun pointAtArcLength(
-    start: Offset,
-    control1: Offset,
-    control2: Offset,
-    end: Offset,
-    targetDistance: Float,
-    samples: Int = 30
-): Offset? {
-    if (targetDistance <= 0f) return start
-
-    var accumulatedDistance = 0f
-    var prevPoint = start
-
-    for (i in 1..samples) {
-        val t = i.toFloat() / samples
-        val point = cubicBezierPoint(start, control1, control2, end, t)
-        val segmentLength = (point - prevPoint).getDistance()
-
-        if (accumulatedDistance + segmentLength >= targetDistance) {
-            // Interpolate within this segment for smooth positioning
-            val remaining = targetDistance - accumulatedDistance
-            val fraction = remaining / segmentLength
-            return Offset(
-                prevPoint.x + (point.x - prevPoint.x) * fraction,
-                prevPoint.y + (point.y - prevPoint.y) * fraction
-            )
-        }
-
-        accumulatedDistance += segmentLength
-        prevPoint = point
+/** [text] cut in the middle with "…" to fit [maxWidth] (values: both their start and their end tell them apart). */
+private fun ellipsizeMiddle(text: String, maxWidth: Float, paint: Paint): String {
+    val limit = fittingChars(maxWidth, paint)
+    if (text.length <= limit && paint.measureText(text) <= maxWidth) return text
+    fun cut(keep: Int) = text.substring(0, (keep + 1) / 2).trimEnd() + "…" + text.substring(text.length - keep / 2).trimStart()
+    // The most characters kept that fit, found by halving (see ellipsizeEnd)
+    var low = 0
+    var high = minOf(text.length - 1, limit)
+    while (low < high) {
+        val mid = (low + high + 1) / 2
+        if (paint.measureText(cut(mid)) <= maxWidth) low = mid else high = mid - 1
     }
-
-    // Distance exceeds curve length
-    return null
+    return if (low <= 1) "…" else cut(low)
 }
 
-/**
- * Calculate the Y position for a specific input on a node
- */
-private fun calculateInputY(node: WorkflowNode, inputName: String): Float {
-    val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-    val inputIndex = node.inputs.keys.indexOf(inputName)
-    return if (inputIndex >= 0) {
-        headerHeight + 20f + (inputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
-    } else {
-        node.height / 2
-    }
-}
+/** At most this many characters fit in [maxWidth]: none is narrower than a fifth of the text size. */
+private fun fittingChars(maxWidth: Float, paint: Paint): Int =
+    (maxWidth / (paint.textSize * 0.2f)).toInt().coerceAtLeast(1)
 
 /**
- * Calculate the Y offset for an output slot based on its index.
- * Outputs are positioned after literal inputs.
+ * The app field's label when the generation screen fills this input: a {{placeholder}} value, or an input the
+ * original workflow maps (even when a saved edit replaced the placeholder with a literal).
  */
-private fun calculateOutputY(node: WorkflowNode, outputIndex: Int): Float {
-    val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-    // Count literal inputs to know where outputs start
-    val literalInputCount = node.inputs.count { (_, value) -> value is InputValue.Literal }
-    // Outputs start after literal inputs
-    return headerHeight + 20f + (literalInputCount * WorkflowLayoutEngine.INPUT_ROW_HEIGHT) +
-            (outputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
-}
-
-
-/**
- * Truncate text to fit within a given width
- */
-private fun truncateText(text: String, maxWidth: Float, paint: Paint): String {
-    if (paint.measureText(text) <= maxWidth) return text
-
-    var truncated = text
-    while (truncated.isNotEmpty() && paint.measureText("$truncated...") > maxWidth) {
-        truncated = truncated.dropLast(1)
-    }
-    return if (truncated.isEmpty()) "..." else "$truncated..."
-}
-
-/**
- * Format an input value for display.
- * Template placeholders like {{clip_name}} are converted to UI display names.
- * Also shows "UI: X" label for fields that are mapped in the original workflow,
- * even if the current value is a literal (e.g., saved edit replaced placeholder).
- */
-private fun formatInputValue(
-    value: Any,
+private fun linkedFieldName(
+    value: Any?,
     nodeId: String,
     inputName: String,
     mappedFields: Map<Pair<String, String>, String>,
-    uiFieldPrefix: String,
     displayNameResolver: (String) -> String
-): String {
-    return when (value) {
-        is String -> {
-            // Check for template pattern {{placeholder_name}}
-            val templateRegex = Regex("""\{\{(\w+)\}\}""")
-            val match = templateRegex.matchEntire(value)
-            if (match != null) {
-                // Extract placeholder name and get display name using resolver
-                val placeholderName = match.groupValues[1]
-                val displayName = displayNameResolver(placeholderName)
-                uiFieldPrefix.format(displayName)
-            } else {
-                // Check if this field is mapped in the original workflow
-                val mappedPlaceholder = mappedFields[Pair(nodeId, inputName)]
-                if (mappedPlaceholder != null) {
-                    // Show "UI: X" label for mapped field even with literal value
-                    val displayName = displayNameResolver(mappedPlaceholder)
-                    uiFieldPrefix.format(displayName)
-                } else if (value.length > 20) {
-                    "\"${value.take(17)}...\""
-                } else {
-                    "\"$value\""
-                }
-            }
-        }
+): String? {
+    val placeholder = (value as? String)?.let { Regex("""\{\{(\w+)\}\}""").matchEntire(it)?.groupValues?.get(1) }
+        ?: mappedFields[Pair(nodeId, inputName)]
+    return placeholder?.let(displayNameResolver)
+}
 
-        is Number -> {
-            // Check if this field is mapped in the original workflow
-            val mappedPlaceholder = mappedFields[Pair(nodeId, inputName)]
-            if (mappedPlaceholder != null) {
-                val displayName = displayNameResolver(mappedPlaceholder)
-                uiFieldPrefix.format(displayName)
-            } else {
-                value.toString()
-            }
-        }
-        is Boolean -> value.toString()
-        else -> value.toString().take(20)
-    }
+/** A literal value in a pill, on one line. */
+private fun formatPillValue(value: Any): String = when (value) {
+    is String -> value.replace(Regex("""\s+"""), " ").trim()
+    else -> value.toString()
 }
 
 /**
@@ -2651,22 +2821,6 @@ private fun valuesEqual(a: Any?, b: Any?, type: String?): Boolean {
 }
 
 /**
- * Blend two ARGB colors together.
- * @param color1 First color (ARGB int)
- * @param color2 Second color (ARGB int)
- * @param ratio Blend ratio (0.0 = all color1, 1.0 = all color2)
- * @return Blended color as ARGB int
- */
-private fun blendColors(color1: Int, color2: Int, ratio: Float): Int {
-    val inverseRatio = 1f - ratio
-    val a = (android.graphics.Color.alpha(color1) * inverseRatio + android.graphics.Color.alpha(color2) * ratio).toInt()
-    val r = (android.graphics.Color.red(color1) * inverseRatio + android.graphics.Color.red(color2) * ratio).toInt()
-    val g = (android.graphics.Color.green(color1) * inverseRatio + android.graphics.Color.green(color2) * ratio).toInt()
-    val b = (android.graphics.Color.blue(color1) * inverseRatio + android.graphics.Color.blue(color2) * ratio).toInt()
-    return android.graphics.Color.argb(a, r, g, b)
-}
-
-/**
  * Find an output slot at the given graph coordinates.
  * Returns the SlotPosition if found within the hit radius, null otherwise.
  */
@@ -2676,22 +2830,21 @@ private fun findOutputSlotAt(
     nodes: List<WorkflowNode>,
     slotHitRadius: Float
 ): SlotPosition? {
+    var best: SlotPosition? = null
+    var bestDistance = slotHitRadius * slotHitRadius
     for (node in nodes) {
         // Output slots are on the right side of the node
         val outputX = node.x + node.width
 
         // Check each output at its correct Y position
         node.outputs.forEachIndexed { outputIndex, output ->
-            val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-            val literalInputCount = node.inputs.count { (_, v) -> v is InputValue.Literal }
-            val outputY = node.y + headerHeight + 20f +
-                    (literalInputCount * WorkflowLayoutEngine.INPUT_ROW_HEIGHT) +
-                    (outputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
+            val outputY = node.y + WorkflowLayoutEngine.outputSlotY(node, outputIndex)
 
             val dx = graphX - outputX
             val dy = graphY - outputY
-            if (dx * dx + dy * dy <= slotHitRadius * slotHitRadius) {
-                return SlotPosition(
+            if (dx * dx + dy * dy <= bestDistance) {
+                bestDistance = dx * dx + dy * dy
+                best = SlotPosition(
                     nodeId = node.id,
                     slotName = output.name,
                     isOutput = true,
@@ -2702,12 +2855,12 @@ private fun findOutputSlotAt(
             }
         }
     }
-    return null
+    return best
 }
 
 /**
- * Find an input slot at the given graph coordinates.
- * Only returns connection-type inputs (Connection or UnconnectedSlot).
+ * Find an input slot at the given graph coordinates: connection-type inputs (Connection or UnconnectedSlot), and with
+ * [valueSockets] the value rows that can take a link.
  * Returns the SlotPosition if found within the hit radius, null otherwise.
  */
 private fun findInputSlotAt(
@@ -2715,28 +2868,34 @@ private fun findInputSlotAt(
     graphY: Float,
     nodes: List<WorkflowNode>,
     slotHitRadius: Float,
-    nodeDefinitions: Map<String, NodeTypeDefinition>
+    nodeDefinitions: Map<String, NodeTypeDefinition>,
+    valueSockets: Boolean = false
 ): SlotPosition? {
+    var best: SlotPosition? = null
+    var bestDistance = slotHitRadius * slotHitRadius
     for (node in nodes) {
         // Input slots are on the left side of the node
         val inputX = node.x
         var inputIndex = 0
 
         for ((inputName, inputValue) in node.inputs) {
-            // Only check connection-type inputs
+            // Connection-type inputs, and (with [valueSockets]) the value rows that can take a link
+            val valueType = if (inputValue is InputValue.Literal && valueSockets) {
+                valueRowType(node, inputName, nodeDefinitions)
+            } else null
             val isConnectionInput = inputValue is InputValue.Connection ||
-                inputValue is InputValue.UnconnectedSlot
+                inputValue is InputValue.UnconnectedSlot || valueType != null
 
             if (isConnectionInput) {
-                val headerHeight = WorkflowLayoutEngine.NODE_HEADER_HEIGHT
-                val inputY = node.y + headerHeight + 20f +
-                    (inputIndex * WorkflowLayoutEngine.INPUT_ROW_HEIGHT)
+                val inputY = node.y + WorkflowLayoutEngine.rowCenterY(inputIndex)
 
                 val dx = graphX - inputX
                 val dy = graphY - inputY
-                if (dx * dx + dy * dy <= slotHitRadius * slotHitRadius) {
+                if (dx * dx + dy * dy <= bestDistance) {
+                    bestDistance = dx * dx + dy * dy
                     // Resolve slot type - for connected inputs, look up from node definition
                     val slotType = when (inputValue) {
+                        is InputValue.Literal -> valueType
                         is InputValue.UnconnectedSlot -> inputValue.slotType
                         is InputValue.Connection -> {
                             nodeDefinitions[node.classType]?.inputs
@@ -2744,7 +2903,7 @@ private fun findInputSlotAt(
                         }
                         else -> null
                     }
-                    return SlotPosition(
+                    best = SlotPosition(
                         nodeId = node.id,
                         slotName = inputName,
                         isOutput = false,
@@ -2757,5 +2916,185 @@ private fun findInputSlotAt(
             inputIndex++
         }
     }
-    return null
+    return best
 }
+
+/** The socket type of a value row that can take a link (INT, FLOAT, STRING, BOOLEAN; COMBO for a list), or null. */
+private fun linkableValueType(node: WorkflowNode, inputName: String, nodeDefinitions: Map<String, NodeTypeDefinition>): String? =
+    ConnectionValidator.linkableValueType(nodeDefinitions[node.classType], inputName)
+
+/**
+ * The type of a value row that has a socket in Edit structure: one that can take a link, or a list (its socket opens
+ * the field menu only). Null for anything else.
+ */
+private fun valueRowType(node: WorkflowNode, inputName: String, nodeDefinitions: Map<String, NodeTypeDefinition>): String? {
+    linkableValueType(node, inputName, nodeDefinitions)?.let { return it }
+    val definition = nodeDefinitions[node.classType]?.inputs?.find { it.name == inputName } ?: return null
+    return if (definition.options != null && !definition.forceInput) definition.type else null
+}
+
+/** What a subgraph instance shows (spec §19.1): its Open button's words, and the labels of the values it shows. */
+private class InstanceText(
+    val open: String,
+    /** The subgraph's name, when the instance's title differs from it */
+    val name: String?,
+    /** "12 nodes" */
+    val count: String,
+    val labels: Map<String, String>
+)
+
+/** Where a subgraph instance's Open button is: full width at the foot of its body. */
+private fun openButtonBounds(node: WorkflowNode): androidx.compose.ui.geometry.Rect {
+    val inset = NodeStyle.INSTANCE_BEZEL + NodeStyle.OPEN_BUTTON_INSET
+    val bottom = node.y + node.height - inset
+    return androidx.compose.ui.geometry.Rect(node.x + inset, bottom - NodeStyle.OPEN_BUTTON_HEIGHT, node.x + node.width - inset, bottom)
+}
+
+/**
+ * A subgraph instance's Open button: a filled tonal button with "Open (12 nodes)" ("Open Name (12 nodes)", the
+ * subgraph's name after a space, when the instance's title differs) and a chevron, the count in a lighter colour.
+ */
+private fun DrawScope.drawOpenButton(
+    node: WorkflowNode,
+    instance: InstanceText,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    icons: GraphIcons,
+    alpha: Float
+) {
+    fun Color.faded() = copy(alpha = this.alpha * alpha)
+    val bounds = openButtonBounds(node)
+    drawRoundRect(
+        color = colors.openButton.faded(),
+        topLeft = bounds.topLeft,
+        size = bounds.size,
+        cornerRadius = CornerRadius(NodeStyle.OPEN_BUTTON_HEIGHT / 2)
+    )
+    val strong = paints.labelStrong.apply { color = colors.onOpenButton.faded().toArgb() }
+    val plain = paints.label.apply { color = colors.onSurfaceVariant.faded().toArgb() }
+    val count = " (${instance.count})"
+    val available = bounds.width - 2 * NodeStyle.OPEN_BUTTON_PADDING - NodeStyle.ICON - NodeStyle.ICON_GAP
+    val fixed = strong.measureText(instance.open) + plain.measureText(count) +
+        (if (instance.name != null) strong.measureText(" ") else 0f)
+    val name = instance.name?.let { ellipsizeEnd(it, (available - fixed).coerceAtLeast(0f), strong) }?.takeIf { it.isNotEmpty() }
+    val parts = buildList {
+        add(instance.open to strong)
+        if (name != null) add(" $name" to strong)
+        add(count to plain)
+    }
+    val textWidth = parts.sumOf { (text, paint) -> paint.measureText(text).toDouble() }.toFloat()
+    val contentWidth = minOf(textWidth, available) + NodeStyle.ICON_GAP + NodeStyle.ICON
+    var x = bounds.center.x - contentWidth / 2
+    val centerY = bounds.center.y
+    val nativeCanvas = drawContext.canvas.nativeCanvas
+    parts.forEach { (text, paint) ->
+        val shown = ellipsizeEnd(text, (bounds.right - NodeStyle.OPEN_BUTTON_PADDING - NodeStyle.ICON - NodeStyle.ICON_GAP - x).coerceAtLeast(0f), paint)
+        nativeCanvas.drawText(shown, x, paint.baselineFor(centerY), paint)
+        x += paint.measureText(shown)
+    }
+    translate(x + NodeStyle.ICON_GAP, centerY - NodeStyle.ICON / 2) {
+        with(icons.open) { draw(Size(NodeStyle.ICON, NodeStyle.ICON), alpha = alpha, colorFilter = ColorFilter.tint(colors.onOpenButton)) }
+    }
+}
+
+/**
+ * Over a port strip's wires: its icon in the cap, and toward the overview a plain block of its colour growing from the
+ * cap down the strip as nodes' title bars spread, covering sockets and wires' ends; in the overview the whole strip,
+ * nothing on it.
+ */
+private fun DrawScope.drawPortStripBlock(
+    node: WorkflowNode,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    icons: GraphIcons,
+    alpha: Float,
+    spread: Float
+) {
+    val bounds = portStripBounds(node)
+    if (spread > 0f) {
+        val corner = bounds.width / 2
+        val bottom = bounds.top + portStripCoveredTo(node, spread)
+        // Fading in over the cap's glass at the start, so the change isn't a jump
+        val color = colors.stripGlass.copy(alpha = alpha * (spread * 4f).coerceAtMost(1f))
+        if (colors.isDark) {
+            drawRoundRect(color = color, topLeft = bounds.topLeft, size = Size(bounds.width, bottom - bounds.top), cornerRadius = CornerRadius(corner))
+        } else {
+            paints.shadow.color = color.toArgb()
+            paints.shadow.setElevationShadow(colors, color.alpha)
+            drawContext.canvas.nativeCanvas.drawRoundRect(bounds.left, bounds.top, bounds.right, bottom, corner, corner, paints.shadow)
+        }
+    }
+    if (spread >= 1f) return
+    val iconSize = NodeStyle.ICON
+    val capCenter = node.y + WorkflowLayoutEngine.NODE_HEADER_HEIGHT / 2
+    translate(bounds.center.x - iconSize / 2, capCenter - iconSize / 2) {
+        with(if (SubgraphLevels.isInputsNode(node)) icons.inputs else icons.outputs) {
+            draw(Size(iconSize, iconSize), alpha = alpha * (1f - spread), colorFilter = ColorFilter.tint(colors.onSurfaceVariant))
+        }
+    }
+}
+
+/** A level's Inputs or Outputs strip (spec §19.2.4) as drawn: centred on its sockets' line. */
+private fun portStripBounds(node: WorkflowNode): androidx.compose.ui.geometry.Rect {
+    val centerLine = if (SubgraphLevels.isInputsNode(node)) node.x + node.width else node.x
+    val half = WorkflowLayoutEngine.PORT_STRIP_WIDTH / 2
+    return androidx.compose.ui.geometry.Rect(centerLine - half, node.y, centerLine + half, node.y + node.height)
+}
+
+/**
+ * A level's Inputs or Outputs strip: a capsule of the groups' frosted glass with the sockets set into it (drawn with
+ * the other sockets), its icon in the cap with the word beside it outside, and the sockets' labels outside, on the side
+ * away from the content. Toward the overview ([spread] 1, as nodes' title bars spread) its icon and labels go: the
+ * block drawn over the wires ([drawPortStripBlock]) takes its place (the owner's choice over spec §19.2.4).
+ */
+private fun DrawScope.drawPortStrip(
+    node: WorkflowNode,
+    word: String,
+    addWord: String,
+    socketTypes: List<String?>,
+    socketNames: List<String>,
+    colors: CanvasColors,
+    paints: GraphPaints,
+    icons: GraphIcons,
+    alpha: Float,
+    spread: Float
+) {
+    val bounds = portStripBounds(node)
+    val glass = colors.stripGlass.copy(alpha = NodeStyle.GLASS_ALPHA * alpha)
+    val corner = bounds.width / 2
+    if (colors.isDark) {
+        drawRoundRect(color = glass, topLeft = bounds.topLeft, size = bounds.size, cornerRadius = CornerRadius(corner))
+    } else {
+        paints.shadow.color = glass.toArgb()
+        paints.shadow.setElevationShadow(colors, alpha)
+        drawContext.canvas.nativeCanvas.drawRoundRect(bounds.left, bounds.top, bounds.right, bounds.bottom, corner, corner, paints.shadow)
+    }
+    if (spread >= 1f) return
+    val inputs = SubgraphLevels.isInputsNode(node)
+    val capCenter = node.y + WorkflowLayoutEngine.NODE_HEADER_HEIGHT / 2
+    // Labels fade as the block grows down the strip, each gone once the block has covered its socket
+    val coveredTo = portStripCoveredTo(node, spread)
+    val labelAlpha = alpha * (1f - spread)
+    val nativeCanvas = drawContext.canvas.nativeCanvas
+    // Outside the strip, away from the content: right-aligned left of the Inputs strip, left of the Outputs strip's right
+    fun drawOutside(text: String, centerY: Float, paint: Paint) {
+        val x = if (inputs) bounds.left - NodeStyle.STRIP_LABEL_GAP - paint.measureText(text) else bounds.right + NodeStyle.STRIP_LABEL_GAP
+        nativeCanvas.drawText(text, x, paint.baselineFor(centerY), paint)
+    }
+    drawOutside(word, capCenter, paints.labelStrong.apply { color = colors.onSurfaceVariant.copy(alpha = labelAlpha).toArgb() })
+    socketNames.forEachIndexed { index, name ->
+        if (spread > 0f && WorkflowLayoutEngine.rowCenterY(index) < coveredTo) return@forEachIndexed
+        val add = SubgraphLevels.isAddSocket(name)
+        // The add socket's word in italics, neutral
+        val paint = paints.label.apply {
+            color = (if (add) colors.onSurfaceVariant else colors.slot(socketTypes.getOrNull(index))).copy(alpha = labelAlpha).toArgb()
+            textSkewX = if (add) -0.25f else 0f
+        }
+        drawOutside(if (add) addWord else name, node.y + WorkflowLayoutEngine.rowCenterY(index), paint)
+        paint.textSkewX = 0f
+    }
+}
+
+/** How far down a port strip its overview block reaches (from the strip's top), as a node's title bar spreads. */
+private fun portStripCoveredTo(node: WorkflowNode, spread: Float): Float =
+    WorkflowLayoutEngine.NODE_HEADER_HEIGHT + (node.height - WorkflowLayoutEngine.NODE_HEADER_HEIGHT) * spread

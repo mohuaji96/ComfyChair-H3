@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -424,6 +425,13 @@ private fun ComposerHeader(
         }
         TextButton(onClick = onStory) { Text("剧情") }
         onStatusLamp()
+        val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
+        IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
+            Icon(
+                androidx.compose.material.icons.Icons.Outlined.Settings,
+                contentDescription = "设置"
+            )
+        }
         Box {
             IconButton(onClick = { onMenuOpenChange(true) }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "词库操作")

@@ -1,71 +1,46 @@
 package sh.hnet.comfychair.util
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * The server's input folder is listed by an internal endpoint first and by LoadImage's own options
- * second. Both shapes are parsed here, because a server that answers neither leaves the source
- * sheet empty with no way to tell why.
- */
 class ServerInputsTest {
 
     @Test
-    fun listingStripsTheFolderMark() {
-        val text = """["run_1.png [input]","pasted/old.jpg [input]","notes.txt"]"""
-        assertEquals(listOf("run_1.png", "pasted/old.jpg", "notes.txt"), ServerInputs.parseListing(text))
+    fun listingDropsTheFolderMarkAndKeepsOrder() {
+        assertEquals(
+            listOf("inpaint_source_43cf.png", "pasted/image.png", "clip.mp4"),
+            ServerInputs.parseListing("""["inpaint_source_43cf.png [input]", "pasted/image.png [input]", "clip.mp4 [input]"]""")
+        )
+        assertNull(ServerInputs.parseListing("<html>404</html>"))
     }
 
     @Test
-    fun listingThatIsNotAJsonArrayIsReportedAsNoList() {
-        assertNull(ServerInputs.parseListing("<html>not found</html>"))
-    }
-
-    @Test
-    fun optionsAreReadFromAPlainList() {
-        val text = """
-            {"LoadImage":{"input":{"required":{"image":[["a.png","b.png"],{}]}}}}
-        """.trimIndent()
-        assertEquals(listOf("a.png", "b.png"), ServerInputs.parseOptions(text, "LoadImage", "image"))
-    }
-
-    @Test
-    fun optionsAreReadFromTheComboShape() {
-        val text = """
-            {"LoadImage":{"input":{"required":{"image":["COMBO",{"options":["c.webp"]}]}}}}
-        """.trimIndent()
-        assertEquals(listOf("c.webp"), ServerInputs.parseOptions(text, "LoadImage", "image"))
-    }
-
-    @Test
-    fun optionsMissingTheNodeAreNoList() {
+    fun optionsFromPlainListAndCombo() {
+        val plain = """{"LoadImage": {"input": {"required": {"image": [["a.png", "b.jpg"], {"image_upload": true}]}}}}"""
+        assertEquals(listOf("a.png", "b.jpg"), ServerInputs.parseOptions(plain, "LoadImage", "image"))
+        val combo = """{"LoadVideo": {"input": {"required": {"file": ["COMBO", {"options": ["x.mp4", "y.webm"]}]}}}}"""
+        assertEquals(listOf("x.mp4", "y.webm"), ServerInputs.parseOptions(combo, "LoadVideo", "file"))
         assertNull(ServerInputs.parseOptions("{}", "LoadImage", "image"))
     }
 
     @Test
-    fun subfolderTravelsWithTheNameAsTheWorkflowTakesIt() {
+    fun fileSplitsSubfolderAndVideoNames() {
         val file = ServerInputs.File("pasted/image.png")
         assertEquals("pasted", file.subfolder)
         assertEquals("image.png", file.filename)
-        assertEquals("", ServerInputs.File("image.png").subfolder)
+        assertEquals("", ServerInputs.File("a.png").subfolder)
+        assertEquals(true, ServerInputs.isVideoName("clip.MP4"))
+        assertEquals(false, ServerInputs.isVideoName("a.png"))
     }
 
     @Test
-    fun workFilesAreNotSources() {
-        // Inpainting's masked upload and the mask editor's own files are by-products of a job
-        assertTrue(ServerInputs.isWorkFile("${ServerInputs.INPAINT_PREFIX}_1720000000.png"))
-        assertTrue(ServerInputs.isWorkFile("clipspace/clipspace-painted.png"))
-        assertTrue(ServerInputs.isWorkFile("clipspace-painted.png"))
-        assertFalse(ServerInputs.isWorkFile("h3_0d6f.png"))
-    }
-
-    @Test
-    fun videosAreToldApartByExtension() {
-        assertTrue(ServerInputs.isVideoName("clip.webm"))
-        assertTrue(ServerInputs.isVideoName("pasted/CLIP.MP4"))
-        assertFalse(ServerInputs.isVideoName("still.png"))
+    fun workFilesAreNoSources() {
+        listOf(
+            "inpaint_source_43cf.png", "clipspace/clipspace-mask-1.png",
+            "clipspace-painted-masked-1794149027312.png", "clipspace-paint-1794149027312.png", "pasted/clipspace-mask-2.png"
+        ).forEach { assertEquals(it, true, ServerInputs.isWorkFile(it)) }
+        listOf("inpainting_image_20ca.png", "Lexie.jpg", "editing_source_1f47.png", "pasted/image.png")
+            .forEach { assertEquals(it, false, ServerInputs.isWorkFile(it)) }
     }
 }

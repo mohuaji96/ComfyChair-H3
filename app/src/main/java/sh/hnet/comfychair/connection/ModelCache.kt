@@ -21,9 +21,11 @@ data class ModelCache(
     val isLoaded: Boolean = false,
     val isLoading: Boolean = false,
     val lastError: String? = null,
+    /** Bumped each time /object_info was parsed into [nodeTypeRegistry] (H3 panel waits for it). */
     val nodeDefinitionsRevision: Long = 0,
     val nodeDefinitionsLoading: Boolean = false,
     val nodeDefinitionsError: String? = null,
+    /** Plain-language progress of the model-file and node-definition reads (status surfaces). */
     val fileRefreshStatus: String = "模型文件：尚未刷新",
     val nodeRefreshStatus: String = "节点定义：尚未加载"
 )

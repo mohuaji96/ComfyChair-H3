@@ -32,12 +32,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -59,7 +65,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.WorkflowManager
-import sh.hnet.comfychair.MediaViewerActivity
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.storage.MetadataStore
@@ -128,6 +133,33 @@ fun H3StudioContent(
     var presetName by remember { mutableStateOf("") }
     var presets by remember { mutableStateOf(presetStore.list()) }
     var draft by remember(workflowId, area) { mutableStateOf(draftStore.load(workflowId, area, spec)) }
+    LaunchedEffect(workflowId, area) {
+        val pendingPrefs = context.getSharedPreferences("h3_pending", android.content.Context.MODE_PRIVATE)
+        val slot = pendingPrefs.getString("sourceSlot", null)
+        val file = pendingPrefs.getString("sourceFile", null)
+        if (slot != null && !file.isNullOrBlank()) {
+            val matchesArea = (slot == "ref" && area == H3Plan.Area.R2V) ||
+                ((slot == "first" || slot == "last") && area == H3Plan.Area.FRAMES)
+            if (matchesArea) {
+                pendingPrefs.edit().remove("sourceSlot").remove("sourceFile").apply()
+                val nextDraft = when (slot) {
+                    "first" -> draft.copy(first = file)
+                    "last" -> draft.copy(last = file)
+                    else -> {
+                        val curRefs = draft.refs.toMutableList()
+                        if (curRefs.isEmpty()) curRefs.add(file)
+                        else {
+                            val emptyIdx = curRefs.indexOfFirst { it.isBlank() }
+                            if (emptyIdx >= 0) curRefs[emptyIdx] = file else curRefs[0] = file
+                        }
+                        draft.copy(refs = curRefs)
+                    }
+                }
+                draft = nextDraft
+                draftStore.save(workflowId, area, nextDraft)
+            }
+        }
+    }
     // Debounced: typing should not hit SharedPreferences on every keystroke.
     LaunchedEffect(workflowId, area, draft) {
         kotlinx.coroutines.delay(400)
@@ -894,7 +926,7 @@ fun H3StudioContent(
                     ContentType.VIDEO, front = false,
                     onResult = { ok, id, error -> onResult(ok, id, error) })
             } else {
-                live.submitPrompt(prompt, front = front) { ok, id, error, _ -> onResult(ok, id, error) }
+                live.submitPrompt(prompt, front = front) { ok, id, error, _, _ -> onResult(ok, id, error) }
             }
         }
     }
@@ -966,7 +998,25 @@ fun H3StudioContent(
         ) {
             // 1. 提示词
             item {
-                H3Card("视频提示词") {
+                var showFullscreenPrompt by rememberSaveable { mutableStateOf(false) }
+                H3Card(
+                    title = "视频提示词",
+                    trailing = {
+                        if (draft.prompt.isNotEmpty()) {
+                            IconButton(
+                                onClick = { update(draft.copy(prompt = "")) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "清空提示词",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                ) {
                     // Only where a tail frame can live: this switch writes the declaration for
                     // that slot, and the other tabs have no such slot at all.
                     if (area == H3Plan.Area.R2V && draft.continuation.isNotBlank()) {
@@ -1026,12 +1076,107 @@ fun H3StudioContent(
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
-                    OutlinedTextField(
-                        value = draft.prompt,
-                        onValueChange = { update(draft.copy(prompt = it)) },
-                        minLines = 5, maxLines = 14,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = draft.prompt,
+                            onValueChange = { update(draft.copy(prompt = it)) },
+                            minLines = 5, maxLines = 14,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp)
+                        )
+                        IconButton(
+                            onClick = { showFullscreenPrompt = true },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 4.dp, bottom = 8.dp)
+                                .size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.OpenInFull,
+                                contentDescription = "全屏编辑",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                if (showFullscreenPrompt) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showFullscreenPrompt = false },
+                        properties = androidx.compose.ui.window.DialogProperties(
+                            usePlatformDefaultWidth = false,
+                            decorFitsSystemWindows = false
+                        )
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "视频提示词",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = { showFullscreenPrompt = false }) {
+                                        Icon(Icons.Default.Check, contentDescription = "完成")
+                                    }
+                                }
+                                TextField(
+                                    value = draft.prompt,
+                                    onValueChange = { update(draft.copy(prompt = it)) },
+                                    placeholder = { Text("输入 H3 视频提示词 / 分镜描述…") },
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 16.dp)
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { update(draft.copy(prompt = "")) },
+                                        enabled = draft.prompt.isNotEmpty()
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "清空")
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    Button(
+                                        onClick = {
+                                            showFullscreenPrompt = false
+                                            submit(front = false)
+                                        },
+                                        enabled = !busy && client != null && !draft.mpOutOfRange
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("生成")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1990,12 +2135,12 @@ fun H3StudioContent(
                     // submits, so a second and third segment can be queued while one runs.
                     GenerationButton(
                         modifier = Modifier.width(180.dp),
-                        isExecuting = ownJobExecuting,
+                        canCancelOwnJob = ownJobExecuting,
                         isEnabled = !busy && client != null && !draft.mpOutOfRange,
                         isUploading = busy,
                         onGenerate = { submit(front = false) },
                         onAddToFrontOfQueue = { submit(front = true) },
-                        onCancelCurrent = { abortOwnJob() },
+                        onCancelOwnJob = { abortOwnJob() },
                         onClearQueue = { clearOwnQueue() }
                     )
                 }
@@ -2787,7 +2932,8 @@ private fun H3ModelDropdown(
         modifier = Modifier.fillMaxWidth()
     )
     // Known options that do not contain the current file: flag it before generation, not after.
-    if (options.isNotEmpty() && current !in options) {
+    val normCurrent = current.replace('\\', '/')
+    if (options.isNotEmpty() && options.none { it.replace('\\', '/') == normCurrent }) {
         Text("服务器上找不到这个文件，生成会失败", style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.error)
     } else if (options.isEmpty()) {

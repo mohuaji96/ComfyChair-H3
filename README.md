@@ -1,74 +1,91 @@
 # ComfyChair H3
 
-一个非官方的 ComfyUI 安卓客户端，专注在手机上跑 **MiniMax H3 参考生视频**，包括把长视频拆成多段、
-用上一段的尾帧接着往下生成；另外带一个**词库组合**和一个**剧情组合**，用来在手机上直接攒提示词。
+[English](README.en.md) | 简体中文
 
-派生自 [legal-hkr/comfychair](https://github.com/legal-hkr/comfychair)（GPL-3.0）。上游是通用 ComfyUI
-客户端，本项目在它的基础上加了 H3 工作区，**不在 F-Droid 发布**。
+面向 ComfyUI 的原生 Android 客户端。出图、出视频、写提示词、整理素材都在手机上完成，服务端仍是你自己的 ComfyUI。
+
+Android 13 及以上 · GPL-3.0 · 服务端自备 ComfyUI
+
+> 本项目基于 ComfyChair 二次开发，遵循 GPL-3.0 协议发布，与 ComfyUI 官方团队无关。
+
+---
+
+## 功能速览
+
+- **出图**：文生图、图生图两页；图生图分编辑与局部重绘（笔刷 + 羽化）；LoRA 链最多 5 个，强度 -100 至 100
+- **出视频**：文生、图生、视频转视频三页；视频按高噪 / 低噪分链，源视频上限 100 MB
+- **H3 工作区**：4 套内置模板、4 种模式自动切换；首帧、尾帧、最多 9 张参考图、最多 3 路音频；连拍、代写尾帧声明、二采精修、参数预设、断点续跑
+- **提示词随机标签**：2625 词 / 39 类词库，分 SFW 与 NSFW 两档（SFW 档 1518 词 / 41 类）；四幕剧情 4 个人数档；可接外部大模型改写
+- **看得见进度**：状态灯一次看清连接与模型清单，进度条报阶段与耗时，采样预览串成动图，不对就停
+- **留得住藏得起**：缓存扛得住服务器重启（默认上限 5 GB），结果一键隐藏，也可以只存内存、退出即清
+
+---
+
+## 界面预览
+
+### 生图与结果控制
 
 <p align="center">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/01-h3-studio.png" width="45%">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/02-refs-tailframe.png" width="45%"><br>
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/03-params.png" width="45%">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.5/04-models-lora.png" width="45%"><br>
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-tag.jpg" width="31%" alt="词库组合">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-story.jpg" width="31%" alt="剧情组合 · 一男两女">
-  <img src="https://github.com/mohuaji96/ComfyChair-H3/releases/download/v0.9.8.8382.571-vc321/composer-story-sfw.jpg" width="31%" alt="剧情组合 · 单人 SFW">
+  <img src="screenshots/01-image-generating.jpg" width="250" />
+  <img src="screenshots/03-image-size.jpg" width="250" />
+  <img src="screenshots/02-image-hidden.jpg" width="250" />
 </p>
 
-- 包名 `com.comfychair.h3`，可与上游 `sh.hnet.comfychair` 同时安装
-- 最低 Android 13（API 33）
-- 需要你自己的 ComfyUI 服务器，手机能访问到（局域网或 VPN）
+出图时右上角留有隐藏入口；尺寸面板用比例一键套用，也可以直接填宽高；点一下眼睛，成品从屏幕上撤下，原地只留「结果已隐藏 / 点此恢复」。
 
-**下载**：[最新 Release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) · APK 与四份示例工作流
+### H3 工作区界面
 
-## 功能
+<p align="center">
+  <img src="screenshots/04-h3-frames.jpg" width="250" />
+  <img src="screenshots/05-h3-reference.jpg" width="250" />
+</p>
 
-**H3 视频工作区**
-- 文生、图生、首尾帧、参考生视频；参数从工作流的节点结构解析，不写死在代码里
-- 参考图（最多 9 张）、三路参考音频、画面比例、像素量、采样步数
-- 时长限制在官方文档的 4–15 秒
+左：首尾帧窗口，两张都空着就是文生视频，底部实时显示「15 秒 = 362 帧 @ 24fps」。
+右：参考生视频，两张参考图按 P1、P2 编号，尾帧已挂、代写尾帧声明已开启、完整连拍与音频参考都在同一屏。
 
-**词库组合**
-- 40 个分类、2643 条词，分「单人 / 多人」两档：人物、身体、穿着、场景、光线、镜头各自成组
-- 点词即选，点分类名只重抽这一组；可分项锁、可忽略、可整段重抽
-- 规则互斥替你收拾冲突：一件式整身包住时上衣和下衣让位，外层衣物挡住时内衣不出现，
-  取景裁掉的部分整类跳过并在面板上标「本次已跳过」
-- 自带上色的款式（白衬衫、小白鞋）不再被颜色格叠成「黑色的白衬衫」，自带图案的同样不吃颜色
-- 「去重」压掉同义重复；「SFW」切到清水词库
-- 底部「优化」把这一盘词直接交给提示词优化，接着就能去生成，不用复制粘贴
+### 采样预览
 
-**剧情组合**
-- 四档人数：一男一女、一男两女、两女、单人；切档时分类跟着变
-- 一男两女档有独立的「女二」字段组：种族、地域、形象、发型发色、肤色、身材、胸部、配饰、眼镜、穿着、袜、鞋、状态、过程中
-- 37 个词池、1396 条词；分项可锁可忽略，可整段重抽
-- 成句顺序是「开始 → 过程中 → 姿势与动作链 → 结束」：过程中交代的是开始之后那一身，所以排在开始后面
-- 双女档两个人的动作轮流主位，各自写明是女一还是女二；开场就全裸的人不写「衣物已完全除尽」
+<p align="center">
+  <img src="screenshots/10-sampling-step1.jpg" width="250" />
+  <img src="screenshots/11-sampling-step3.jpg" width="250" />
+</p>
 
-**尾帧续接**
-- 在手机上取视频最后一帧（`MediaMetadataRetriever`），也可以选一个视频文件由它来取
-- 取到的帧作为最后一个 `<Picture N>` 挂上去，同时把声明写进提示词
-- 声明归 App 所有：关掉开关只撤它自己写的那行，你手打的字一个不动
-- 连拍模式自动循环，长片子变成几段短的
+同一次生成的第 1 步与第 3 步。画面从噪点渐显，标题栏写明步数、每步耗时与已用时间，随时可以中止。
 
-**更新提醒**
-- 「关于」页可查有没有新版本：一天最多问一次 GitHub，失败静默，能手动重查、也能整体关掉
-- 只负责告诉你去哪下：点开跳到 Release 页面，App 自己不下包、不碰安装权限
-- 判新旧按版本号数字，公开版与个人版两条编号谱系不会互相误判
+### 随机标签与图库
 
-**图库**
-- 两层缓存：`cacheDir` 是可丢弃副本（容量上限 + LRU + 收藏豁免），「保存到相册」才是永久的
-- ComfyUI 重启后不会变空：服务器历史存在内存里，重启即失，App 用本地元数据把条目补回来
-- 分类筛选（全部 / 图片 / 视频 / 收藏）、按日分组、缓存条目标识
+<p align="center">
+  <img src="screenshots/06-tags-sfw.jpg" width="200" />
+  <img src="screenshots/07-story-sfw.jpg" width="200" />
+  <img src="screenshots/09-tags-nsfw.jpg" width="200" />
+  <img src="screenshots/08-gallery.jpg" width="200" />
+</p>
 
-**成人向内容与 SFW**
-- 词库和剧情库各有 NSFW 与 SFW 两套，互斥切换：切档后抽取范围、面板分类、生成页可见项一起变
-- 新装默认 SFW，老用户沿用原来的 NSFW；导入词库时先看它声明的档位，档位不对直接拦下
-- 两档共用同一套组合逻辑，界面完全一样
+词库组合的 SFW 档（41 项 / 1518 词）、剧情组合、NSFW 档与强化开关、图库按类型筛选。
 
-## 更新记录
+---
 
-每个版本改了什么见 [CHANGELOG.md](CHANGELOG.md)。
+## H3 视频工作区
+
+独立页签，面向 MiniMax H3 的视频创作，从想法做到成片。
+
+**四种模式自动识别**：只放首帧是图生视频，放了尾帧是首尾帧视频，只有文字是文生视频，放了参考图是参考生视频。改素材即改模式，不需要先选模式再填内容。工作流按内部节点自动识别，导入自己的 H3 工作流同样可用。
+
+**素材位**：首帧、尾帧、最多 9 张参考图、最多 3 路独立音频。参考图可单独「禁用」而不删除，方便在几种构图间来回试；音频支持调整顺序、替换、逐段删除。所有素材按提交顺序编号，与提示词里的图片引用一一对应。
+
+**连拍**：一次排入多段，前一段跑完自动接上下一段。可选「一次只跑一条」或「排队模式」，排队时与普通任务共用同一队列，队列面板里能看到第几段在跑。
+
+**代写尾帧声明**：接续拍摄时，模型需要知道第一张图是上一段的最后一帧，否则会把画面重画一遍。本版可自动在正文开头补上这句声明，写入前先查重（你已经手写过就不重复写），也能一键撤回；若正文里已有的声明编号与本次尾帧不一致，会拒绝写入并提示先改正文。
+
+**二采精修**：成片之后用放大模型再走一遍，单独设置目标像素、采样步数、放大模型，不影响主采样参数。
+
+**超分与插帧**：视频超分倍率与插帧平滑，用于提升分辨率与流畅度。
+
+**参数预设**：调好的一整套参数可命名保存，下次一键套用；也可以把当前参数「另存为新版本」工作流，保留原工作流不动。
+
+**提交前检查**：缺首帧、参考图超出上限、像素量越界、宽高不是合法整数，提交前逐条列出，不用等服务器报错再回头改。
+
+**断点续跑**：任务编号在提交时就写入本地。App 被系统回收、切后台或锁屏后重新打开，仍能接回原任务，不会白跑一段几十秒的视频。
 
 ## 工作流：内置四套，另附同款 JSON
 
@@ -130,84 +147,186 @@ App 内置四套手机端 H3 模板，装上就能跑。前两套是单采，一
 - **Easy-Use 清理节点**（`easy cleanGpuUsed`、`easy clearCacheAll`）：每次跑完释放显存
 - **低显存注意力**（`MiniMaxLowVRAMAttention`）：显存够可以绕过
 
+## 提示词引擎
+
+**词库组合**：39 类、2625 词的词库（SFW 档 41 类 / 1518 词），按分类槽位抽取后拼成一条完整提示词。
+
+- 单人 / 多人两套结构，人数档随选择变化
+- 分类名可单点重随，也可整段重抽
+- 逐格锁定，锁住的内容不参与重随
+- 冲突词自动置灰，避免「下身赤裸」与「穿长裙」这类并置
+- 可单独忽略某一格，本次不抽
+- 点词即补全，配合最近用过的词
+- 三档质量选项：增强模式（防冲突增强 + 提示词简单优化）、普通模式（基础防冲突）、近期去重（刚抽到的词少出现）
+- NSFW 词库开关，关掉后只用 SFW 词，不混出
+- 正向与负向提示词分开，各自可复制
+- 词库可导入（合并或覆盖）、导出、还原为随包版本
+
+**剧情组合**：4 个人数档（单人、一男一女、一男两女、两女）、四幕叙事模板，把人物、场景、动作、台词按叙事阶段组织成一段完整剧情。逐段可重抽，台词可关，多人档有独立的女二字段组；可查看并复制完整剧情。
+
+**提示词优化**：可接入外部大模型改写。供应商地址、模型名与密钥自行配置，词库组合的结果可一键送入，保留优化历史以便对比前后。
+
+## 图像生成
+
+- **文生图**：提示词直接出图，正向与负向分开编辑，全屏编辑器内自带生成按钮
+- **图生图**：编辑模式转换风格，可加 2 张参考图；局部重绘用蒙版，笔刷大小与边缘羽化可调
+- **源图与结果**：小窗互换，源图有独立工具条（替换、移除、蒙版）
+- **参数**：种子、步数、尺寸、缩放收在底部一栏，点开是完整选项面板；数字框的加减沿节点允许值步进
+- **尺寸**：七个预设比例一键套用，也可填精确宽高；比例与像素量二选一
+- **LoRA**：一条链最多 5 个，强度 -100 至 100，粗调步进加细调滑块；检查点与 UNET 两种模式各自独立成链
+- **结果**：多张结果翻页配缩略图条；一条菜单完成保存、分享、查看生成参数、作为其他页面的素材
+
+## 视频生成
+
+- **文生视频**：纯提示词出片，高噪与低噪模型及 LoRA 分别可选
+- **图生视频**：让一张静图动起来，时长与帧率可调
+- **视频转视频**：换风格、修复、放大；源视频来自本机或已有结果，上限 100 MB；源视频在预览区播放并与结果互换
+- **时长与帧数**：按工作流节点的帧网格自动对齐（如 Wan 的 4n+1、H3 的 17n+5），时长、帧率、帧数三者联动，不额外设上限
+- **播放**：带声音、拖动进度条画面跟随、逐帧步进、循环开关记忆
+
+## 运行状态
+
+**状态灯**：每个页面右上角同一个位置的一盏小灯。
+
+- 绿点：服务器通着，模型清单与节点参数都读完了
+- 黄点 +「连接中」：正在连服务器
+- 黄点 +「读取中」：连上了，正在清点模型、LoRA、VAE
+- 红点 +「离线」：连不上
+- 红点 +「读取失败」：连上了但读不到参数
+
+点一下展开卡片：地址、连接状态、节点参数是否就绪、模型清单里有几个模型、几个 LoRA、几个文本编码器、几个 VAE。
+
+**进度条**：标题下一条细线，左边报阶段，右边报耗时。
+
+阶段按真实执行顺序推进：准备中 → 加载模型 → 采样 → 解码画面 → 合成视频 → 写入文件。只有采样显示真实步数（第 3/20 步），其余阶段没有可数的进度，只做流动动画，不伪造百分比。断线超过一秒半，右侧变成「已用时 12 分 · 重连中」，说明进度停住是手机在重连，不是任务死了。
+
+**采样预览**：生成过程中把画面一点点显示出来，从噪点渐显到人形、五官。
+
+- 标注「采样预览 · 第 8/20 步」
+- 显示每步耗时，据此估算还要等多久
+- 可放大、可收起（收起后留一行「采样预览已关 · 点开恢复」）
+- 可直接「中止当前生成」
+- 中间帧串成动图播放，成片之前就能判断动作连不连贯
+
+## 隐私与存储
+
+**结果隐藏**：生图与视频页预览区右上角的眼睛图标，点一下把成品撤下，原地只留「结果已隐藏 / 点此恢复」。不删文件、不动图库、不影响队列；两个工作区分别记忆，重启仍有效；下一次提交生成时自动拉开。
+
+**只存内存**：生成的内容默认不落盘，退出即清；可选退出时保存或直接写入设备。仅内存模式下，系统任务列表不显示预览。
+
+**缓存与收藏**：缩略图与大图分级缓存，超过上限（默认 5 GB，可调）按最近最少使用淘汰；收藏项不参与淘汰；清空时只清非收藏，并给出可释放空间。
+
+**服务器重启后仍可用**：ComfyUI 的历史记录存在内存里，重启即清空，但手机缓存还在。
+
+- 本地仍有缓存的条目转为「仅本地」，继续留在图库列表
+- 从「历史生成」选图时，从图库缓存取原图，转存为服务器输入素材后再使用
+- 转存后的素材在服务器输入目录的独立子目录，原图被删、历史被清都不影响
+
+只要手机缓存还在，这些素材仍可选、可用、可提交。缓存被淘汰且服务器也清掉的条目，选中时会提示「这张图本地和服务器都没有了」。
+
+## 队列与恢复
+
+**队列**：顶栏计数把自己的任务与其他设备的任务分开统计。队列面板可取消、置顶、移除自己的任务，查看他人任务的进度与位置但不修改，也可整体清空。同一队列同时服务于普通生成与 H3 连拍。
+
+**断点续跑**：任务编号在提交时写入本地，App 被系统回收、切后台、锁屏后重新打开仍能接回原任务。
+
+## 图库
+
+- 自适应网格、折叠顶栏、下拉刷新，视频显示时长
+- 按类型筛选：全部、图片、视频、提取帧、收藏、连拍
+- 长按多选，批量保存、分享、删除；同批任务的其他结果会被标记，因为服务器按整条任务删除
+- 点开看生成参数：提示词、模型、种子、步数
+- 删除后数秒内可撤回，过期才提交服务器
+- 提取帧：从视频截下的帧单独成组，可直接保存、分享或作为素材
+
+## 服务器与连接
+
+- **多服务器**：保存多台 ComfyUI，各自独立配置，支持自动登录
+- **协议**：HTTPS 与 HTTP 都支持，优先 HTTPS；用过 HTTPS 的服务器不会在未确认的情况下降级
+- **证书**：系统信任的直接通过；自签或私有 CA 首次确认 SHA-256 指纹，之后只认该证书
+- **登录**：HTTP 基本认证、API 密钥 / Bearer 令牌、反向代理后的浏览器单点登录
+- **离线模式**：连不上时自动提示，可浏览手机本地已有的内容
+- **服务器体检**：查看 ComfyUI、系统、Python、PyTorch 版本与内存显存占用，一键释放内存、卸载模型、清空服务器历史
+
+## 工作流编辑器
+
+- **四种形态**：节点图（只读查看）、节点值面板、结构编辑、字段映射
+- **节点图**：ComfyUI 配色并适配明暗主题，贝塞尔或 Hermite 连线；缩小到 40% 以下变为标题块，点击放大；选中节点的连线强调，其余退后
+- **节点值**：列出节点的全部可编辑输入，改动逐项标记，可单条或全部还原
+- **节点管理**：节点浏览器按分类树或按名称检索；增删、复制、旁路、重命名、清理悬空节点；接口菜单支持连接、插入兼容节点、断开
+- **组与笔记**：分组区域毛玻璃效果，笔记支持 Markdown
+- **子图**：一份定义多处共用；可框选创建、解包、增删接口、管理对外暴露的值
+- **字段映射**：导入时逐项指定字段来源，一个字段可来自多个节点，也可无提示词
+- **自定义字段**：任意节点值（含子图内）可提为独立字段，按类型给控件，生成前校验，按工作流记忆
+- **三种格式**：ComfyUI 界面格式、ComfyUI API 格式、ComfyChair 自有格式，均可导入导出
+- **工作流列表**：可筛选与启停，每个工作流独立记忆参数
+
+## 设置与更新
+
+- **服务器**：连接、证书、模型清单刷新
+- **生成**：默认参数、媒体与隐私、语言、工作流编辑器
+- **数据**：备份与还原（连接、工作流、自定义设置，不含密码与令牌）、清缓存、调试日志、恢复初始状态（可保留服务器）
+- **更新**：应用内检查发布版本，按版本号而非版本字符串比较新旧，每日一次；更新说明中英双语随包内置，按系统语言自动选择
+
+## 首次使用
+
+**第一步，装**。从发布页下载 APK 安装。包名与官方版不同，可以同时装着，互不覆盖。
+
+**第二步，连**。打开 App，填服务器地址与端口（例如 `http://192.168.1.10:8188`）。有密码或令牌的服务器会要求一并填写；反向代理后需要登录的，可选浏览器登录。自签证书首次会让你确认一次 SHA-256 指纹，确认之后只认那一个。
+
+**第三步，等灯变绿**。右上角状态灯由黄转绿，说明模型清单和节点参数都读完了，可以生成。灯是红的先看那里展开的卡片，别急着点生成。
+
+**第四步，选工作流**。H3 页默认用内置模板，但模板里的 UNET 和 LoRA 写的是开发机的文件名，要进「模型与 LoRA」按自己服务器上的文件重选一次。别的工作流可以在「工作流管理」里导入。
+
+**第五步，出第一段**。提示词写在输入框，素材按模式放进对应位置——只放首帧就是图生，放了尾帧就是首尾帧，什么都不放就是文生。点生成后，进度条报阶段，采样预览会一段段显示画面。
+
+**第六步，结果在哪**。成品在图库，也在预览区；点右上角眼睛可以把它从屏幕上撤下。想长期留着就收藏，收藏的不会被缓存淘汰。
+
+## 运行要求
+
+- Android 13（API 33）或更高
+- 一台可访问的 ComfyUI 服务器
+- 手机与服务器之间网络可达（局域网、内网穿透或反向代理均可）
+
 ## 构建
 
-需要 JDK 21 和 Android SDK 36。
-
 ```bash
-./gradlew :app:testDebugUnitTest   # 101 个单测
-./gradlew :app:assembleDebug
-./gradlew :app:assembleRelease     # 没有签名配置时产出 unsigned
+./gradlew :app:assembleRelease
 ```
 
-发布签名密钥**不会进仓库**。要签 release，在仓库同级放一个 `signing/keystore.properties`，
-或用环境变量 `COMFYCHAIR_KEYSTORE_PROPERTIES` 指向它：
+发布构建需要签名配置。调试构建可直接安装，但包名与发布版一致，二者不能并存。
 
-```properties
-storeFile=/absolute/path/to/release.jks
-storePassword=…
-keyAlias=…
-keyPassword=…
-```
+## 配套工具
 
-没有这个文件时 `assembleRelease` 产出未签名包——从源码构建的人本来就该用自己的 key。
+**词库网页版**：同一套词库与剧情引擎的浏览器版本，用于在电脑上大屏调词、出提示词后复制使用。四份词库（主库、SFW 主库、剧情库、SFW 剧情库）与 App 完全一致，由校验脚本逐份比对，任一侧改动未同步会直接报错。
 
-> Windows 用户注意：Android Gradle Plugin 不接受含非 ASCII 字符的工程路径。如果你的检出目录带中文，
-> 换到 `C:\build\ComfyChairH3` 这类路径下构建。
+## 边界与已知限制
 
-## 许可
+- 结果隐藏目前用于生图与视频的五个生成页面，H3 工作台尚未接入
+- 本地缓存默认上限 5 GB，可在设置中调整；超出后按最近最少使用淘汰，收藏项除外
+- 转存到服务器的参考素材无法由客户端自动清理（ComfyUI 未提供删除接口），以统一子目录与同名覆盖控制增长
+- 单张参考图上限 32 MB，单段音频上限 64 MB，视频源上限 100 MB
+- 词库与剧情库为内置资源，修改后需同步提升词库版本号，否则升级安装仍会继续使用手机上的旧副本
 
-GPL-3.0，继承自上游，见 [LICENSE](LICENSE)。本项目的修改同样以 GPL-3.0 发布，对应的完整源码就是
-这个仓库。分发 APK 时请保持 tag 与源码一致。
+## 项目信息
 
-## 隐私
+| 项目 | 内容 |
+| :--- | :--- |
+| 当前版本 | 0.9.8.8382.612-h3（版本号 372） |
+| 平台 | Android 13（API 33）及以上 |
+| 包名 | `com.comfychair.h3` |
+| 底座 | [ComfyChair](https://github.com/legal-hkr/comfychair)（GPL-3.0） |
+| 内置工作流 | 4 套 H3 模板（文生 / 图生 / 首尾帧 / 参考生视频，含两套二采 Turbo） |
+| 词库规模 | 39 类 / 2625 词；SFW 档 41 类 / 1518 词 |
+| 剧情库 | 4 个人数档 / 4 个四幕模板；NSFW 1404 词、SFW 1598 词 |
+| 内容分级 | SFW / NSFW 双档词库与剧情库，NSFW 档由开关控制，关掉后只用 SFW 词 |
 
-没有遥测、没有账号、没有统计。详见 [PRIVACY.md](PRIVACY.md)。
+## 更新记录
 
-## 致谢
+每个版本改了什么见 [CHANGELOG.md](CHANGELOG.md)。
 
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — 这个 App 连接的服务器
-- [legal-hkr/comfychair](https://github.com/legal-hkr/comfychair) — 本项目基于它修改
-- [LokkenJP / TenEros](https://huggingface.co/LokkenJP/TenEros_Max_optimized_learned) — 二采（两段采样）工作流的原作者，`LokkenVideoPostProcessing` 等节点也出自他
+## 许可与致谢
 
----
+本项目基于 [ComfyChair](https://github.com/legal-hkr/comfychair) 二次开发，遵循 GPL-3.0 协议。
 
-# English (summary)
-
-An unofficial Android client for [ComfyUI](https://github.com/comfyanonymous/ComfyUI), built around
-MiniMax H3 reference-to-video — including multi-segment clips that continue from the previous
-segment's last frame. Derived from [ComfyChair](https://github.com/legal-hkr/comfychair), GPL-3.0.
-
-- Package `com.comfychair.h3` — installs alongside upstream `sh.hnet.comfychair`
-- Android 13 (API 33) or newer; you need your own ComfyUI server reachable from the phone
-
-**Download**: [latest release](https://github.com/mohuaji96/ComfyChair-H3/releases/latest) — APK plus the bundled sample workflows.
-
-**Features**: H3 workspace (T2V / I2V / FL2V / reference-to-video) with phone-side tail-frame capture
-and burst capture; a tag composer (40 categories, 2643 words, rule-driven mutexes, SFW switch) and a
-story composer (four cast shapes, 37 pools, a separate field group for the second woman); a two-tier media cache that survives a ComfyUI restart; gallery filters and day
-grouping; an update check that asks GitHub at most once a day (switchable off, browser hand-off only).
-Both word libraries ship side by side (NSFW and SFW), switched per profile.
-
-**Four mobile workflows are bundled**: `ttv_h3_mobile_frames` and `itv_h3_mobile_r2v` sample in one
-pass; `itv_h3_mobile_guide_turbo` and `itv_h3_mobile_r2v_turbo` are two-pass — a low-resolution pass,
-then a latent-upscaled refinement pass. The two-pass skeletons follow **LokkenJP**'s TenEros
-two-pass samples ([Hugging Face](https://huggingface.co/LokkenJP/TenEros_Max_optimized_learned/tree/main/SampleWorkFlowTwoPassOptimized)):
-two `BasicScheduler` + `SamplerCustomAdvanced` stages, `MiniMaxH3LatentUpscaleWithModel` between
-them, `MiniMaxH3SigmaShift` for the noise table, `LokkenVideoPostProcessing` to finish.
-The first two JSON files live in [`workflows/`](workflows) in ComfyUI's UI format, so you can drag
-them into the web UI and see which nodes or models your machine is missing; the two-pass files use
-the app's package format and go in through "Workflow manager → Import". Both formats describe the
-same graph. Both carry the developer's UNET and LoRA filenames, so
-reselect them once under "Model & LoRA" for your own server. Required node packs:
-MiniMax H3 nodes, ComfyUI-KJNodes, rgthree, ComfyUI-Easy-Use, VideoHelperSuite, plus
-`ComfyMathExpression`, `ResolutionSelector` and `CR Text`. The samples enable a 4-step turbo LoRA,
-SageAttention patches, a first-block cache and Easy-Use cleanup nodes for speed — remove them if
-your setup does not need them.
-
-**Build**: JDK 21 and Android SDK 36; `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
-Release signing material stays outside the repository — without it `assembleRelease` produces an
-unsigned APK.
-
-**Licence**: GPL-3.0, inherited from upstream. **Privacy**: no telemetry, no accounts; see
-[PRIVACY.md](PRIVACY.md).
+ComfyUI 版权归其各自权利人所有。本项目为独立的社区作品，与 ComfyUI 官方团队无隶属或背书关系。

@@ -24,8 +24,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.math.BigDecimal
+import java.math.RoundingMode
 import sh.hnet.comfychair.R
-import java.util.Locale
+import sh.hnet.comfychair.util.StepperMath
 
 /**
  * A numeric input field with increment/decrement stepper buttons inside the text field.
@@ -34,8 +36,8 @@ import java.util.Locale
  * @param value The current value as a string
  * @param onValueChange Callback when the value changes
  * @param label The field label
- * @param min Minimum allowed value
- * @param max Maximum allowed value
+ * @param min Minimum allowed value, null for none (any number type: ComfyUI's INT bounds need a Long)
+ * @param max Maximum allowed value, null for none
  * @param step Step size for increment/decrement
  * @param decimalPlaces Number of decimal places (0 for integers)
  * @param error Error message to display, or null
@@ -49,9 +51,9 @@ fun NumericStepperField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    min: Float,
-    max: Float,
-    step: Float,
+    min: Number?,
+    max: Number?,
+    step: Number,
     decimalPlaces: Int = 0,
     error: String? = null,
     hint: String? = null,
@@ -59,9 +61,17 @@ fun NumericStepperField(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val currentValue = value.toFloatOrNull()
-    val canDecrement = enabled && currentValue != null && currentValue > min
-    val canIncrement = enabled && currentValue != null && currentValue < max
+    // From a value that isn't allowed (off the step grid or out of range), − and + go to the nearest allowed value
+    // below or above it, not one step from it
+    val currentValue = value.trim().toBigDecimalOrNull()
+    // The bounds as written (0.01, not the nearest binary float to it); an infinite one is no bound
+    val minValue = min?.toString()?.toBigDecimalOrNull()
+    val maxValue = max?.toString()?.toBigDecimalOrNull()
+    val stepValue = step.toString().toBigDecimalOrNull() ?: BigDecimal.ONE
+    val decremented = currentValue?.let { StepperMath.decrement(it, minValue, maxValue, stepValue) }
+    val incremented = currentValue?.let { StepperMath.increment(it, minValue, maxValue, stepValue) }
+    val canDecrement = enabled && decremented != null
+    val canIncrement = enabled && incremented != null
     var tooltipExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
@@ -90,7 +100,7 @@ fun NumericStepperField(
             shape = RoundedCornerShape(28.dp),
             leadingIcon = {
                 IconButton(
-                    onClick = { performDecrement(value, min, step, decimalPlaces, onValueChange) },
+                    onClick = { decremented?.let { onValueChange(formatValue(it, decimalPlaces)) } },
                     enabled = canDecrement
                 ) {
                     Icon(
@@ -101,7 +111,7 @@ fun NumericStepperField(
             },
             trailingIcon = {
                 IconButton(
-                    onClick = { performIncrement(value, max, step, decimalPlaces, onValueChange) },
+                    onClick = { incremented?.let { onValueChange(formatValue(it, decimalPlaces)) } },
                     enabled = canIncrement
                 ) {
                     Icon(
@@ -130,34 +140,5 @@ fun NumericStepperField(
     }
 }
 
-private fun performDecrement(
-    value: String,
-    min: Float,
-    step: Float,
-    decimalPlaces: Int,
-    onValueChange: (String) -> Unit
-) {
-    val currentValue = value.toFloatOrNull() ?: return
-    val newValue = (currentValue - step).coerceAtLeast(min)
-    onValueChange(formatValue(newValue, decimalPlaces))
-}
-
-private fun performIncrement(
-    value: String,
-    max: Float,
-    step: Float,
-    decimalPlaces: Int,
-    onValueChange: (String) -> Unit
-) {
-    val currentValue = value.toFloatOrNull() ?: return
-    val newValue = (currentValue + step).coerceAtMost(max)
-    onValueChange(formatValue(newValue, decimalPlaces))
-}
-
-private fun formatValue(value: Float, decimalPlaces: Int): String {
-    return if (decimalPlaces == 0) {
-        value.toInt().toString()
-    } else {
-        String.format(Locale.US, "%.${decimalPlaces}f", value)
-    }
-}
+private fun formatValue(value: BigDecimal, decimalPlaces: Int): String =
+    value.setScale(decimalPlaces, RoundingMode.HALF_UP).toPlainString()

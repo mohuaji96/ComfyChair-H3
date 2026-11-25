@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.workflow
 
+import sh.hnet.comfychair.model.CustomField
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.geometry.Offset
@@ -30,6 +31,37 @@ data class WorkflowNode(
     val isBypassed: Boolean get() = mode == 4
     /** True if node is muted (mode=2) - execution stops at this node */
     val isMuted: Boolean get() = mode == 2
+    /** An instance of one of the workflow's subgraphs (spec §19.1) */
+    val isSubgraphInstance: Boolean get() = category == NodeCategory.SUBGRAPH
+
+    // The inputs' order is the rows' order (and an instance's shown values keep it in `promoted`), so two nodes that
+    // differ only in it differ: map equality ignores order, and the editor's state would take a reordered node as the
+    // same one and drop the change
+    override fun equals(other: Any?): Boolean =
+        this === other || other is WorkflowNode &&
+            id == other.id && classType == other.classType && title == other.title && category == other.category &&
+            inputs == other.inputs && inputs.keys.toList() == other.inputs.keys.toList() &&
+            outputs == other.outputs && templateInputKeys == other.templateInputKeys && mode == other.mode &&
+            x == other.x && y == other.y && width == other.width && height == other.height &&
+            hasManualPosition == other.hasManualPosition
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + classType.hashCode()
+        result = 31 * result + title.hashCode()
+        result = 31 * result + category.hashCode()
+        result = 31 * result + inputs.keys.toList().hashCode()
+        result = 31 * result + inputs.hashCode()
+        result = 31 * result + outputs.hashCode()
+        result = 31 * result + templateInputKeys.hashCode()
+        result = 31 * result + mode
+        result = 31 * result + x.hashCode()
+        result = 31 * result + y.hashCode()
+        result = 31 * result + width.hashCode()
+        result = 31 * result + height.hashCode()
+        result = 31 * result + hasManualPosition.hashCode()
+        return result
+    }
 }
 
 /**
@@ -85,7 +117,44 @@ enum class NodeCategory {
     PROCESS,     // VAEDecode, ModelSamplingSD3, CreateVideo, ImageScale
     INPUT,       // LoadImage
     OUTPUT,      // SaveImage, SaveVideo
+    SUBGRAPH,    // An instance of one of the workflow's subgraphs (its class type is the definition's ID)
     OTHER        // Fallback
+}
+
+/** A node's category by its class type, for its colours (canvas, node browser). */
+fun nodeCategoryOf(classType: String): NodeCategory {
+    return when {
+        // Loaders
+        classType.contains("Loader", ignoreCase = true) -> NodeCategory.LOADER
+
+        // Text encoders
+        classType.contains("CLIPTextEncode", ignoreCase = true) ||
+        classType.contains("TextEncode", ignoreCase = true) -> NodeCategory.ENCODER
+
+        // Samplers
+        classType.contains("Sampler", ignoreCase = true) -> NodeCategory.SAMPLER
+
+        // Latent image creation
+        classType.contains("EmptyLatent", ignoreCase = true) ||
+        classType.contains("Empty") && classType.contains("Latent", ignoreCase = true) -> NodeCategory.LATENT
+
+        // Input nodes
+        classType.contains("LoadImage", ignoreCase = true) -> NodeCategory.INPUT
+
+        // Output nodes
+        classType.contains("Save", ignoreCase = true) ||
+        classType.contains("Preview", ignoreCase = true) -> NodeCategory.OUTPUT
+
+        // Processing nodes
+        classType.contains("Decode", ignoreCase = true) ||
+        classType.contains("Encode", ignoreCase = true) ||
+        classType.contains("Scale", ignoreCase = true) ||
+        classType.contains("Create", ignoreCase = true) ||
+        classType.contains("Sampling", ignoreCase = true) ||
+        classType.contains("ModelMerge", ignoreCase = true) -> NodeCategory.PROCESS
+
+        else -> NodeCategory.OTHER
+    }
 }
 
 /**
@@ -133,11 +202,35 @@ data class WorkflowNote(
     val content: String,
     val x: Float = 0f,
     val y: Float = 0f,
-    val width: Float = 480f,  // Same as NODE_WIDTH (6 grid cells)
     var height: Float = 0f,   // Set by renderer after TextMeasurer measurement
     val hasManualPosition: Boolean = false  // True if position was set manually (from JSON or drag)
 ) {
+    /** A node's width, or two columns' (with the spacing between them) for a long note or a wide table. */
+    val width: Float by lazy { if (isWide(content)) WIDE_WIDTH else WorkflowLayoutEngine.NODE_WIDTH }
+
     companion object {
+        /** Two columns of the layout and the spacing between them. */
+        const val WIDE_WIDTH = 2 * WorkflowLayoutEngine.NODE_WIDTH + WorkflowLayoutEngine.HORIZONTAL_SPACING
+
+        // Longer notes take two columns: about the length of a note with a short table and a few paragraphs
+        private const val WIDE_LENGTH = 1200
+        // A table row wider than this (in graph units, estimated from its characters) doesn't fit one column
+        private const val TABLE_FIT = WorkflowLayoutEngine.NODE_WIDTH - 32f
+        private const val CHAR_WIDTH = 11f
+        private const val CELL_PADDING = 16f
+
+        /** Whether [content] needs two columns: long, or with a table row too wide for one. */
+        fun isWide(content: String): Boolean {
+            if (content.length > WIDE_LENGTH) return true
+            return content.lineSequence().map { it.trim() }
+                .filter { it.startsWith("|") && !it.all { c -> c in "|:- " } }
+                .any { line ->
+                    val cells = line.trim('|').split('|').map { it.replace("`", "").replace("*", "").trim() }
+                    cells.sumOf { it.length } * CHAR_WIDTH + cells.size * CELL_PADDING > TABLE_FIT
+                }
+        }
+
+
         /** Convert note ID to member ID string for group membership */
         fun noteIdToMemberId(noteId: Int): String = "note:$noteId"
 
@@ -172,7 +265,16 @@ data class WorkflowGraph(
      * When true, nodes/notes can be dragged to custom positions on a grid.
      * When false, auto-layout is used.
      */
-    val isManualPlacementMode: Boolean = false
+    val isManualPlacementMode: Boolean = false,
+    /** Fields the user made from node values (spec §18) */
+    val customFields: List<CustomField> = emptyList(),
+    /** The workflow's own labels for built-in fields, by field key */
+    val fieldLabels: Map<String, String> = emptyMap(),
+    /**
+     * The workflow's subgraph definitions as stored (JSON text of its `subgraphs` object, [Subgraphs]), carried as they
+     * are; instances show their values as their inputs (exposed). Null without subgraphs.
+     */
+    val subgraphs: String? = null
 )
 
 /**
@@ -187,10 +289,13 @@ data class MutableWorkflowGraph(
     val groups: MutableList<WorkflowGroup>,
     val notes: MutableList<WorkflowNote>,
     val templateVariables: MutableSet<String>,
-    /** Immutable - original workflow mappings don't change during editing */
-    val mappedFields: Map<Pair<String, String>, String> = emptyMap(),
+    /** The workflow's mappings; linking a mapped value removes its mapping (spec §17.2.3) */
+    var mappedFields: Map<Pair<String, String>, String> = emptyMap(),
     /** Whether manual placement mode is enabled for this workflow */
-    var isManualPlacementMode: Boolean = false
+    var isManualPlacementMode: Boolean = false,
+    var customFields: List<CustomField> = emptyList(),
+    var fieldLabels: Map<String, String> = emptyMap(),
+    var subgraphs: String? = null
 ) {
     /**
      * Convert to immutable WorkflowGraph
@@ -204,7 +309,10 @@ data class MutableWorkflowGraph(
         notes = notes.toList(),
         templateVariables = templateVariables.toSet(),
         mappedFields = mappedFields,
-        isManualPlacementMode = isManualPlacementMode
+        isManualPlacementMode = isManualPlacementMode,
+        customFields = customFields,
+        fieldLabels = fieldLabels,
+        subgraphs = subgraphs
     )
 
     companion object {
@@ -220,7 +328,10 @@ data class MutableWorkflowGraph(
             notes = graph.notes.toMutableList(),
             templateVariables = graph.templateVariables.toMutableSet(),
             mappedFields = graph.mappedFields,
-            isManualPlacementMode = graph.isManualPlacementMode
+            isManualPlacementMode = graph.isManualPlacementMode,
+            customFields = graph.customFields,
+            fieldLabels = graph.fieldLabels,
+            subgraphs = graph.subgraphs
         )
     }
 }
@@ -249,6 +360,15 @@ enum class ConnectionDirection {
 }
 
 /**
+ * Picking a value on the graph for a custom field in Map fields (spec §18.3): [fieldId] null for a new field, else the
+ * field getting another value; [targets] the values that can be picked.
+ */
+data class FieldPick(
+    val fieldId: String?,
+    val targets: List<SlotPosition>
+)
+
+/**
  * State for tap-based connection mode.
  * Unified to handle both directions symmetrically:
  * - OUTPUT_TO_INPUT: tapping an output highlights valid inputs
@@ -258,7 +378,27 @@ enum class ConnectionDirection {
 data class ConnectionModeState(
     val direction: ConnectionDirection,
     val sourceSlot: SlotPosition,
-    val validTargetSlots: List<SlotPosition>
+    val validTargetSlots: List<SlotPosition>,
+    /** The type to show for the source when it differs from its own: a switch's matched type resolved */
+    val shownType: String? = null
+)
+
+/**
+ * A level of the editor inside a subgraph (spec §19.2): entered through instance [instanceId] (of the level above) of
+ * definition [definitionId].
+ *
+ * @param nodeCount The nodes inside, nested subgraphs' included
+ * @param usedCount The definition's instances in the whole workflow (its "used n×")
+ * @param inheritedMode The mode of the instance it was entered through, or of an outer one: 2 muted, 4 bypassed, else 0
+ */
+@Immutable
+data class SubgraphLevelInfo(
+    val instanceId: String,
+    val definitionId: String,
+    val name: String,
+    val nodeCount: Int,
+    val usedCount: Int,
+    val inheritedMode: Int
 )
 
 /**
@@ -276,6 +416,8 @@ data class WorkflowEditorUiState(
 
     // Field mapping mode
     val isFieldMappingMode: Boolean = false,
+    // Mapping while importing (Back asks to cancel the import); otherwise while saving from the editor (Back returns there)
+    val isImportMapping: Boolean = false,
     val mappingState: WorkflowMappingState? = null,
     val selectedFieldKey: String? = null,
     val highlightedNodeIds: Set<String> = emptySet(),
@@ -300,6 +442,10 @@ data class WorkflowEditorUiState(
 
     // Connection mode (tap-based connection editing)
     val connectionModeState: ConnectionModeState? = null,
+    /** A pending connection's target is a value the app fills: the editor asks before linking it (spec §17.2.3). */
+    val pendingMappedLink: PendingMappedLink? = null,
+    /** Map fields: picking the value a new field fills, or another value for a field (spec §18.3) */
+    val fieldPick: FieldPick? = null,
 
     // Long-press connection mode (filtered node browser)
     val longPressSourceSlot: SlotPosition? = null,
@@ -329,11 +475,9 @@ data class WorkflowEditorUiState(
     // Save dialog state (shown when Done is pressed in create mode)
     val showSaveDialog: Boolean = false,
     val saveDialogSelectedType: WorkflowType? = null,
-    val saveDialogTypeDropdownExpanded: Boolean = false,
     val saveDialogName: String = "",
     val saveDialogDescription: String = "",
     val saveDialogNameError: String? = null,
-    val saveDialogDescriptionError: String? = null,
     val isSaveValidating: Boolean = false,
 
     // Error dialogs for save validation
@@ -341,7 +485,6 @@ data class WorkflowEditorUiState(
     val missingNodes: List<String> = emptyList(),
     val showMissingFieldsDialog: Boolean = false,
     val missingFields: List<String> = emptyList(),
-    val showDuplicateNameDialog: Boolean = false,
 
     // Discard confirmation
     val showDiscardConfirmation: Boolean = false,
@@ -358,7 +501,12 @@ data class WorkflowEditorUiState(
 
     // Per-workflow manual placement mode
     val isManualPlacementMode: Boolean = false,
-    val showDisableManualPlacementConfirmation: Boolean = false
+    val showDisableManualPlacementConfirmation: Boolean = false,
+
+    /** The subgraphs entered, from the top level down to the one shown; empty at the top level (spec §19.2) */
+    val subgraphPath: List<SubgraphLevelInfo> = emptyList(),
+    /** Inside a subgraph: the values of this level the instance entered through shows (node, input; spec §19.3) */
+    val shownOnInstance: Set<Pair<String, String>> = emptySet()
 )
 
 /**
@@ -384,3 +532,21 @@ data class GraphBounds(
     val width: Float get() = maxX - minX
     val height: Float get() = maxY - minY
 }
+
+/**
+ * Linking a value the app fills from a generation-screen field asks first: linking ends that mapping.
+ *
+ * @param target The slot that completes the connection (an input, or an output when linking from the value)
+ * @param inputName The value's input name; [fieldName] the app's field; [sourceTitle] the node it will come from
+ */
+@Immutable
+data class PendingMappedLink(
+    val target: SlotPosition,
+    val inputName: String,
+    val fieldName: String,
+    val sourceTitle: String,
+    /** Linking to a node not added yet (Add a node, from the socket's menu) */
+    val addNode: Boolean = false,
+    /** The value is its custom field's last one: linking deletes the field */
+    val deletesField: Boolean = false
+)

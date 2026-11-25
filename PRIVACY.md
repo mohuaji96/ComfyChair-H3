@@ -1,82 +1,82 @@
 # Privacy Policy
 
-**App**: ComfyChair H3 (`com.comfychair.h3`)
-**Based on**: [ComfyChair](https://github.com/legal-hkr/comfychair) by Legal HKr
+**Effective Date**: November 9, 2026
+**App**: ComfyChair
+**Developer**: Legal HKr
 
 ## Overview
 
-ComfyChair H3 is an open-source Android client for a ComfyUI server that you run and control. The
-app has no backend of its own: there is no account, no telemetry, no analytics, no crash reporting
-service, and no advertising. The one exception to "the app only talks to your server" is the
-optional update check described below.
+ComfyChair is an open-source Android application that provides a mobile interface for ComfyUI servers. This privacy policy explains how the app handles your data.
 
-## What never leaves your device
+## Data Collection
 
-No account data, no usage data, no prompt text, no images, no device identifiers, no crash reports.
-Generation traffic goes only to the ComfyUI server you enter yourself. The one request that goes
-anywhere else is the update check, and you can switch it off.
+**ComfyChair does not collect, store, or transmit any personal information to the developer or any third parties.**
 
-## What is sent to your server
+### Data Stored Locally on Your Device
 
-Exactly the data needed to render a job:
+The app stores the following data locally on your device:
 
-- Text prompts and generation parameters (duration, aspect ratio, megapixel target, steps)
-- Reference images, tail frames and reference audio you attach
-- Workflow definitions you import
+- **Connection Settings**: Server names, hostnames and ports, and the protocol and certificate fingerprint you accepted for each server
+- **Credentials**: Passwords, tokens and sign-in cookies for your servers, encrypted with a key kept in the Android Keystore that never leaves the device; if the key can't be used, they are not saved rather than stored unencrypted
+- **App Preferences**: UI settings such as live preview, media storage, and debug logging
+- **Generation Parameters**: Your workflow selections, prompts, and generation settings (dimensions, steps, CFG, etc.)
+- **Generated Media and Sources**: Controlled by the "Media storage" setting, which applies equally to the source images and videos you pick. By default ("Memory only") generated images and videos are kept only in the phone's RAM and are never written to its storage; switching to this mode deletes any media stored earlier. The other options keep the latest results on the device when the app goes to the background ("Memory, saved on exit") or store them as they arrive ("On the device"). When you share a result, a copy is written to the app's private cache for the receiving app and deleted the next time ComfyChair starts. Media you save to the gallery is managed by you
+- **Debug Log**: Kept in memory only while debug logging is enabled. Prompts, file names, job IDs, server addresses, workflow names and the titles you give to groups, notes and nodes are recorded as placeholders; node values, server responses and error messages (which can quote addresses, paths or prompts) are not recorded at all, so an exported log does not reveal them
+- **Custom Workflows**: Any workflows you import into the app, from a file or from the workflows saved on your ComfyUI server. The server's list of saved workflows is only shown, not stored; the workflow you pick is kept in memory until you finish importing it. A workflow you export in one of ComfyUI's formats carries the values last used with it on the current server (the negative prompt and other settings, not the positive prompt)
+- **Queue**: The IDs of your queued jobs and a random client ID for each server, so jobs you submitted are still recognized as yours after the app restarts. Descriptions of your queued jobs (prompt and workflow) shown in the queue are kept in memory only
 
-These requests go directly to your server. If that server is exposed beyond your own network, that
-is your configuration and your responsibility.
+All of this data remains on your device and is never transmitted to the developer or any third party.
 
-## Update check
+### Data Sent to Your ComfyUI Server
 
-The app can ask GitHub whether a newer release of itself exists:
+When you use ComfyChair, the app communicates directly with your configured ComfyUI server. The following data is sent to your server:
 
-- Destination: `api.github.com`, the public release feed of this repository
-- What is sent: a plain HTTPS GET with a user agent naming the app. No account, no device ID, no
-  prompt text, no gallery data. As with any HTTPS request, GitHub sees the source IP address
-- When: at most once every 24 hours, a few seconds after the app starts; or when you tap
-  "Check for updates" yourself
-- What comes back: the newest release tag, its notes and its page URL, cached locally so the app
-  does not have to ask again the same day
-- What it does not do: it never downloads or installs anything. Tapping the notice opens the release
-  page in your browser, and the system installer takes over from there
-- Turning it off: About -> Version -> "Check automatically". Tapping the row still checks by hand
+- Text prompts for image/video generation
+- Generation parameters (dimensions, steps, seed, etc.)
+- Source images for image-to-image or image-to-video generation, and source videos for video-to-video generation
+- Workflow configurations
 
-## What is stored on the device
+**This data is sent only to the server you configure.** ComfyChair does not route your data through any intermediary servers.
 
-| Data | Where | Removed by |
-|---|---|---|
-| Server address, port, TLS preference | app preferences | clearing app data / uninstalling |
-| Generation parameters and prompt text of your workflows | app preferences | clearing app data / uninstalling |
-| Generated images and videos (disposable copy) | `cacheDir/gallery_cache` | the cache cap, "clear cache", or the system reclaiming storage |
-| Gallery metadata (file names, first-seen time, size, dimensions, duration) | app internal storage | clearing app data / uninstalling |
-| Favourites and deleted-item tombstones | app preferences | clearing app data / uninstalling |
-| Last update-check result (tag, notes, page URL, time) | app preferences | clearing app data / uninstalling |
-| Saved media | your device gallery (MediaStore) | you, manually — the app never deletes these |
+### What Your Server Shares
 
-The cache is a convenience copy. Anything you deliberately save with the save action goes to your
-gallery through MediaStore and stays until you delete it there.
+ComfyUI keeps one history, one input folder and one output folder for everyone who uses the server: they hold the work of every client, the web interface included, and ComfyUI shows them to any client that connects. ComfyChair shows what the server shares in the same way: the gallery shows the server's history, and the source picker of the generation screens lists the images and videos in the server's input folder, so a file already there can be used without uploading it again. ComfyUI also reports every client's queued jobs with their workflows; ComfyChair's queue shows other clients' jobs with their prompt and position, without letting you change them. None of this is sent anywhere else, and none of it is logged; it's kept on the device only as the "Media storage" setting allows.
 
-Debug logs are kept in memory only, are not written to disk, and disappear when the process ends.
+## Third-Party Services
 
-## Permissions
+ComfyChair does not integrate any third-party services such as:
 
-- Network access — talking to your ComfyUI server
-- Read media / photo picker — attaching reference images and videos you choose
-- Write to gallery — only when you tap save
+- Analytics or tracking services
+- Advertising networks
+- Crash reporting services
+- Social media SDKs
 
-The app does not read your gallery in the background, does not access contacts, location, camera,
-microphone or SMS.
+## Data Security
 
-## Children
+- All local data is stored using Android's private storage mechanisms
+- Network communication supports both HTTP and HTTPS; HTTPS is tried first, and a server that used HTTPS is never switched to unencrypted HTTP without your consent
+- Certificates not trusted by Android (self-signed or issued by a private CA) are accepted only after you confirm their SHA-256 fingerprint, and from then on only that certificate is accepted for the server
+- Copied generation metadata and error details are marked as sensitive, so Android does not show them in the clipboard preview
+- In "Memory only" mode the app is hidden from the recents screen preview, so the system does not store a screenshot of generated media
 
-The app has no user accounts and no content of its own; it displays whatever your ComfyUI server
-generates.
+## Data Backup
 
-## Changes
+ComfyChair opts out of Android's cloud backup, so none of its data (prompts, server addresses, settings, credentials or media) is uploaded to your Google account. When you move to a new phone with Android's device-to-device transfer, app settings are copied directly between the two devices; saved credentials and media are not, and you will need to sign in to your servers again. To move everything deliberately, use the backup export in the app's settings. Backup files contain your servers, settings, workflows and saved prompts, but no passwords, tokens or sign-in cookies: you enter those again after restoring.
 
-Changes to this policy will be committed to this repository, where the full history is public.
+## Children's Privacy
+
+ComfyChair does not knowingly collect any information from children under 13 years of age.
+
+## Changes to This Policy
+
+We may update this privacy policy from time to time. Any changes will be reflected in the "Effective Date" at the top of this document and in the app's repository.
 
 ## Contact
 
-Open an issue on this repository.
+If you have questions about this privacy policy, please open an issue at:
+https://github.com/legal-hkr/comfychair/issues
+
+## Open Source
+
+ComfyChair is open-source software licensed under GPL-3.0. You can review the complete source code at:
+https://github.com/legal-hkr/comfychair

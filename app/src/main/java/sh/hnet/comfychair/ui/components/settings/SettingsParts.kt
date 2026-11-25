@@ -1,0 +1,488 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package sh.hnet.comfychair.ui.components.settings
+
+import sh.hnet.comfychair.ui.navigation.expandAnimated
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material3.Badge
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFlexibleTopAppBar
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.components.dialogs.ConfirmDialog
+import sh.hnet.comfychair.ui.components.shared.NoOverscrollContainer
+import sh.hnet.comfychair.ui.components.shared.TooltipIconButton
+
+/**
+ * A settings page: a flexible top bar collapsing on scroll (large on the Settings list, medium with Back on the pages
+ * it opens) over a scrolling column of groups.
+ *
+ * @param onNavigateBack Null on the Settings list (a tab has no Back)
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsPage(
+    title: String,
+    onNavigateBack: (() -> Unit)?,
+    subtitle: String? = null,
+    /** Emits when the page should go back to its top, as when first opened (its tab tapped again) */
+    scrollToTop: Flow<Unit>? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollState = rememberScrollState()
+    LaunchedEffect(scrollToTop) {
+        scrollToTop?.collect {
+            coroutineScope {
+                launch { scrollState.animateScrollTo(0) }
+                launch { scrollBehavior.expandAnimated() }
+            }
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        val titleText: @Composable () -> Unit = { Text(title) }
+        val subtitleText: (@Composable () -> Unit)? = subtitle?.let { { Text(it) } }
+        if (onNavigateBack == null) {
+            LargeFlexibleTopAppBar(
+                title = titleText,
+                subtitle = subtitleText,
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                scrollBehavior = scrollBehavior
+            )
+        } else {
+            MediumFlexibleTopAppBar(
+                title = titleText,
+                subtitle = subtitleText,
+                navigationIcon = {
+                    TooltipIconButton(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.content_description_back), onNavigateBack)
+                },
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                scrollBehavior = scrollBehavior
+            )
+        }
+        NoOverscrollContainer(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                content = content
+            )
+        }
+    }
+}
+
+/** Rows of a [SettingsGroup]; each gets the shapes of its place in the group. */
+class SettingsGroupScope internal constructor() {
+    internal val rows = mutableListOf<@Composable (ListItemShapes) -> Unit>()
+
+    fun row(content: @Composable (shapes: ListItemShapes) -> Unit) {
+        rows += content
+    }
+}
+
+/**
+ * A group of segmented rows, 2 dp apart, with round outer and small inner corners; optionally titled.
+ *
+ * @param subordinate A small title in onSurfaceVariant, for groups under a section heading (e.g. Yours, Built-in)
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsGroup(title: String? = null, subordinate: Boolean = false, content: SettingsGroupScope.() -> Unit) {
+    val scope = SettingsGroupScope().apply(content)
+    if (scope.rows.isEmpty()) return
+    Column(Modifier.fillMaxWidth()) {
+        title?.let {
+            Text(
+                text = it,
+                style = if (subordinate) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
+                color = if (subordinate) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = if (subordinate) 6.dp else 8.dp)
+            )
+        }
+        // Rows that come and go (shown only in some states) resize the group smoothly
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec())
+        ) {
+            scope.rows.forEachIndexed { index, row ->
+                row(groupShapes(index, scope.rows.size))
+            }
+        }
+    }
+}
+
+/**
+ * Shapes of a row by its place in the group. A group of one row would get the library's single-item shape, with small
+ * corners; it gets the group's outer corners instead, taken from the library's own first and last segments, and keeps
+ * the library's pressed and focused shapes.
+ */
+@Composable
+internal fun groupShapes(index: Int, count: Int): ListItemShapes {
+    val segmented = ListItemDefaults.segmentedShapes(index, count)
+    if (count > 1) return segmented
+    val first = ListItemDefaults.segmentedShapes(0, 2).shape as? CornerBasedShape ?: return segmented
+    val last = ListItemDefaults.segmentedShapes(1, 2).shape as? CornerBasedShape ?: return segmented
+    val outer = first.copy(bottomStart = last.bottomStart, bottomEnd = last.bottomEnd)
+    return ListItemDefaults.shapes(
+        shape = outer,
+        selectedShape = outer,
+        pressedShape = segmented.pressedShape,
+        focusedShape = segmented.focusedShape,
+        hoveredShape = segmented.hoveredShape,
+        draggedShape = segmented.draggedShape
+    )
+}
+
+/** Explanation under the top bar of a page, before its groups. */
+@Composable
+fun SettingsDescription(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
+}
+
+/**
+ * Row colours: segments on surfaceContainer, so they stand out from the page's background as one block.
+ *
+ * @param highlightSelected Whether a selected row (a chosen radio option) keeps the component's selected colours; a
+ *   switch row's "on" isn't a selection and looks like the others
+ */
+@Composable
+private fun rowColors(highlightSelected: Boolean = false): ListItemColors {
+    val base = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    if (highlightSelected) return base
+    return ListItemDefaults.segmentedColors(
+        containerColor = base.containerColor,
+        selectedContainerColor = base.containerColor,
+        selectedContentColor = base.contentColor,
+        selectedLeadingContentColor = base.leadingContentColor,
+        selectedTrailingContentColor = base.trailingContentColor,
+        selectedOverlineContentColor = base.overlineContentColor,
+        selectedSupportingContentColor = base.supportingContentColor
+    )
+}
+
+/**
+ * The row keeps its place's shape when selected (checked) or focused, so the group stays one block; only a press
+ * morphs it. Focus lands on a row without the user aiming at it (coming back to a page), and the library's focused
+ * shape would leave one rounded row among square-cornered ones.
+ */
+@Composable
+private fun steadyShapes(shapes: ListItemShapes): ListItemShapes = ListItemDefaults.shapes(
+    shape = shapes.shape,
+    selectedShape = shapes.shape,
+    pressedShape = shapes.pressedShape,
+    focusedShape = shapes.shape,
+    hoveredShape = shapes.hoveredShape,
+    draggedShape = shapes.draggedShape
+)
+
+/** A short line under a row's description, in primary, with an optional small icon. */
+@Composable
+private fun RowNote(text: String, icon: ImageVector?) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.padding(top = 2.dp)
+    ) {
+        icon?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** The tonal leading icon of a row. */
+@Composable
+private fun RowIcon(icon: ImageVector) {
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
+}
+
+/**
+ * A row opening a page.
+ *
+ * @param badge A short label before the arrow (e.g. New), in a badge
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsNavigationRow(
+    shapes: ListItemShapes,
+    icon: ImageVector,
+    title: String,
+    supporting: String? = null,
+    badge: String? = null,
+    onClick: () -> Unit
+) {
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = shapes,
+        colors = rowColors(),
+        leadingContent = { RowIcon(icon) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                badge?.let {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ) {
+                        Text(it, modifier = Modifier.padding(horizontal = 4.dp))
+                    }
+                }
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+            }
+        },
+        supportingContent = supporting?.let { { Text(it) } }
+    ) {
+        Text(title)
+    }
+}
+
+/** A setting that's on or off: the whole row toggles, the switch shows the state. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsSwitchRow(
+    shapes: ListItemShapes,
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    supporting: String? = null,
+    enabled: Boolean = true,
+    icon: ImageVector? = null
+) {
+    SegmentedListItem(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        shapes = steadyShapes(shapes),
+        colors = rowColors(),
+        enabled = enabled,
+        leadingContent = icon?.let { { RowIcon(it) } },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
+        supportingContent = supporting?.let { { Text(it) } }
+    ) {
+        Text(title)
+    }
+}
+
+/** One option of a longer choice, with what it means; optionally with its own trailing control (e.g. a row menu). */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsRadioRow(
+    shapes: ListItemShapes,
+    title: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    supporting: String? = null,
+    enabled: Boolean = true,
+    note: String? = null,
+    noteIcon: ImageVector? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    SegmentedListItem(
+        selected = selected,
+        onClick = onSelect,
+        shapes = steadyShapes(shapes),
+        enabled = enabled,
+        // The chosen option stands out by colour only
+        colors = rowColors(highlightSelected = true),
+        leadingContent = { RadioButton(selected = selected, onClick = null, enabled = enabled) },
+        trailingContent = trailing,
+        supportingContent = if (supporting == null && note == null) null else {
+            {
+                Column {
+                    supporting?.let { Text(it) }
+                    // Something to do before the option works, in primary, under its description
+                    note?.let { RowNote(it, noteIcon) }
+                }
+            }
+        }
+    ) {
+        Text(title)
+    }
+}
+
+/**
+ * A page's (or a sheet's) lone action, apart from its lists: a full-width outlined button with its icon, in the error
+ * colour when it removes something (still confirmed by its caller). Android's own settings show a single action so;
+ * a list row is for actions among others (a group of several).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsActionButton(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    destructive: Boolean = false,
+    enabled: Boolean = true
+) {
+    val error = MaterialTheme.colorScheme.error
+    OutlinedButton(
+        onClick = onClick,
+        shapes = ButtonDefaults.shapes(),
+        enabled = enabled,
+        colors = if (destructive) ButtonDefaults.outlinedButtonColors(contentColor = error) else ButtonDefaults.outlinedButtonColors(),
+        border = ButtonDefaults.outlinedButtonBorder(enabled).let { if (destructive && enabled) it.copy(brush = SolidColor(error)) else it },
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+        Text(title)
+    }
+}
+
+/**
+ * An action. A destructive one is in the error colour; its caller confirms it before acting.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsActionRow(
+    shapes: ListItemShapes,
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    supporting: String? = null,
+    destructive: Boolean = false,
+    enabled: Boolean = true,
+    busy: Boolean = false
+) {
+    val defaults = rowColors()
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = shapes,
+        colors = rowColors(),
+        // Not again while it runs
+        enabled = enabled && !busy,
+        trailingContent = if (busy) {
+            { LoadingIndicator(Modifier.size(24.dp)) }
+        } else null,
+        leadingContent = {
+            Icon(icon, contentDescription = null, tint = if (destructive && enabled) MaterialTheme.colorScheme.error else defaults.leadingContentColor)
+        },
+        supportingContent = supporting?.let { { Text(it) } }
+    ) {
+        Text(title, color = if (destructive && enabled) MaterialTheme.colorScheme.error else Color.Unspecified)
+    }
+}
+
+/**
+ * A value to read (e.g. a version): not a button, in a segment of the group.
+ *
+ * @param icon In the same tonal container as the other rows' icons, so a group with icons lines up
+ */
+@Composable
+fun SettingsInfoRow(shapes: ListItemShapes, title: String, value: String, icon: ImageVector? = null) {
+    Surface(
+        shape = shapes.shape,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            icon?.let { RowIcon(it) }
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** A row opening a web page in the browser: the topic's icon first, the open-in-new mark last. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SettingsLinkRow(
+    shapes: ListItemShapes,
+    icon: ImageVector,
+    title: String,
+    supporting: String? = null,
+    onClick: () -> Unit
+) {
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = shapes,
+        colors = rowColors(),
+        leadingContent = { RowIcon(icon) },
+        trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
+        supportingContent = supporting?.let { { Text(it) } }
+    ) {
+        Text(title)
+    }
+}
+
+/** Confirmation of a destructive action: the dialog pattern's confirmation (A) with the verb in the error colour. */
+@Composable
+fun ConfirmDestructiveDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    icon: ImageVector? = null
+) {
+    ConfirmDialog(title, text, confirmLabel, onConfirm, onDismiss, icon = icon, destructive = true)
+}

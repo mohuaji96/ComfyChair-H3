@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -72,12 +74,17 @@ fun H3WorkspaceScreen(
         val workflowId = prefs.getString("workflowId", null)
         if (workflowId != null) {
             val modeName = prefs.getString("mode", "").orEmpty()
-            prefs.edit().clear().apply()
+            prefs.edit().remove("workflowId").remove("mode").apply()
             val mode = H3Plan.Mode.entries.firstOrNull { it.name == modeName } ?: H3Plan.Mode.T2V
             val area = mode.area
             tabIndex = tabs.indexOf(area).coerceAtLeast(0)
             choices = choices + (area.name to workflowId)
             H3ChoicesStore.save(context, area.name, workflowId)
+        }
+        val sourceSlot = prefs.getString("sourceSlot", null)
+        if (sourceSlot != null) {
+            val targetArea = if (sourceSlot == "ref") H3Plan.Area.R2V else H3Plan.Area.FRAMES
+            tabIndex = tabs.indexOf(targetArea).coerceAtLeast(0)
         }
     }
 
@@ -167,7 +174,21 @@ fun H3WorkspaceScreen(
             sh.hnet.comfychair.ui.components.QueueIndicatorPill()
             Spacer(Modifier.width(8.dp))
             ServerStatusLamp()
-            TextButton(onClick = onOpenWorkflowSettings) { Text("工作流管理") }
+            // The workflow library is reachable from the 工作流 picker in each tab and from
+            // 设置；a text button here crowded the same row as the status lamp and the queue pill.
+            val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
+            androidx.compose.material3.IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Outlined.Settings,
+                    contentDescription = "设置"
+                )
+            }
+        }
+        if (sh.hnet.comfychair.ui.components.QueueSheetController.visible && generationViewModel != null) {
+            sh.hnet.comfychair.ui.components.generation.QueueSheet(
+                generationViewModel = generationViewModel,
+                onDismiss = { sh.hnet.comfychair.ui.components.QueueSheetController.visible = false }
+            )
         }
 
         // Under the title, above the tabs -- the same slot the four ordinary pages use. It sits

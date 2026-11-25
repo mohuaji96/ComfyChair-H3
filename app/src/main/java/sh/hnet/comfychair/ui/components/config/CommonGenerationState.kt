@@ -4,14 +4,10 @@ import sh.hnet.comfychair.model.LoraSelection
 import sh.hnet.comfychair.model.WorkflowCapabilities
 
 /**
- * Interface for common generation state properties shared across all UiState types.
+ * Read-only view of the generation parameters every screen carries.
  *
- * This enables shared helper functions for BottomSheetConfig construction.
- * Each screen's UiState data class implements this interface.
- *
- * Note: Kotlin data classes automatically satisfy interface properties
- * if they have matching property names, so implementing this interface
- * requires no additional code in the UiState classes.
+ * Implemented by [sh.hnet.comfychair.viewmodel.base.GenerationParams]; each screen's UiState delegates to its
+ * params (`: CommonGenerationState by params`), so screens and the options sheet builder read these fields directly.
  */
 interface CommonGenerationState {
     // Workflow capabilities (controls field visibility)
@@ -28,6 +24,7 @@ interface CommonGenerationState {
     val selectedClip4: String
     val selectedTextEncoder: String
     val selectedLatentUpscaleModel: String
+    val selectedAudioVae: String
     val selectedLoraName: String  // Mandatory LoRA (single selection)
 
     // Available model lists (from server)
@@ -53,7 +50,14 @@ interface CommonGenerationState {
     val filteredClips4: List<String>?
     val filteredTextEncoders: List<String>?
     val filteredLatentUpscaleModels: List<String>?
+    val filteredAudioVaes: List<String>?
     val filteredLoras: List<String>?
+    /** Options of the node that holds {{upscale_method}}; the server-wide list mixes in custom nodes' values */
+    val filteredUpscaleMethods: List<String>?
+
+    // Custom fields (spec §18): values as text and validation errors, by field ID
+    val customValues: Map<String, String>
+    val customErrors: Map<String, String>
 
     // Generation parameters
     val steps: String
@@ -79,4 +83,29 @@ interface CommonGenerationState {
 
     // LoRA chain (for screens that support it)
     val loraChain: List<LoraSelection>
+
+    // Workflow, prompts, dimensions, video length and dual-model selections
+    val selectedWorkflow: String
+    val selectedWorkflowId: String
+    val workflowPlaceholders: Set<String>
+    val positivePrompt: String
+    val negativePrompt: String
+    val selectedHighnoiseUnet: String
+    val selectedLownoiseUnet: String
+    val selectedHighnoiseLora: String
+    val selectedLownoiseLora: String
+    val isLoadingModels: Boolean
+    val modelsLoaded: Boolean
+    val width: String
+    val height: String
+    val megapixels: String
+    val length: String
+    val fps: String
+    val widthError: String?
+    val heightError: String?
+    val megapixelsError: String?
+    val lengthError: String?
+    val fpsError: String?
+    val highnoiseLoraChain: List<LoraSelection>
+    val lownoiseLoraChain: List<LoraSelection>
 }

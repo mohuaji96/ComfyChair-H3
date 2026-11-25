@@ -1,17 +1,21 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package sh.hnet.comfychair.ui.screens
 
-import android.widget.Toast
+import android.content.Context
+import android.graphics.Bitmap
+import android.view.accessibility.AccessibilityManager
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,31 +25,44 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Input
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MovieFilter
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingToolbarColors
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,19 +71,37 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
+import sh.hnet.comfychair.ui.components.ErrorSnackbars
 import sh.hnet.comfychair.ui.components.ImageViewer
 import sh.hnet.comfychair.ui.components.MetadataBottomSheet
+import sh.hnet.comfychair.ui.components.SharedVideoPlayer
+import sh.hnet.comfychair.ui.components.SourceMedia
+import sh.hnet.comfychair.ui.components.SourceTarget
 import sh.hnet.comfychair.ui.components.VideoPlayer
-import sh.hnet.comfychair.ui.components.rememberLazyBitmap
 import sh.hnet.comfychair.ui.components.VideoScaleMode
+import sh.hnet.comfychair.ui.components.ViewerCloseFrom
+import sh.hnet.comfychair.ui.components.ViewerPlaybackCard
+import sh.hnet.comfychair.ui.components.dialogs.ConfirmDialog
+import sh.hnet.comfychair.ui.components.rememberLazyBitmap
+import sh.hnet.comfychair.ui.components.rememberViewerDismissState
+import sh.hnet.comfychair.ui.components.shared.CircleArrowButton
+import sh.hnet.comfychair.ui.components.shared.TooltipIconButton
+import sh.hnet.comfychair.ui.components.viewerSwipeToDismiss
+import sh.hnet.comfychair.util.AppErrors
 import sh.hnet.comfychair.viewmodel.MediaViewerEvent
 import sh.hnet.comfychair.viewmodel.MediaViewerViewModel
 import sh.hnet.comfychair.viewmodel.ViewerMode
@@ -76,6 +111,8 @@ import sh.hnet.comfychair.viewmodel.ViewerMode
 fun MediaViewerScreen(
     viewModel: MediaViewerViewModel,
     onClose: () -> Unit,
+    onUseAsSource: (SourceTarget, SourceMedia) -> Unit,
+    onRequestClose: (ViewerCloseFrom) -> Boolean = { false },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -83,15 +120,44 @@ fun MediaViewerScreen(
 
     val currentMetadata by viewModel.currentMetadata.collectAsState()
     val isLoadingMetadata by viewModel.isLoadingMetadata.collectAsState()
-    val metadataError by viewModel.metadataError.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Layout constants - 8dp because navigationBarsPadding() adds ~24dp, totaling ~32dp like Workflow Editor
     val toolbarBottomPadding = 8.dp
-    val fabBottomPadding = toolbarBottomPadding + 4.dp
+
+    // Swipe down (and predictive back) to close: the media shrinks, rounds and the backdrop fades
+    val dismiss = rememberViewerDismissState()
+    val overlaysShown = uiState.isUiVisible && !dismiss.active
+    val currentIsVideo = uiState.currentItem?.isVideo == true || uiState.currentVideoUri != null
+    val density = LocalDensity.current
+    // Back into the origin when the host can fly it there, else a fade
+    fun animateClose() {
+        if (dismiss.closing) return
+        if (onRequestClose(dismiss.closeFrom(with(density) { 28.dp.toPx() }))) {
+            dismiss.markClosing()
+        } else {
+            scope.launch {
+                dismiss.fadeOut()
+                onClose()
+            }
+        }
+    }
 
     // Metadata bottom sheet state
     var showMetadataSheet by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    // The app's errors while the viewer is open (the main screens' snackbars are under it)
+    ErrorSnackbars(snackbarHostState)
+    // Each opening of the viewer starts with the sound on
+    LaunchedEffect(Unit) { SharedVideoPlayer.startViewerSession() }
+    // Results of the job about to be deleted, while asking (only when there's more than the one shown)
+    var confirmJobDeletion by remember { mutableStateOf<Int?>(null) }
+    // Playback card: uses of its controls (restart the auto-hide), the slider being held, an open toolbar menu
+    var playbackInteractions by remember { mutableIntStateOf(0) }
+    var seeking by remember { mutableStateOf(false) }
+    var toolbarMenuOpen by remember { mutableStateOf(false) }
+    var bottomControlsHeight by remember { mutableIntStateOf(0) }
+    val resources = LocalResources.current
 
     // Load metadata when sheet is shown
     LaunchedEffect(showMetadataSheet) {
@@ -100,9 +166,20 @@ fun MediaViewerScreen(
         }
     }
 
-    // Handle system back button - ensures onClose() is called with proper result
-    BackHandler {
-        onClose()
+    // System back: the same shrink as the swipe, driven by the back progress; cancelling brings the media back
+    PredictiveBackHandler(enabled = !dismiss.closing) { progress ->
+        val wasPlaying = pauseVideo(context, currentIsVideo)
+        try {
+            dismiss.start()
+            progress.collect { dismiss.backProgress(it.progress) }
+            animateClose()
+        } catch (e: CancellationException) {
+            scope.launch {
+                dismiss.settle()
+                if (wasPlaying) resumeVideo(context)
+            }
+            throw e
+        }
     }
 
     // Handle events
@@ -110,13 +187,26 @@ fun MediaViewerScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is MediaViewerEvent.ShowToast -> {
-                    Toast.makeText(context, event.messageResId, Toast.LENGTH_SHORT).show()
+                    AppErrors.notify(context, event.messageResId)
                 }
                 is MediaViewerEvent.ItemDeleted -> {
                     // Items list changed, pager will recompose with new key
                 }
+                is MediaViewerEvent.DeletionPending -> {
+                    // A new deletion replaces the previous Undo (already sent to the server)
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = resources.getQuantityString(R.plurals.msg_deleted_from_history, event.count, event.count),
+                            actionLabel = resources.getString(R.string.button_undo),
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) viewModel.undoDeletion(event.id)
+                        else viewModel.commitDeletion(event.id)
+                    }
+                }
                 is MediaViewerEvent.Close -> {
-                    onClose()
+                    animateClose()
                 }
             }
         }
@@ -125,9 +215,30 @@ fun MediaViewerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            // Fades out while swiping down, revealing the screen underneath (the window is translucent)
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = dismiss.backdropAlpha))
+            .onSizeChanged { dismiss.containerHeight = it.height }
+            .viewerSwipeToDismiss(
+                state = dismiss,
+                onStart = { pauseVideo(context, currentIsVideo) },
+                onClose = { animateClose() },
+                onSettle = { wasPlaying -> if (wasPlaying) resumeVideo(context) }
+            )
     ) {
-        // Media content
+        // Media content, moved, scaled and rounded by the swipe (the gesture above reads untransformed positions)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = dismiss.offset
+                    val scale = 1f - 0.15f * dismiss.progress
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = dismiss.contentAlpha
+                    shape = RoundedCornerShape(28.dp * dismiss.progress)
+                    clip = dismiss.progress > 0f
+                }
+        ) {
         when (uiState.mode) {
             ViewerMode.GALLERY -> {
                 if (uiState.items.isNotEmpty()) {
@@ -170,7 +281,8 @@ fun MediaViewerScreen(
                                 cacheKey = cacheKey,
                                 isVideo = item.isVideo,
                                 subfolder = item.subfolder,
-                                type = item.type
+                                type = item.type,
+                                localPath = item.localPath
                             )
 
                             // Video URI only needed for current page (VideoPlayer)
@@ -204,52 +316,46 @@ fun MediaViewerScreen(
                         // Left navigation arrow
                         if (uiState.totalCount > 1) {
                             AnimatedVisibility(
-                                visible = uiState.isUiVisible && uiState.currentIndex > 0,
+                                visible = overlaysShown && uiState.currentIndex > 0,
                                 enter = fadeIn(animationSpec = tween(250)),
                                 exit = fadeOut(animationSpec = tween(250)),
                                 modifier = Modifier
                                     .align(Alignment.CenterStart)
                                     .padding(start = 16.dp)
                             ) {
-                                FilledTonalIconButton(
+                                CircleArrowButton(
+                                    forward = false,
                                     onClick = {
                                         scope.launch {
                                             pagerState.animateScrollToPage(pagerState.currentPage - 1)
                                         }
                                     },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                        contentDescription = stringResource(R.string.media_viewer_previous),
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
+                                    contentDescription = stringResource(R.string.media_viewer_previous),
+                                    size = 48.dp,
+                                    iconSize = 32.dp
+                                )
                             }
 
                             // Right navigation arrow
                             AnimatedVisibility(
-                                visible = uiState.isUiVisible && uiState.currentIndex < uiState.totalCount - 1,
+                                visible = overlaysShown && uiState.currentIndex < uiState.totalCount - 1,
                                 enter = fadeIn(animationSpec = tween(250)),
                                 exit = fadeOut(animationSpec = tween(250)),
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
                                     .padding(end = 16.dp)
                             ) {
-                                FilledTonalIconButton(
+                                CircleArrowButton(
+                                    forward = true,
                                     onClick = {
                                         scope.launch {
                                             pagerState.animateScrollToPage(pagerState.currentPage + 1)
                                         }
                                     },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = stringResource(R.string.media_viewer_next),
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
+                                    contentDescription = stringResource(R.string.media_viewer_next),
+                                    size = 48.dp,
+                                    iconSize = 32.dp
+                                )
                             }
                         }
                     }
@@ -266,13 +372,14 @@ fun MediaViewerScreen(
                 )
             }
         }
+        }
 
         // Counter chip (gallery mode only, when multiple items)
         if (uiState.mode == ViewerMode.GALLERY && uiState.totalCount > 1) {
             AnimatedVisibility(
-                visible = uiState.isUiVisible,
-                enter = fadeIn(animationSpec = tween(250)),
-                exit = fadeOut(animationSpec = tween(250)),
+                visible = overlaysShown,
+                enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -292,60 +399,140 @@ fun MediaViewerScreen(
             }
         }
 
-        // Bottom controls: playback card (videos only) + toolbar
+        // Back at the top start, centred with the counter chip
         AnimatedVisibility(
-            visible = uiState.isUiVisible,
-            enter = fadeIn(animationSpec = tween(250)),
-            exit = fadeOut(animationSpec = tween(250)),
+            visible = overlaysShown,
+            enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(top = 10.dp, start = 16.dp)
+        ) {
+            FilledTonalIconButton(
+                onClick = { animateClose() },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.content_description_back))
+            }
+        }
+
+        // Playback of a video page: the overlays hide after a few seconds of playback without interaction (as the
+        // system's "time to take action" says), never while paused, ended, seeking, with a menu open or with TalkBack
+        val playback by SharedVideoPlayer.state.collectAsState()
+        val accessibility = remember { context.getSystemService(AccessibilityManager::class.java) }
+        LaunchedEffect(
+            currentIsVideo, playback.isPlaying, uiState.isUiVisible, playbackInteractions, seeking, toolbarMenuOpen,
+            showMetadataSheet, confirmJobDeletion
+        ) {
+            if (!currentIsVideo || !playback.isPlaying || !uiState.isUiVisible || seeking || toolbarMenuOpen ||
+                showMetadataSheet || confirmJobDeletion != null || accessibility?.isTouchExplorationEnabled == true
+            ) return@LaunchedEffect
+            val timeout = accessibility?.getRecommendedTimeoutMillis(
+                AUTO_HIDE_MS, AccessibilityManager.FLAG_CONTENT_CONTROLS
+            ) ?: AUTO_HIDE_MS
+            delay(timeout.toLong())
+            viewModel.setUiVisible(false)
+        }
+        // A video that ended (looping off) brings the overlays back
+        LaunchedEffect(playback.ended) {
+            if (playback.ended && currentIsVideo) viewModel.setUiVisible(true)
+        }
+
+        // At the bottom: the playback card (video pages only) above the item's actions, which never move
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = toolbarBottomPadding)
+                .onSizeChanged { bottomControlsHeight = it.height }
         ) {
-            androidx.compose.foundation.layout.Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            AnimatedVisibility(
+                visible = overlaysShown && currentIsVideo,
+                enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()) +
+                    expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec(), expandFrom = Alignment.Bottom),
+                exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()) +
+                    shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec(), shrinkTowards = Alignment.Bottom)
             ) {
-                if (uiState.currentItem?.isVideo == true) {
-                    sh.hnet.comfychair.ui.components.ViewerPlaybackCard(
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-
+                ViewerPlaybackCard(
+                    onInteraction = { playbackInteractions++ },
+                    onDraggingChange = { seeking = it },
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            // Actions on the item
+            AnimatedVisibility(
+                visible = overlaysShown,
+                enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())
+            ) {
                 MediaViewerFloatingToolbar(
-                    isGalleryMode = uiState.mode == ViewerMode.GALLERY,
-                    isVideo = uiState.currentItem?.isVideo ?: false,
-                    onDelete = { viewModel.deleteCurrentItem() },
+                    // Decided by the item alone: loading state changes with every page and would make the menu flicker
+                    isVideo = uiState.currentItem?.isVideo == true,
+                    // Gallery items only (a result on a generation screen isn't deleted from here)
+                    onDelete = if (uiState.mode == ViewerMode.GALLERY) {
+                        {
+                            // The server deletes whole jobs: with more results than this one, ask first
+                            val job = uiState.currentItem?.promptId
+                            val count = uiState.items.count { it.promptId == job }
+                            if (count > 1) confirmJobDeletion = count else viewModel.deleteCurrentItem()
+                        }
+                    } else null,
                     onSave = { viewModel.saveCurrentItem() },
-                    onExtractFrame = {
-                        val pos = sh.hnet.comfychair.ui.components.SharedVideoPlayer.getPlayer(context).currentPosition
-                        viewModel.extractAndSaveCurrentFrame(context, pos)
-                    },
                     onShare = { viewModel.shareCurrentItem() },
-                    onInfo = { showMetadataSheet = true }
+                    onUseAsSource = { target, currentFrame ->
+                        scope.launch {
+                            // Read before closing: the viewer's state is cleared on close
+                            val media = if (currentFrame) {
+                                // The frame on screen (playback paused when the menu opened)
+                                viewModel.currentFrame(SharedVideoPlayer.positionMs(), SharedVideoPlayer.state.value.frameRate)
+                                    ?.let { SourceMedia.Image(it) }
+                                    ?: run {
+                                        AppErrors.report(context, R.string.error_frame_unreadable)
+                                        return@launch
+                                    }
+                            } else {
+                                viewModel.currentSourceMedia()
+                            }
+                            if (media != null) {
+                                onUseAsSource(target, media)
+                                if (target != SourceTarget.EXTRACT_FRAME_TO_GALLERY) {
+                                    onClose()
+                                }
+                            } else {
+                                val messageRes = if (uiState.currentItem?.isVideo == true) {
+                                    R.string.error_source_video_unreadable
+                                } else {
+                                    R.string.error_failed_load_image
+                                }
+                                AppErrors.report(context, messageRes)
+                            }
+                        }
+                    },
+                    onInfo = { showMetadataSheet = true },
+                    // A video stops on the frame shown, which Edit/Animate this frame take
+                    onMenuOpenChange = { open ->
+                        toolbarMenuOpen = open
+                        if (open && currentIsVideo) SharedVideoPlayer.pause()
+                    }
                 )
             }
         }
 
-        // Back FAB
-        AnimatedVisibility(
-            visible = uiState.isUiVisible,
-            enter = fadeIn(animationSpec = tween(250)),
-            exit = fadeOut(animationSpec = tween(250)),
+        // Undo of a deletion, above the toolbar (and the playback card)
+        SnackbarHost(
+            snackbarHostState,
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(end = 16.dp, bottom = fabBottomPadding)
-        ) {
-            FloatingActionButton(
-                onClick = onClose,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.content_description_back)
-                )
-            }
+                .padding(bottom = toolbarBottomPadding + with(density) { bottomControlsHeight.toDp() } + 8.dp)
+        ) { data ->
+            Snackbar(data, shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.padding(horizontal = 12.dp))
         }
 
         // Metadata bottom sheet
@@ -353,95 +540,128 @@ fun MediaViewerScreen(
             MetadataBottomSheet(
                 metadata = currentMetadata,
                 isLoading = isLoadingMetadata,
-                onDismiss = { showMetadataSheet = false },
-                errorMessage = metadataError,
-                onRetry = { viewModel.loadMetadata(force = true) }
+                onDismiss = { showMetadataSheet = false }
             )
         }
     }
+    confirmJobDeletion?.let { count ->
+        ConfirmDialog(
+            title = pluralStringResource(R.plurals.title_delete_job_results, count, count),
+            text = stringResource(R.string.msg_delete_job_results),
+            confirmLabel = stringResource(R.string.button_delete),
+            icon = Icons.Rounded.Delete,
+            destructive = true,
+            onConfirm = {
+                confirmJobDeletion = null
+                viewModel.deleteCurrentItem()
+            },
+            onDismiss = { confirmJobDeletion = null }
+        )
+    }
 }
 
+/**
+ * The viewer's actions, in the same order as everywhere: Save, Share, Use as source, Details, then Delete last.
+ * Use as source opens a small menu upward with the screens that take the medium: for an image Image to Image and
+ * Image to Video; for a video Video to Video, Image to Video from its last frame, and the frame shown to Image to Image
+ * or Image to Video.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MediaViewerFloatingToolbar(
-    isGalleryMode: Boolean,
-    isVideo: Boolean = false,
-    onDelete: () -> Unit,
+    isVideo: Boolean,
+    onDelete: (() -> Unit)?,
     onSave: () -> Unit,
-    onExtractFrame: () -> Unit = {},
     onShare: () -> Unit,
+    onUseAsSource: (target: SourceTarget, currentFrame: Boolean) -> Unit,
     onInfo: () -> Unit,
+    onMenuOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val toolbarColors = FloatingToolbarColors(
-        toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        toolbarContentColor = MaterialTheme.colorScheme.onSurface,
-        fabContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-        fabContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-    )
-
-    HorizontalFloatingToolbar(
-        expanded = true,
-        modifier = modifier,
-        colors = toolbarColors,
-        content = {
-            Row(
-                modifier = Modifier.height(IntrinsicSize.Min),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Delete button (gallery mode only)
-                if (isGalleryMode) {
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.media_viewer_delete),
-                            tint = MaterialTheme.colorScheme.error
+    var sourceMenuOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(sourceMenuOpen) { onMenuOpenChange(sourceMenuOpen) }
+    HorizontalFloatingToolbar(expanded = true, modifier = modifier) {
+        TooltipIconButton(Icons.Rounded.Download, stringResource(R.string.media_viewer_save), onSave)
+        TooltipIconButton(Icons.Rounded.Share, stringResource(R.string.media_viewer_share), onShare)
+        if (isVideo) {
+            TooltipIconButton(
+                Icons.Rounded.CameraAlt,
+                "保存当前帧到图库（抽帧）",
+                {
+                    SharedVideoPlayer.pause()
+                    onUseAsSource(SourceTarget.EXTRACT_FRAME_TO_GALLERY, true)
+                }
+            )
+        }
+        Box {
+            TooltipIconButton(
+                Icons.AutoMirrored.Rounded.Input,
+                stringResource(R.string.button_use_as_source),
+                { sourceMenuOpen = true }
+            )
+            DropdownMenuPopup(expanded = sourceMenuOpen, onDismissRequest = { sourceMenuOpen = false }) {
+                DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 2)) {
+                    val targets = if (isVideo) {
+                        listOf(
+                            SourceChoice(SourceTarget.IMAGE_TO_IMAGE, R.string.button_edit_this_frame, Icons.Rounded.Edit, currentFrame = true),
+                            SourceChoice(SourceTarget.VIDEO_TO_VIDEO, R.string.button_edit_this_video, Icons.Rounded.MovieFilter),
+                            SourceChoice(SourceTarget.IMAGE_TO_VIDEO, R.string.button_animate_this_frame, Icons.Rounded.Animation, currentFrame = true),
+                            SourceChoice(SourceTarget.IMAGE_TO_VIDEO, R.string.button_animate_last_frame, Icons.Rounded.Animation)
+                        )
+                    } else {
+                        listOf(
+                            SourceChoice(SourceTarget.IMAGE_TO_IMAGE, R.string.button_edit_this_image, Icons.Rounded.Edit),
+                            SourceChoice(SourceTarget.IMAGE_TO_VIDEO, R.string.button_animate_it, Icons.Rounded.Animation)
+                        )
+                    }
+                    targets.forEachIndexed { index, (target, label, icon, currentFrame) ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(label)) },
+                            shape = MenuDefaults.itemShape(index, targets.size).shape,
+                            leadingIcon = { Icon(icon, contentDescription = null) },
+                            onClick = {
+                                sourceMenuOpen = false
+                                onUseAsSource(target, currentFrame)
+                            }
                         )
                     }
                 }
-
-                // Save button
-                IconButton(onClick = onSave) {
-                    Icon(
-                        Icons.Default.Save,
-                        contentDescription = stringResource(R.string.media_viewer_save)
-                    )
-                }
-
-                // Extract frame button (video only)
-                if (isVideo) {
-                    IconButton(onClick = onExtractFrame) {
-                        Icon(
-                            androidx.compose.material.icons.Icons.Default.CameraAlt,
-                            contentDescription = stringResource(R.string.media_viewer_extract_frame)
-                        )
-                    }
-                }
-
-                // Share button
-                IconButton(onClick = onShare) {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = stringResource(R.string.media_viewer_share)
-                    )
-                }
-
-                // Divider before Info
-                VerticalDivider(
-                    modifier = Modifier.fillMaxHeight(),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                androidx.compose.foundation.layout.Spacer(
+                    Modifier.padding(top = MenuDefaults.GroupSpacing)
                 )
-
-                // Info button
-                IconButton(onClick = onInfo) {
-                    Icon(
-                        Icons.Outlined.Info,
-                        contentDescription = stringResource(R.string.button_show_metadata)
-                    )
+                DropdownMenuGroup(shapes = MenuDefaults.groupShape(1, 2)) {
+                    val h3Items = buildList {
+                        if (isVideo) {
+                            add(Triple(SourceTarget.EXTRACT_FRAME_TO_GALLERY, "保存当前帧到图库（抽帧）", Icons.Rounded.CameraAlt))
+                        }
+                        add(Triple(SourceTarget.H3_FIRST_FRAME, if (isVideo) "当前帧送入 H3 首帧" else "送入 H3 首帧", Icons.Rounded.AutoAwesome))
+                        add(Triple(SourceTarget.H3_LAST_FRAME, if (isVideo) "当前帧送入 H3 尾帧" else "送入 H3 尾帧", Icons.Rounded.AutoAwesome))
+                        add(Triple(SourceTarget.H3_REF_IMAGE, if (isVideo) "当前帧送入 H3 参考图" else "送入 H3 参考图", Icons.Rounded.AutoAwesome))
+                    }
+                    h3Items.forEachIndexed { idx, (target, textLabel, icon) ->
+                        DropdownMenuItem(
+                            text = { Text(textLabel) },
+                            shape = MenuDefaults.itemShape(idx, h3Items.size).shape,
+                            leadingIcon = { Icon(icon, contentDescription = null) },
+                            onClick = {
+                                sourceMenuOpen = false
+                                onUseAsSource(target, isVideo)
+                            }
+                        )
+                    }
                 }
             }
         }
-    )
+        TooltipIconButton(Icons.Outlined.Info, stringResource(R.string.button_show_metadata), onInfo)
+        onDelete?.let {
+            TooltipIconButton(
+                Icons.Rounded.Delete,
+                stringResource(R.string.media_viewer_delete),
+                it,
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
+    }
 }
 
 @Composable
@@ -453,10 +673,9 @@ private fun MediaContent(
     onSingleTap: () -> Unit,
     cacheKey: MediaCacheKey? = null
 ) {
+    // Transparent: the viewer's backdrop is behind, and fades while swiping down
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         when {
@@ -465,7 +684,8 @@ private fun MediaContent(
                 VideoPlayer(
                     videoUri = videoUri,
                     modifier = Modifier.fillMaxSize(),
-                    showController = false,
+                    // The viewer's sound (on when it opens) and its loop setting
+                    surface = SharedVideoPlayer.Surface.VIEWER,
                     scaleMode = VideoScaleMode.FIT,
                     enableZoom = true,
                     onSingleTap = onSingleTap,
@@ -483,9 +703,38 @@ private fun MediaContent(
             isVideo || isLoading -> {
                 // Video pages without content always show spinner (never black)
                 // This handles the case where thumbnail is not yet in cache
-                CircularProgressIndicator(color = Color.White)
+                // Contained: stays visible on any media behind it
+                ContainedLoadingIndicator()
             }
             // Fallback: only images without bitmap and not loading show black
         }
     }
 }
+
+/**
+ * Pause the shared player while the media is dragged (a video only).
+ *
+ * @return Whether it was playing, to resume if the media settles back
+ */
+private fun pauseVideo(context: Context, isVideo: Boolean): Boolean {
+    if (!isVideo) return false
+    val player = SharedVideoPlayer.getPlayer(context)
+    val playing = player.isPlaying
+    if (playing) player.pause()
+    return playing
+}
+
+private fun resumeVideo(context: Context) {
+    SharedVideoPlayer.getPlayer(context).play()
+}
+
+// Overlays hide after this long of playback without interaction (adjusted by the system's accessibility timeout)
+private const val AUTO_HIDE_MS = 3000
+
+/** An entry of the viewer's Use as source menu: the screen, its label and icon, and whether it takes the frame shown. */
+private data class SourceChoice(
+    val target: SourceTarget,
+    val label: Int,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val currentFrame: Boolean = false
+)

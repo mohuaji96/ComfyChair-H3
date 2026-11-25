@@ -1,0 +1,7 @@
+v0.9.8.8382.573-h3
+
+New & Fixed:
+- Isolated upstream minimax_h3 templates from H3 Workspace; added H3 filter and section in Workflow Management
+- Restored full H3 Gallery (favorites, cache management sheet, date grouping, tombstones, local extracted frames)
+- Restored H3 QueueSheet and fixed QueueIndicatorPill tap in H3 Workspace
+- Fixed H3 submission 400 error via PromptBody and deduplicated slash-variant model paths

@@ -1,0 +1,10 @@
+v0.9.8.8382.576-h3
+
+Fixes:
+- The four built-in H3 workflows no longer open blank; graph, export and duplicate work again
+- Saving an extracted frame no longer fails, and frames stay in the app gallery, not the phone album
+
+Improvements:
+- Removed the Workflow management text button from the H3 header
+- The queue pill always shows own and other counts, zeros included
+- Size popup added 1:1 3:4 4:3 2:3 3:2 9:16 16:9 shortcuts that keep the pixel count
