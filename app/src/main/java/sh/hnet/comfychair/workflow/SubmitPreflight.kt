@@ -1,7 +1,10 @@
 package sh.hnet.comfychair.workflow
 
+import android.content.Context
+import androidx.annotation.StringRes
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.R
 
 /**
  * Pre-submit normalisation for the exact failures observed on a real server:
@@ -14,8 +17,25 @@ import org.json.JSONObject
  */
 object SubmitPreflight {
 
-    data class Issue(val nodeId: String, val classType: String, val input: String, val detail: String) {
-        override fun toString(): String = "#$nodeId $classType.$input: $detail"
+    /**
+     * A refusal carries the resource id and its arguments rather than a finished sentence: the
+     * preflight runs without a context, and the same issue has to read in whichever language the
+     * interface is currently in.
+     */
+    data class Issue(
+        val nodeId: String,
+        val classType: String,
+        val input: String,
+        @StringRes val detailRes: Int,
+        val args: List<Any> = emptyList()
+    ) {
+        fun format(context: Context): String {
+            val detail = if (args.isEmpty()) context.getString(detailRes)
+            else context.getString(detailRes, *args.toTypedArray())
+            // A JSON-level refusal has no node to point at, so the locator is dropped.
+            val where = if (nodeId.isBlank()) "" else "#$nodeId $classType.$input: "
+            return where + detail
+        }
     }
 
     data class Result(val prompt: String, val issues: List<Issue>, val rewrites: List<String>) {
@@ -57,7 +77,11 @@ object SubmitPreflight {
         val issues = mutableListOf<Issue>()
         val rewrites = mutableListOf<String>()
         val root = runCatching { JSONObject(promptJson) }.getOrElse {
-            return Result(promptJson, listOf(Issue("", "", "", "提交内容不是合法 JSON：${it.message}")), emptyList())
+            return Result(
+                promptJson,
+                listOf(Issue("", "", "", R.string.pf_bad_json, listOf(it.message.orEmpty()))),
+                emptyList()
+            )
         }
         for (nodeId in root.keys()) {
             val node = root.optJSONObject(nodeId) ?: continue
@@ -66,7 +90,7 @@ object SubmitPreflight {
             for (input in inputs.keys()) {
                 val current = inputs.opt(input)
                 if (isPlaceholder(current)) {
-                    issues += Issue(nodeId, classType, input, "模板变量 ${current} 未解析，拒绝提交")
+                    issues += Issue(nodeId, classType, input, R.string.pf_unresolved, listOf(current))
                     continue
                 }
                 if (current !is String) continue
@@ -79,8 +103,10 @@ object SubmitPreflight {
                 if (options.isEmpty() || current in options) continue
                 val resolved = resolveCombo(current, options)
                 if (resolved == null) {
-                    issues += Issue(nodeId, classType, input,
-                        "“$current” 不在服务器合法选项中（共 ${options.size} 项）")
+                    issues += Issue(
+                        nodeId, classType, input,
+                        R.string.pf_not_in_options, listOf(current, options.size)
+                    )
                 } else {
                     inputs.put(input, resolved)
                     rewrites += "#$nodeId $classType.$input: $current → $resolved"

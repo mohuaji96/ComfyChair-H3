@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Internal sentences: parsers and patch layers that have no context of their own -->
+
+    <!-- ComfyExpr: syntax errors of the workflow expression parser -->
+    <string name="exp_trailing_chars">Trailing characters</string>
+    <string name="exp_incomplete">Expression is incomplete</string>
+    <string name="exp_missing_rparen">Missing closing parenthesis</string>
+    <string name="exp_call_missing_rparen">Missing closing parenthesis in the call</string>
+    <string name="exp_unknown_variable">Unknown variable %1$s</string>
+    <string name="exp_unparsable">Cannot parse %1$s</string>
+    <string name="exp_unknown_function">Unknown function %1$s</string>
+
+    <!-- H3ApiPatch: why an explicit merge was refused -->
+    <string name="patch_add_conflict">The new image node id conflicts with the editor</string>
+    <string name="patch_target_deleted">The H3 edit target was deleted or bypassed: %1$s</string>
+    <string name="patch_target_type_changed">The H3 edit target changed its node type</string>
+    <string name="patch_link_conflict">Link conflict #%1$s.%2$s: quick H3 parameters do not merge structural changes, reopen the panel or use the professional editor</string>
+    <string name="patch_link_literal">Link conflict #%1$s.%2$s: the input is still a link in the execution JSON and cannot become a literal</string>
+
+    <!-- TagLibraryJson: shape problems of an imported library -->
+    <string name="lib_missing_categories">Missing categories</string>
+    <string name="lib_empty_categories">categories is empty</string>
+    <string name="lib_other_group">Other</string>
+
+    <!-- JobRecovery: /history answers that cannot be read -->
+    <string name="hist_bad_history">Cannot parse the /history response</string>
+    <string name="hist_missing_prompt">The server history has no such prompt id</string>
+</resources>

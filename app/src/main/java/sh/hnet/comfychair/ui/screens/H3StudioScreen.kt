@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.screens
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -46,6 +47,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +55,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.ui.components.shared.ModelDropdown
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,6 +68,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.WorkflowManager
+import sh.hnet.comfychair.model.localizedText
 import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.storage.MetadataStore
@@ -125,13 +129,13 @@ fun H3StudioContent(
     val context = LocalContext.current
     val workflow = remember(workflowId) { WorkflowManager.getWorkflowById(workflowId) }
     if (workflow == null) {
-        Text("工作流不存在，请重新导入", Modifier.padding(16.dp))
+        Text(stringResource(R.string.h3_workflow_missing), Modifier.padding(16.dp))
         return
     }
     val baseSource = workflow.jsonContent
     val spec = remember(baseSource) { H3Plan.resolve(baseSource) }
     if (spec == null) {
-        Text("该工作流当前无法识别为 H3，请在专业编辑器中检查节点结构", Modifier.padding(16.dp))
+        Text(stringResource(R.string.h3_workflow_not_h3), Modifier.padding(16.dp))
         return
     }
     val draftStore = remember { H3DraftStore(context) }
@@ -181,7 +185,7 @@ fun H3StudioContent(
     val mode = if (area == H3Plan.Area.R2V) H3Plan.Mode.R2V
     else H3Plan.Mode.forFrames(draft.first, draft.last)
     // Only a tail frame is a different request from a first+last pair, so name it differently.
-    val modeLabel = if (mode == H3Plan.Mode.FL2V && draft.first.isBlank()) "尾帧视频" else mode.label
+    val modeLabel = if (mode == H3Plan.Mode.FL2V && draft.first.isBlank()) stringResource(R.string.h3_mode_fl_no_first) else stringResource(mode.labelRes)
 
     val models by ConnectionManager.modelCache.collectAsState()
     val client = ConnectionManager.clientOrNull
@@ -233,8 +237,13 @@ fun H3StudioContent(
                 when {
                     stage == null -> ""
                     stage == ProgressStage.SAMPLE && state.maxProgress > 0 ->
-                        "${stage.label} · 第 ${state.progress}/${state.maxProgress} 步"
-                    else -> stage.label
+                        context.getString(
+                            R.string.h3_progress_steps,
+                            context.getString(stage.labelRes),
+                            state.progress,
+                            state.maxProgress
+                        )
+                    else -> context.getString(stage.labelRes)
                 }
             )
             H3RelayService.update(context)
@@ -380,9 +389,9 @@ fun H3StudioContent(
                 update(draft.copy(continuationInject = true))
                 val claim = H3Continuation.declaredPicture(draft.prompt)
                 message = if (claim != null && claim != picture) {
-                    "正文声明的 <Picture $claim> 与本次尾帧 <Picture $picture> 不一致，未写入；先改正文"
+                    context.getString(R.string.h3_msg_conflict_declared, claim, picture)
                 } else {
-                    "检测到你已声明 <Picture $picture>，本次未写入"
+                    context.getString(R.string.h3_msg_already_declared, picture)
                 }
                 return
             }
@@ -392,7 +401,7 @@ fun H3StudioContent(
                 continuationOwner = applied.declared,
                 continuationFlag = applied.flagged
             ))
-            message = "已写入尾帧声明：<Picture $picture> 是上一段尾帧（正文只写下一步动作）"
+            message = context.getString(R.string.h3_msg_declare_written, picture)
         } else {
             val owned = draft.continuationOwner
             val flagged = draft.continuationFlag
@@ -403,9 +412,9 @@ fun H3StudioContent(
                 continuationFlag = false
             ))
             message = if (owned != H3Continuation.NONE || flagged) {
-                "已撤回尾帧声明，正文恢复原样；需自行声明 <Picture $picture> 是上一段尾帧"
+                context.getString(R.string.h3_msg_declare_reverted, picture)
             } else {
-                "正文里没有我们写入的声明，未改动"
+                context.getString(R.string.h3_msg_nothing_to_revert)
             }
         }
     }
@@ -416,12 +425,12 @@ fun H3StudioContent(
      */
     fun abortOwnJob() {
         val live = ConnectionManager.clientOrNull ?: run {
-            message = "请先连接服务器"
+            message = context.getString(R.string.h3_msg_connect_first)
             return
         }
         live.interruptExecution { ok ->
             main.post {
-                message = if (ok) "已中止当前任务" else "中止失败：服务器未响应"
+                message = if (ok) context.getString(R.string.h3_msg_aborted) else context.getString(R.string.h3_msg_abort_failed)
                 lastPromptId = null
                 resultLoading = false
             }
@@ -435,16 +444,16 @@ fun H3StudioContent(
     fun uploadTailFrame(png: ByteArray?) {
         if (png == null) {
             busy = false
-            message = "取帧失败：视频无法解码，可先播放确认文件是否完整"
+            message = context.getString(R.string.h3_msg_frame_failed)
             return
         }
-        val target = ConnectionManager.clientOrNull ?: run { busy = false; message = "请先连接服务器"; return }
+        val target = ConnectionManager.clientOrNull ?: run { busy = false; message = context.getString(R.string.h3_msg_connect_first); return }
         val name = "h3_tail_${UUID.randomUUID()}.png"
         target.uploadImage(png, name, overwrite = false, returnFullPath = true) { ok, uploaded, err, _ ->
             main.post {
                 busy = false
                 if (target !== ConnectionManager.clientOrNull) {
-                    message = "服务器已切换，本次尾帧未应用"
+                    message = context.getString(R.string.h3_msg_switched_tail)
                 } else if (ok && uploaded != null) {
                     val picture = filledRefs.size + 1
                     val applied = H3Continuation.apply(
@@ -469,11 +478,11 @@ fun H3StudioContent(
                     )
                     message = when {
                         !draft.continuationInject ->
-                            "尾帧已挂为 <Picture $picture>：需在 subject_definitions 声明它是前段尾帧，正文直接写下一步动作（勿复述画面）"
+                            context.getString(R.string.h3_tail_attached_need_declare, picture)
                         !applied.wrote ->
-                            "尾帧已挂为 <Picture $picture>；正文已有同样声明，未重复写入"
+                            context.getString(R.string.h3_tail_attached_already, picture)
                         else ->
-                            "尾帧已挂为 <Picture $picture>，正文只写下一步动作（勿复述画面）"
+                            context.getString(R.string.h3_tail_attached, picture)
                     }
                     // The queued segment can only start once its frame is on the server.
                     if (relaySubmitAfterFrame) {
@@ -481,7 +490,7 @@ fun H3StudioContent(
                         relaySubmitTick++
                     }
                 } else {
-                    message = "尾帧上传失败：${err ?: "服务器未返回文件名"}"
+                    message = context.getString(R.string.h3_msg_tail_upload_failed, err ?: context.getString(R.string.h3_msg_no_filename))
                 }
             }
         }
@@ -494,10 +503,10 @@ fun H3StudioContent(
     fun captureLastFrame(auto: Boolean) {
         val finished = result
         if (finished == null) {
-            message = "先取回成片：本页还没有可用的上一段结果"
+            message = context.getString(R.string.h3_msg_no_prev_result)
             return
         }
-        if (!auto) { busy = true; message = "正在取末帧…" }
+        if (!auto) { busy = true; message = context.getString(R.string.h3_msg_taking_last_frame) }
         scope.launch {
             uploadTailFrame(withContext(Dispatchers.IO) { H3Frame.lastFramePng(context, finished.uri) })
         }
@@ -507,7 +516,7 @@ fun H3StudioContent(
     // frame locally and hang it exactly like an automatic one. Only the PNG leaves the device.
     val tailVideoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        busy = true; message = "正在从视频取末帧…"
+        busy = true; message = context.getString(R.string.h3_msg_extracting_last)
         scope.launch {
             uploadTailFrame(withContext(Dispatchers.IO) { H3Frame.lastFramePng(context, uri) })
         }
@@ -545,14 +554,14 @@ fun H3StudioContent(
      */
     fun askCeiling(current: Int, onResult: (Int) -> Unit) {
         val live = ConnectionManager.clientOrNull
-        if (live == null) { message = "请先连接服务器"; return }
+        if (live == null) { message = context.getString(R.string.h3_msg_connect_first); return }
         probing = true
         live.fetchRefImageCeiling { max ->
             main.post {
                 probing = false
                 probedCeiling = max ?: 0
                 if (max == null || max <= current)
-                    message = "服务器未返回参考图上限，当前最多 $current 张"
+                    message = context.getString(R.string.h3_msg_no_ref_limit, current)
                 else onResult(max)
             }
         }
@@ -565,17 +574,17 @@ fun H3StudioContent(
         val slot = pendingSlot
         val target = ConnectionManager.clientOrNull
         if (uri == null || slot == null || target == null) return@rememberLauncherForActivityResult
-        busy = true; message = "正在上传图片…"
+        busy = true; message = context.getString(R.string.h3_msg_uploading_image)
         scope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readNBytes(32 * 1024 * 1024 + 1) }
-                    require(bytes.size <= 32 * 1024 * 1024) { "图片超过 32 MB" }
+                    require(bytes.size <= 32 * 1024 * 1024) { context.getString(R.string.h3_err_image_too_big) }
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                     require(bounds.outWidth > 0 && bounds.outHeight > 0 &&
-                        bounds.outWidth.toLong() * bounds.outHeight <= 32_000_000L) { "不支持的图片或图片像素过大" }
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error("图片解码失败")
+                        bounds.outWidth.toLong() * bounds.outHeight <= 32_000_000L) { context.getString(R.string.h3_err_image_unsupported) }
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error(context.getString(R.string.h3_err_image_decode))
                     val png = java.io.ByteArrayOutputStream().use { out ->
                         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out); out.toByteArray()
                     }
@@ -585,7 +594,7 @@ fun H3StudioContent(
                 target.uploadImage(png, "h3_${UUID.randomUUID()}.png", overwrite = false, returnFullPath = true) { ok, name, error, _ ->
                     main.post {
                         busy = false
-                        if (target !== ConnectionManager.clientOrNull) message = "服务器已切换，本次上传未应用"
+                        if (target !== ConnectionManager.clientOrNull) message = context.getString(R.string.h3_msg_switched_upload)
                         else if (ok && name != null) {
                             val preview = java.io.File(context.filesDir,
                                 "h3_previews/$workflowId/${UUID.nameUUIDFromBytes(name.toByteArray())}.png")
@@ -602,11 +611,11 @@ fun H3StudioContent(
                                     draft.copy(refs = refs)
                                 }
                             })
-                            message = "上传成功"
-                        } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                            message = context.getString(R.string.h3_msg_uploaded)
+                        } else message = context.getString(R.string.h3_msg_upload_failed, error ?: context.getString(R.string.h3_msg_no_filename))
                     }
                 }
-             }.onFailure { busy = false; message = "图片读取失败：${it.message}" }
+             }.onFailure { busy = false; message = context.getString(R.string.h3_msg_image_read_failed, it.message.orEmpty()) }
          }
      }
 
@@ -618,7 +627,7 @@ fun H3StudioContent(
     val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val target = ConnectionManager.clientOrNull
         if (uri == null || target == null) return@rememberLauncherForActivityResult
-        busy = true; message = "正在上传音频…"
+        busy = true; message = context.getString(R.string.h3_msg_uploading_audio)
         scope.launch {
             val picked = runCatching {
                 withContext(Dispatchers.IO) {
@@ -626,10 +635,10 @@ fun H3StudioContent(
                     val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
                     val bytes = context.contentResolver.openInputStream(uri)!!
                         .use { it.readNBytes(64 * 1024 * 1024 + 1) }
-                    require(bytes.size <= 64 * 1024 * 1024) { "音频超过 64 MB" }
+                    require(bytes.size <= 64 * 1024 * 1024) { context.getString(R.string.h3_err_audio_too_big) }
                     H3PickedAudio(display, mime, bytes, audioDuration(context, uri))
                 }
-            }.getOrElse { busy = false; message = "音频读取失败：${it.message}"; return@launch }
+            }.getOrElse { busy = false; message = context.getString(R.string.h3_msg_audio_read_failed, it.message.orEmpty()); return@launch }
             val ext = picked.name.substringAfterLast('.', "")
                 .takeIf { it.length in 1..5 && it.all(Char::isLetterOrDigit) } ?: "m4a"
             val filename = "h3_${UUID.randomUUID()}.$ext"
@@ -637,7 +646,7 @@ fun H3StudioContent(
                 mimeType = picked.mime) { ok, name, error, _ ->
                 main.post {
                     busy = false
-                    if (target !== ConnectionManager.clientOrNull) message = "服务器已切换，本次上传未应用"
+                    if (target !== ConnectionManager.clientOrNull) message = context.getString(R.string.h3_msg_switched_upload)
                     else if (ok && name != null) {
                         val index = pendingAudio.coerceAtLeast(0)
                         val audios = draft.audios.toMutableList()
@@ -647,8 +656,8 @@ fun H3StudioContent(
                         audios[index] = name
                         seconds[index] = picked.seconds?.let { "%.1fs".format(it) }.orEmpty()
                         update(draft.copy(audios = audios, audioSeconds = seconds))
-                        message = "音频 ${index + 1} 已添加"
-                    } else message = "音频上传失败：${error ?: "服务器未返回文件名"}"
+                        message = context.getString(R.string.h3_msg_audio_added, index + 1)
+                    } else message = context.getString(R.string.h3_msg_audio_upload_failed, error ?: context.getString(R.string.h3_msg_no_filename))
                 }
             }
         }
@@ -692,7 +701,7 @@ fun H3StudioContent(
      */
     fun addReference() {
         if (busy) return
-        val live = ConnectionManager.clientOrNull ?: run { message = "请先连接服务器"; return }
+        val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
         if (live !== ConnectionManager.clientOrNull) return
         // The live map may have been filled since this screen was composed; read it here.
         val known = maxOf(spec.maxRefSlots, H3Plan.maxRefSlots(), probedCeiling)
@@ -724,7 +733,7 @@ fun H3StudioContent(
     /** Clears only the segments this phone queued; the running one is cancelled separately. */
     fun clearOwnQueue() {
         finishRelay()
-        val live = ConnectionManager.clientOrNull ?: run { message = "请先连接服务器"; return }
+        val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
         val pending = queueState.ownJobs.values
             .filter { it.status == sh.hnet.comfychair.queue.JobStatus.PENDING }
             .map { it.promptId }
@@ -732,17 +741,17 @@ fun H3StudioContent(
             if (queueState.totalQueueSize > 0) {
                 live.clearQueue { ok ->
                     main.post {
-                        message = if (ok) "已清空服务器队列" else "清空队列失败：服务器未响应"
+                        message = if (ok) context.getString(R.string.h3_msg_queue_cleared) else context.getString(R.string.h3_msg_queue_clear_failed)
                     }
                 }
             } else {
-                message = "队列里没有排着的任务"
+                message = context.getString(R.string.h3_msg_queue_empty)
             }
             return
         }
         live.deleteQueueItems(pending) { ok ->
             main.post {
-                message = if (ok) "已清空自己排队的 ${pending.size} 条" else "清空队列失败：服务器未响应"
+                message = if (ok) context.getString(R.string.h3_msg_own_queue_cleared, pending.size) else context.getString(R.string.h3_msg_queue_clear_failed)
                 if (ok) pending.forEach { sh.hnet.comfychair.queue.JobRegistry.removeJob(it) }
             }
         }
@@ -752,10 +761,10 @@ fun H3StudioContent(
         // 完整连拍: only one segment runs at a time, the rest wait here on the phone.
         if (draft.continuationAuto && queueState.ownActiveJobCount + relayCount > 0) {
             enqueueSegment()
-            message = "已排入第 ${queueState.ownActiveJobCount + relayCount + 1} 段，前一段跑完自动接上"
+            message = context.getString(R.string.h3_msg_queued_segment, queueState.ownActiveJobCount + relayCount + 1)
             return
         }
-        val live = ConnectionManager.clientOrNull ?: run { message = "请先连接服务器"; return }
+        val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
         val errors = mutableListOf<String>()
         // Disabled slots and empty slots are compressed away, so the submitted order is
         // ref_image_0..N-1 exactly as shown by the P1..PN badges.
@@ -766,12 +775,12 @@ fun H3StudioContent(
         // else is picked, and one slot serves every segment of a chain.
         val submittedRefs = if (draft.continuation.isNotBlank()) refs + draft.continuation else refs
         if (mode == H3Plan.Mode.R2V && submittedRefs.size > H3_MAX_PICTURES)
-            errors.add("尾帧是第 ${refs.size + 1} 张图，超出 $H3_MAX_PICTURES 张上限，请先禁用一张参考图")
+            errors.add(context.getString(R.string.h3_err_tail_over_limit, refs.size + 1, H3_MAX_PICTURES))
         when (mode) {
-            H3Plan.Mode.R2V -> if (refs.isEmpty()) errors.add("参考生视频至少需要一张参考图")
-            H3Plan.Mode.I2V -> if (draft.first.isBlank()) errors.add("图生视频需要首帧图片")
+            H3Plan.Mode.R2V -> if (refs.isEmpty()) errors.add(context.getString(R.string.h3_err_ref_required))
+            H3Plan.Mode.I2V -> if (draft.first.isBlank()) errors.add(context.getString(R.string.h3_err_first_required))
             H3Plan.Mode.FL2V -> if (draft.first.isBlank() && draft.last.isBlank())
-                errors.add("首尾帧视频至少要选一张图片")
+                errors.add(context.getString(R.string.h3_err_fl_required))
             else -> Unit
         }
         var customW: Int? = null
@@ -780,18 +789,18 @@ fun H3StudioContent(
         if (draft.customW.isNotBlank() || draft.customH.isNotBlank()) {
             val w = draft.customW.trim().toIntOrNull()
             val h = draft.customH.trim().toIntOrNull()
-            if (w == null || h == null || w < 32 || h < 32) errors.add("自定义宽高需要两个不小于 32 的整数")
+            if (w == null || h == null || w < 32 || h < 32) errors.add(context.getString(R.string.h3_err_custom_wh))
             else { customW = w; customH = h }
             ratio = null
         }
         val mpValue = draft.mp.toDoubleOrNull()
-        if (mpValue == null && customW == null) errors.add("像素量无效")
+        if (mpValue == null && customW == null) errors.add(context.getString(R.string.h3_err_mp_invalid))
         if (mpValue != null && (mpValue < 0.1 || mpValue > 1.0))
-            errors.add("自定义像素量需在 0.1–1.0 MP 之间")
+            errors.add(context.getString(R.string.h3_err_mp_range))
         // One-at-a-time is the default 连拍 behaviour: relaying a queue would take the last frame
         // of whichever segment happened to finish, which is how a chain silently forks.
         if (draft.continuationAuto && draft.continuationMode == 0 && queueState.ownActiveJobCount > 0) {
-            message = "连拍一次只跑一条：等这一段跑完再提交，或到「连拍」里改成排队模式"
+            message = context.getString(R.string.h3_msg_relay_single)
             return
         }
         if (errors.isNotEmpty()) { message = errors.joinToString("；"); return }
@@ -811,7 +820,7 @@ fun H3StudioContent(
         }
         if (seedPatch.isNotEmpty()) update(draft.copy(extras = draft.extras + seedPatch))
 
-        busy = true; message = "正在准备提交…"
+        busy = true; message = context.getString(R.string.h3_msg_preparing)
         scope.launch {
             val built = runCatching {
                 withContext(Dispatchers.IO) {
@@ -828,7 +837,7 @@ fun H3StudioContent(
                     }
                     val wrapped = wrappedObj.toString()
                     val attributed = WorkflowManager.applyNodeAttributeEdits(wrapped, workflowId)
-                    val plan = H3Plan.resolve(attributed) ?: error("无法解析当前工作流")
+                    val plan = H3Plan.resolve(attributed) ?: error(context.getString(R.string.h3_err_workflow_unresolved))
                     H3Plan.build(attributed, plan, H3Plan.Request(
                         mode = mode,
                         prompt = draft.prompt,
@@ -860,20 +869,21 @@ fun H3StudioContent(
                         extras = modelPayload(
                             plan,
                             if (seedPatch.isEmpty()) draft
-                            else draft.copy(extras = draft.extras + seedPatch)
+                            else draft.copy(extras = draft.extras + seedPatch),
+                            context
                         )
                     ), aspectOptions)
                 }
             }.getOrElse {
-                busy = false; message = "无法准备提交：${it.message}"; return@launch
+                busy = false; message = context.getString(R.string.h3_msg_prepare_failed, it.localizedText(context)); return@launch
             }
-            if (!built.ok) { busy = false; message = built.errors.joinToString("；"); return@launch }
+            if (!built.ok) { busy = false; message = built.errors.joinToString("; ") { it.format(context) }; return@launch }
             val preflight = SubmitPreflight.prepare(built.json) { ct, key ->
                 ConnectionManager.nodeTypeRegistry.getInputDefinition(ct, key)?.options
             }
             if (!preflight.ok) {
                 busy = false
-                message = "提交前检查未通过：" + preflight.issues.joinToString("；") { it.toString() }
+                message = context.getString(R.string.h3_msg_preflight_failed, preflight.issues.joinToString("; ") { it.format(context) })
                 return@launch
             }
             // 连拍 naming: one prefix per chain, numbered per submission, so the gallery can tell
@@ -924,7 +934,7 @@ fun H3StudioContent(
                     if (ok && id != null) {
                         chain?.let { SequenceStore.record(context, id, it, chainPosition) }
                         pendingStore.save(PendingJobStore.PendingJob(
-                            id, live.getBaseUrl().orEmpty(), "H3 ${mode.label}",
+                            id, live.getBaseUrl().orEmpty(), "H3 ${context.getString(mode.labelRes)}",
                             System.currentTimeMillis(), "QUEUED"))
                         sh.hnet.comfychair.queue.JobRegistry.clearFailure()
                         // H3 writes through SaveVideo, which stores no prompt in the file, so
@@ -975,8 +985,8 @@ fun H3StudioContent(
                             autoPrefs.edit().putString("pending", id).apply()
                             pendingAutoId = id
                         }
-                        message = "已提交 ${mode.label} · prompt_id=$id"
-                    } else message = "提交失败：${error ?: "服务器未返回 prompt_id"}"
+                        message = context.getString(R.string.h3_msg_submitted, context.getString(mode.labelRes), id)
+                    } else message = context.getString(R.string.h3_msg_submit_failed, error ?: context.getString(R.string.h3_msg_no_prompt_id))
                 }
             }
             val vm = generationViewModel
@@ -1036,13 +1046,14 @@ fun H3StudioContent(
             }
         }
 
-        val cardTitles = listOf(
-            "视频提示词",
-            if (area == H3Plan.Area.R2V) "参考素材" else "素材",
-            "基础参数",
-            "模型与 LoRA",
-            "高级设置"
+        val cardTitleRes = listOf(
+            R.string.h3_prompt_title,
+            if (area == H3Plan.Area.R2V) R.string.h3_section_refs else R.string.h3_section_material,
+            R.string.h3_section_basic,
+            R.string.h3_section_models,
+            R.string.h3_section_advanced
         )
+        val cardTitles = cardTitleRes.map { stringResource(it) }
         // Reading the scroll position in composition would recompose the page every frame, so the
         // bar owns the read and nothing else here touches layoutInfo.
         val stickyTitle = remember(listState, cardTitles) {
@@ -1063,7 +1074,7 @@ fun H3StudioContent(
             item {
                 var showFullscreenPrompt by rememberSaveable { mutableStateOf(false) }
                 H3Card(
-                    title = "视频提示词",
+                    title = stringResource(R.string.h3_prompt_title),
                     trailing = {
                         if (draft.prompt.isNotEmpty()) {
                             IconButton(
@@ -1072,7 +1083,7 @@ fun H3StudioContent(
                             ) {
                                 Icon(
                                     Icons.Default.Clear,
-                                    contentDescription = "清空提示词",
+                                    contentDescription = stringResource(R.string.h3_prompt_clear),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -1088,13 +1099,13 @@ fun H3StudioContent(
                         val mismatch = claim != null && claim != picture
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "<Picture $picture> 是上一段尾帧",
+                                stringResource(R.string.h3_declare_picture, picture),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
-                                "代写尾帧声明",
+                                stringResource(R.string.h3_declare_title),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1126,9 +1137,9 @@ fun H3StudioContent(
                         }
                         Text(
                             when {
-                                draft.continuationInject -> "已写入 · 正文只写下一步动作"
-                                mismatch -> "未写入 · 正文声明的是 <Picture $claim>，本次尾帧是 <Picture $picture>"
-                                else -> "未写入 · 需自己声明这张图"
+                                draft.continuationInject -> stringResource(R.string.h3_declare_state_written)
+                                mismatch -> stringResource(R.string.h3_declare_state_mismatch, claim ?: 0, picture)
+                                else -> stringResource(R.string.h3_declare_state_manual)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = when {
@@ -1157,7 +1168,7 @@ fun H3StudioContent(
                         ) {
                             Icon(
                                 Icons.Default.OpenInFull,
-                                contentDescription = "全屏编辑",
+                                contentDescription = stringResource(R.string.h3_prompt_fullscreen),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -1188,18 +1199,18 @@ fun H3StudioContent(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "视频提示词",
+                                        text = stringResource(R.string.h3_prompt_title),
                                         style = MaterialTheme.typography.titleMedium,
                                         modifier = Modifier.weight(1f)
                                     )
                                     IconButton(onClick = { showFullscreenPrompt = false }) {
-                                        Icon(Icons.Default.Check, contentDescription = "完成")
+                                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.h3_prompt_done))
                                     }
                                 }
                                 TextField(
                                     value = draft.prompt,
                                     onValueChange = { update(draft.copy(prompt = it)) },
-                                    placeholder = { Text("输入 H3 视频提示词 / 分镜描述…") },
+                                    placeholder = { Text(stringResource(R.string.h3_prompt_hint)) },
                                     shape = RoundedCornerShape(24.dp),
                                     colors = TextFieldDefaults.colors(
                                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -1222,7 +1233,7 @@ fun H3StudioContent(
                                         onClick = { update(draft.copy(prompt = "")) },
                                         enabled = draft.prompt.isNotEmpty()
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "清空")
+                                        Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = stringResource(R.string.h3_prompt_backspace))
                                     }
                                     Spacer(Modifier.weight(1f))
                                     Button(
@@ -1234,7 +1245,7 @@ fun H3StudioContent(
                                     ) {
                                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("生成")
+                                        Text(stringResource(R.string.h3_generate))
                                     }
                                 }
                             }
@@ -1246,19 +1257,19 @@ fun H3StudioContent(
             // 2. 素材
             item {
                 H3Card(
-                    title = if (area == H3Plan.Area.R2V) "参考素材" else "素材",
+                    title = stringResource(if (area == H3Plan.Area.R2V) R.string.h3_section_refs else R.string.h3_section_material),
                     subtitle = if (area == H3Plan.Area.R2V) {
                         val maxCap = if (spec.maxRefSlots > 0) spec.maxRefSlots else H3_MAX_PICTURES
-                        if (filledRefs.isEmpty()) "至少 1 张，最多 $maxCap 张"
-                        else "已选 ${filledRefs.size} / $maxCap 张" +
-                            (if (draft.continuation.isNotBlank()) " · 含尾帧" else "")
+                        if (filledRefs.isEmpty()) stringResource(R.string.h3_refs_min_max, maxCap)
+                        else stringResource(R.string.h3_refs_selected, filledRefs.size, maxCap) +
+                            (if (draft.continuation.isNotBlank()) stringResource(R.string.h3_includes_last) else "")
                     } else {
-                        "当前：$modeLabel · " + when {
-                            mode == H3Plan.Mode.T2V -> "未选图片，纯文生"
-                            mode == H3Plan.Mode.I2V -> "提交首帧"
-                            draft.first.isBlank() -> "只提交尾帧，画面朝它收尾"
-                            draft.last.isBlank() -> "只提交首帧"
-                            else -> "提交首帧 + 尾帧"
+                        stringResource(R.string.h3_current_prefix, modeLabel) + when {
+                            mode == H3Plan.Mode.T2V -> stringResource(R.string.h3_note_t2v)
+                            mode == H3Plan.Mode.I2V -> stringResource(R.string.h3_note_first)
+                            draft.first.isBlank() -> stringResource(R.string.h3_note_last_only)
+                            draft.last.isBlank() -> stringResource(R.string.h3_note_first)
+                            else -> stringResource(R.string.h3_note_both)
                         }
                     }
                 ) {
@@ -1390,8 +1401,8 @@ fun H3StudioContent(
                         }
 
                         Text(
-                            if (shown == 0) "点方框上传第一张；顺序即 <Picture 1..N>。"
-                            else "顺序即 <Picture 1..N>；点方块选中后可前移、后移、禁用或删除。",
+                            if (shown == 0) stringResource(R.string.h3_order_hint_empty)
+                            else stringResource(R.string.h3_order_hint),
                             style = MaterialTheme.typography.labelSmall
                         )
 
@@ -1427,11 +1438,11 @@ fun H3StudioContent(
                                 )
                                 message = when {
                                     owned != H3Continuation.NONE ->
-                                        "已清除尾帧衔接（<Picture $owned> 声明同时移除）"
+                                        context.getString(R.string.h3_unlink_cleared_decl, owned)
                                     draft.continuationFlag ->
-                                        "已清除尾帧衔接（summary 标记同时移除）"
+                                        context.getString(R.string.h3_unlink_cleared_summary)
                                     else ->
-                                        "已清除尾帧衔接；正文里那行是你写的，未动"
+                                        context.getString(R.string.h3_unlink_cleared_manual)
                                 }
                             }
                         )
@@ -1456,7 +1467,7 @@ fun H3StudioContent(
                                 }
                             )
                             if (draft.audios.any { it.isNotBlank() }) Text(
-                                "提示词里按顺序用 <Audio 1..N> 指代这些音频。",
+                                stringResource(R.string.h3_audio_order_hint),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
@@ -1468,7 +1479,7 @@ fun H3StudioContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             H3FrameSlot(
-                                label = "首帧",
+                                label = stringResource(R.string.h3_first_frame),
                                 file = draft.first,
                                 workflowId = workflowId,
                                 revision = previewRevision,
@@ -1478,7 +1489,7 @@ fun H3StudioContent(
                                 onRemove = { update(draft.copy(first = "")); previewRevision++ }
                             )
                             H3FrameSlot(
-                                label = "尾帧",
+                                label = stringResource(R.string.h3_last_frame),
                                 file = draft.last,
                                 workflowId = workflowId,
                                 revision = previewRevision,
@@ -1498,16 +1509,16 @@ fun H3StudioContent(
                                 val suggested = frameAspectSuggestedRatio(context, workflowId, draft.first, ratios)
                                 if (suggested != null && suggested != draft.ratio) {
                                     TextButton(enabled = !busy, onClick = { pickRatio(suggested) }) {
-                                        Text("按首帧比例", style = MaterialTheme.typography.labelMedium)
+                                        Text(stringResource(R.string.h3_follow_first_ratio), style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
                         }
                         Text(
                             when (mode) {
-                                H3Plan.Mode.T2V -> "两张都空着就是文生视频，不提交任何图片。"
-                                H3Plan.Mode.I2V -> "只填首帧就是图生视频；再填尾帧即变成首尾帧视频。"
-                                else -> "首帧锁定开头、尾帧锁定结尾；只填尾帧也能生成，画面朝那张收尾。"
+                                H3Plan.Mode.T2V -> stringResource(R.string.h3_note_t2v_card)
+                                H3Plan.Mode.I2V -> stringResource(R.string.h3_note_i2v_card)
+                                else -> stringResource(R.string.h3_note_fl_card)
                             },
                             style = MaterialTheme.typography.labelSmall
                         )
@@ -1519,13 +1530,13 @@ fun H3StudioContent(
             item {
                 // 基础参数 stays open by default: duration is re-read on almost every run, so
                 // hiding it behind a tap only makes the bottom bar the sole visible number.
-                H3Card("基础参数", trailing = {
+                H3Card(stringResource(R.string.h3_section_basic), trailing = {
                     TextButton(onClick = { showBasic = !showBasic }) {
-                        Text(if (showBasic) "收起" else "展开")
+                        Text(if (showBasic) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
                     }
                 }) {
                     if (!showBasic) Text(
-                        "时长 ${draft.seconds}s · ${draft.ratio} · ${draft.mp} MP · 步数 ${stepsShown.ifBlank { "默认" }}",
+                        stringResource(R.string.h3_summary_params, draft.seconds, draft.ratio, draft.mp, stepsShown.ifBlank { stringResource(R.string.h3_default_value) }),
                         style = MaterialTheme.typography.labelSmall
                     ) else {
                     val size = runCatching {
@@ -1537,11 +1548,11 @@ fun H3StudioContent(
                     }.getOrNull()
 
                     H3ParamBlock(
-                        label = "视频时长（秒）",
-                        detail = if (draft.seconds.isBlank()) "" else "${draft.seconds} 秒",
+                        label = stringResource(R.string.h3_duration_seconds),
+                        detail = if (draft.seconds.isBlank()) "" else stringResource(R.string.h3_seconds_value, draft.seconds),
                         hint = when {
                             frames == null -> ""
-                            else -> "≈ $frames 帧 @ ${spec.fps}fps"
+                            else -> stringResource(R.string.h3_frames_value, frames, spec.fps)
                         },
                         presets = listOf("6", "10", "15"),
                         value = draft.seconds,
@@ -1550,30 +1561,28 @@ fun H3StudioContent(
                         onCustom = { editText = draft.seconds; editing = H3NumberParam.SECONDS }
                     )
                     H3Divider()
-                    Text("画面比例", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.h3_aspect_ratio), style = MaterialTheme.typography.labelLarge)
                     // Six everyday ratios stay visible; 21:9 and 2:3 live behind one text row so the
                     // grid costs two rows instead of three. The selected one is named in that row
                     // even when collapsed, so collapsing can never hide the current choice.
                     H3ChipGrid(
-                        items = commonRatioPairs.map { H3Resolution.label(it.first) to it.first },
+                        items = commonRatioPairs.map { H3Resolution.label(context, it.first) to it.first },
                         selected = ratioOn,
                         enabled = ratioEnabled
                     ) { pickRatio(it) }
                     if (showMoreRatios) H3ChipGrid(
-                        items = extraRatioPairs.map { H3Resolution.label(it.first) to it.first },
+                        items = extraRatioPairs.map { H3Resolution.label(context, it.first) to it.first },
                         selected = ratioOn,
                         enabled = ratioEnabled
                     ) { pickRatio(it) }
+                    val ratioTrail = extraRatioPairs.map { (value, _) ->
+                        val shown = H3Resolution.label(context, value)
+                        if (draft.ratio == value) stringResource(R.string.h3_current_suffix, shown) else shown
+                    }
+                    val moreRatioText = if (showMoreRatios) stringResource(R.string.h3_collapse_more)
+                    else stringResource(R.string.h3_more_ratios) + ratioTrail.joinToString(" · ") + "　\u25be"
                     Text(
-                        if (showMoreRatios) "收起更多比例 \u25b4"
-                        else buildString {
-                            append("更多比例　")
-                            append(extraRatioPairs.joinToString(" · ") { (value, _) ->
-                                val shown = H3Resolution.label(value)
-                                if (draft.ratio == value) "$shown（当前）" else shown
-                            })
-                            append("　\u25be")
-                        },
+                        moreRatioText,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
@@ -1581,15 +1590,15 @@ fun H3StudioContent(
                             .clickable(enabled = ratioEnabled) { showMoreRatios = !showMoreRatios }
                             .padding(vertical = 4.dp)
                     )
-                    if (ratios.isEmpty()) Text("工作流没有可编辑的比例选择器",
+                    if (ratios.isEmpty()) Text(stringResource(R.string.h3_no_ratio_editor),
                         style = MaterialTheme.typography.labelSmall)
                     H3Divider()
                     H3ParamBlock(
-                        label = "像素量",
+                        label = stringResource(R.string.h3_megapixels),
                         detail = "${draft.mp} MP",
                         hint = when {
                             draft.customW.isNotBlank() || draft.customH.isNotBlank() ->
-                                "自定义 ${draft.customW}×${draft.customH}"
+                                stringResource(R.string.h3_custom_wh, draft.customW, draft.customH)
                             size != null -> "${size.width} × ${size.height}"
                             else -> ""
                         },
@@ -1606,8 +1615,8 @@ fun H3StudioContent(
                     )
                     H3Divider()
                     H3ParamBlock(
-                        label = "采样步数",
-                        detail = if (draft.steps.isBlank()) "" else "${draft.steps} 步",
+                        label = stringResource(R.string.h3_sampling_steps),
+                        detail = if (draft.steps.isBlank()) "" else stringResource(R.string.h3_steps_value, draft.steps),
                         hint = "",
                         presets = listOf("4", "8", "20"),
                         value = draft.steps,
@@ -1649,8 +1658,8 @@ fun H3StudioContent(
                         H3NumberParam.SECONDS -> {
                             val v = editText.toDoubleOrNull()
                             H3NumberDialog(
-                                title = "自定义视频时长", unit = "秒",
-                                hint = "时长支持 4 – 15 秒；超过 15 秒请分段生成，段间用「尾帧继续」衔接，或纯文字硬接",
+                                title = stringResource(R.string.h3_custom_duration), unit = stringResource(R.string.h3_unit_seconds),
+                                hint = stringResource(R.string.h3_hint_duration),
                                 value = editText,
                                 valid = v != null && v >= 4.0 && v <= 15.0,
                                 onChange = { editText = it },
@@ -1664,8 +1673,8 @@ fun H3StudioContent(
                         H3NumberParam.MEGAPIXELS -> {
                             val v = editText.toDoubleOrNull()
                             H3NumberDialog(
-                                title = "自定义像素量", unit = "MP",
-                                hint = "推荐 0.1 – 1.0 MP；越大画质越好，但显存占用越高，超过 1.0 MP 容易爆显存",
+                                title = stringResource(R.string.h3_custom_megapixels), unit = "MP",
+                                hint = stringResource(R.string.h3_hint_mp),
                                 value = editText,
                                 valid = v != null && v >= 0.1 && v <= 1.0,
                                 onChange = { editText = it },
@@ -1682,8 +1691,8 @@ fun H3StudioContent(
                         H3NumberParam.STEPS -> {
                             val v = editText.toIntOrNull()
                             H3NumberDialog(
-                                title = "自定义采样步数", unit = "步",
-                                hint = "1 – 100；步数越高越慢",
+                                title = stringResource(R.string.h3_custom_steps), unit = stringResource(R.string.h3_unit_steps),
+                                hint = stringResource(R.string.h3_hint_steps),
                                 value = editText,
                                 valid = v != null && v in 1..100,
                                 wholeNumbers = true,
@@ -1698,8 +1707,8 @@ fun H3StudioContent(
                         H3NumberParam.SECOND_PASS_MP -> {
                             val v = editText.toDoubleOrNull()
                             H3NumberDialog(
-                                title = "自定义二采像素量", unit = "MP",
-                                hint = "推荐 0.5 – 2.0 MP；两阶段放大二采精修目标像素量",
+                                title = stringResource(R.string.h3_custom_second_pass_mp), unit = "MP",
+                                hint = stringResource(R.string.h3_hint_second_pass_mp),
                                 value = editText,
                                 valid = v != null && v >= 0.1 && v <= 8.0,
                                 onChange = { editText = it },
@@ -1713,8 +1722,8 @@ fun H3StudioContent(
                         H3NumberParam.SECOND_PASS_STEPS -> {
                             val v = editText.toIntOrNull()
                             H3NumberDialog(
-                                title = "自定义二采采样步数", unit = "步",
-                                hint = "推荐 2 – 10 步；Turbo 加速二采去噪精修步数",
+                                title = stringResource(R.string.h3_custom_second_pass_steps), unit = stringResource(R.string.h3_unit_steps),
+                                hint = stringResource(R.string.h3_hint_second_pass_steps),
                                 value = editText,
                                 valid = v != null && v in 1..50,
                                 wholeNumbers = true,
@@ -1729,8 +1738,8 @@ fun H3StudioContent(
                         H3NumberParam.RTX_SCALE -> {
                             val v = editText.toDoubleOrNull()
                             H3NumberDialog(
-                                title = "自定义 RTX 超分倍率", unit = "倍",
-                                hint = "填 1.0 即为不放大；1.2 为 1.2 倍放大；1.5 为 1.5 倍放大",
+                                title = stringResource(R.string.h3_custom_rtx_scale), unit = stringResource(R.string.h3_unit_times),
+                                hint = stringResource(R.string.h3_hint_rtx_scale),
                                 value = editText,
                                 valid = v != null && v >= 1.0 && v <= 4.0,
                                 onChange = { editText = it },
@@ -1769,29 +1778,29 @@ fun H3StudioContent(
                     draft.loras[slot.id]?.enabled ?: slot.enabled
                 }
                 H3Card(
-                    "模型与 LoRA",
+                    stringResource(R.string.h3_section_models),
                      subtitle = listOfNotNull(
                          // The dropdown can hold a pick that differs from the template's own file;
                       // the summary has to name what will actually be submitted.
                       spec.unet?.let { ref ->
                           (draft.extras[ref.key] ?: ref.value)
                               .substringAfterLast('\\').substringAfterLast('/')
-                      } ?: "未识别基础模型",
-                         if (spec.loras.isEmpty()) "无 LoRA" else "$loraOn/${spec.loras.size} LoRA 启用"
+                      } ?: stringResource(R.string.h3_model_unknown),
+                         if (spec.loras.isEmpty()) stringResource(R.string.h3_no_lora) else stringResource(R.string.h3_lora_enabled, loraOn, spec.loras.size)
                      ).joinToString(" · "),
                      trailing = {
                          TextButton(onClick = { showModels = !showModels }) {
-                             Text(if (showModels) "收起" else "展开")
+                             Text(if (showModels) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
                          }
                      }
                  ) {
                      if (!showModels) {
-                         Text("只有基础模型和 LoRA 在这里；CLIP、VAE 等在高级设置里。",
+                         Text(stringResource(R.string.h3_only_base_lora),
                              style = MaterialTheme.typography.labelSmall)
                      } else {
                          H3ModelDropdown("UNET", spec.unet, draft, models.unets, !busy) { update(it) }
                          H3Divider()
-                        if (spec.loras.isEmpty()) Text("当前工作流没有可编辑的 LoRA 加载器",
+                        if (spec.loras.isEmpty()) Text(stringResource(R.string.h3_no_lora_loader),
                             style = MaterialTheme.typography.labelSmall)
                         spec.loras.forEach { slot ->
                             val state = draft.loras[slot.id] ?: H3LoraDraft(slot.file, slot.strength, slot.enabled)
@@ -1809,12 +1818,12 @@ fun H3StudioContent(
                                             val v = it.toDoubleOrNull() ?: return@OutlinedTextField
                                             update(draft.copy(loras = draft.loras + (slot.id to state.copy(strength = v))))
                                         },
-                                        label = { Text("强度") }, singleLine = true, enabled = !busy,
+                                        label = { Text(stringResource(R.string.h3_strength)) }, singleLine = true, enabled = !busy,
                                         modifier = Modifier.width(96.dp)
                                     )
                                 }
                                 ModelDropdown(
-                                    label = "LoRA 文件",
+                                    label = stringResource(R.string.h3_lora_file),
                                     selectedValue = state.file,
                                     options = models.loras,
                                     onValueChange = {
@@ -1828,19 +1837,19 @@ fun H3StudioContent(
                         // Extra LoRA chain: appended after the workflow's own loaders, only in the
                         // submission copy — same behaviour as ComfyChair's own LoRA injection.
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("额外 LoRA ${draft.extraLoras.size}/${H3Plan.LoraAdd.MAX_ENTRIES}",
+                            Text(stringResource(R.string.h3_extra_lora_count, draft.extraLoras.size, H3Plan.LoraAdd.MAX_ENTRIES),
                                 style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                             TextButton(
                                 enabled = !busy && draft.extraLoras.size < H3Plan.LoraAdd.MAX_ENTRIES,
                                 onClick = { update(draft.copy(extraLoras = draft.extraLoras + H3LoraAdd())) }
-                            ) { Text("+ 添加") }
+                            ) { Text("+ " + stringResource(R.string.h3_add)) }
                         }
-                        Text("追加在现有 LoRA 之后，只影响本次提交，不改工作流。",
+                        Text(stringResource(R.string.h3_append_hint),
                             style = MaterialTheme.typography.labelSmall)
                         draft.extraLoras.forEachIndexed { index, entry ->
                             Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                                 ModelDropdown(
-                                    label = "额外 LoRA ${index + 1}",
+                                    label = stringResource(R.string.h3_extra_lora_n, index + 1),
                                     selectedValue = entry.name,
                                     options = models.loras,
                                     onValueChange = { chosen ->
@@ -1859,17 +1868,17 @@ fun H3StudioContent(
                                                 strength = text.filter { c -> c.isDigit() || c == '.' })
                                             update(draft.copy(extraLoras = list))
                                         },
-                                        label = { Text("强度") }, singleLine = true, enabled = !busy,
+                                        label = { Text(stringResource(R.string.h3_strength)) }, singleLine = true, enabled = !busy,
                                         modifier = Modifier.weight(1f)
                                     )
                                     TextButton(enabled = !busy, onClick = {
                                         update(draft.copy(extraLoras = draft.extraLoras.filterIndexed { i, _ -> i != index }))
-                                    }) { Text("移除") }
+                                    }) { Text(stringResource(R.string.h3_remove)) }
                                 }
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { ConnectionManager.refreshServerData() }) { Text("刷新模型列表") }
+                            TextButton(onClick = { ConnectionManager.refreshServerData() }) { Text(stringResource(R.string.h3_refresh_models)) }
                             Text(models.fileRefreshStatus, style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -1883,39 +1892,39 @@ fun H3StudioContent(
 
             // 6. 高级
             item {
-                H3Card("高级设置", trailing = {
+                H3Card(stringResource(R.string.h3_section_advanced), trailing = {
                     TextButton(onClick = { showAdvanced = !showAdvanced }) {
-                        Text(if (showAdvanced) "收起" else "展开")
+                        Text(if (showAdvanced) stringResource(R.string.h3_collapse) else stringResource(R.string.h3_expand))
                     }
                 }) {
                     if (showAdvanced) {
                         // Encoders and VAEs rarely change, so they belong here rather than in the
                         // model card, where three dropdowns buried the UNET and the LoRA chain.
-                        H3ModelDropdown("CLIP 文本编码器", spec.clip, draft,
+                        H3ModelDropdown(stringResource(R.string.h3_clip_encoder), spec.clip, draft,
                             models.clips.ifEmpty { models.textEncoders }, !busy) { update(it) }
-                        H3ModelDropdown("视频 VAE", spec.videoVae, draft, models.vaes, !busy) { update(it) }
-                        H3ModelDropdown("音频 VAE", spec.audioVae, draft, models.vaes, !busy) { update(it) }
+                        H3ModelDropdown(stringResource(R.string.h3_video_vae), spec.videoVae, draft, models.vaes, !busy) { update(it) }
+                        H3ModelDropdown(stringResource(R.string.h3_audio_vae), spec.audioVae, draft, models.vaes, !busy) { update(it) }
                         H3Divider()
                         // 模板与结构：低频动作，从底栏搬到这里，仍然先于其它高级参数出现。
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("工作流", style = MaterialTheme.typography.labelLarge,
+                            Text(stringResource(R.string.h3_section_workflow), style = MaterialTheme.typography.labelLarge,
                                 modifier = Modifier.weight(1f))
                             TextButton(onClick = onPickWorkflow) {
                                 Text("${workflow.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("结构", style = MaterialTheme.typography.labelLarge,
+                            Text(stringResource(R.string.h3_section_structure), style = MaterialTheme.typography.labelLarge,
                                 modifier = Modifier.weight(1f))
                             TextButton(onClick = {
                                 context.startActivity(
                                     sh.hnet.comfychair.WorkflowEditorActivity
                                         .createIntentForEditingExisting(context, workflowId)
                                 )
-                            }) { Text("编辑结构") }
+                            }) { Text(stringResource(R.string.h3_edit_structure)) }
                         }
                         H3Divider()
-                        if (spec.extras.isEmpty()) Text("当前工作流没有其他可编辑的标量参数",
+                        if (spec.extras.isEmpty()) Text(stringResource(R.string.h3_no_scalar_params),
                             style = MaterialTheme.typography.labelSmall)
                         // The seed has its own control on the basic page; repeating it here as a
                         // plain text cell was how two "seed" fields ended up disagreeing.
@@ -1923,8 +1932,13 @@ fun H3StudioContent(
                             val text = draft.extras[extra.key] ?: extra.value.toString()
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(extra.label, style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.weight(1f))
+                                Text(
+                                    if (extra.labelRes != 0) stringResource(extra.labelRes) else extra.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                                 OutlinedTextField(
                                     value = text,
                                     onValueChange = { update(draft.copy(extras = draft.extras + (extra.key to it))) },
@@ -1934,10 +1948,10 @@ fun H3StudioContent(
                             }
                         }
                         spec.warnings.forEach {
-                            Text(it, style = MaterialTheme.typography.labelSmall,
+                            Text(it.format(context), style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error)
                         }
-                        Text("SageAttention、FirstBlockCache、LowVRAM、缓存清理、模型预览与视频合成链路原样保留。",
+                        Text(stringResource(R.string.h3_advanced_kept),
                             style = MaterialTheme.typography.labelSmall)
                         H3Divider()
                         // Exact size and alignment bypass the ratio selector; both live here so the
@@ -1949,7 +1963,7 @@ fun H3StudioContent(
                                 onValueChange = { text ->
                                     update(draft.copy(customW = text.filter(Char::isDigit), mpOutOfRange = false))
                                 },
-                                label = { Text("精确宽") }, singleLine = true, enabled = !busy,
+                                label = { Text(stringResource(R.string.h3_exact_width)) }, singleLine = true, enabled = !busy,
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedTextField(
@@ -1957,30 +1971,30 @@ fun H3StudioContent(
                                 onValueChange = { text ->
                                     update(draft.copy(customH = text.filter(Char::isDigit), mpOutOfRange = false))
                                 },
-                                label = { Text("精确高") }, singleLine = true, enabled = !busy,
+                                label = { Text(stringResource(R.string.h3_exact_height)) }, singleLine = true, enabled = !busy,
                                 modifier = Modifier.weight(1f)
                             )
                             TextButton(enabled = !busy, onClick = {
                                 update(draft.copy(customW = "", customH = ""))
-                            }) { Text("清除") }
+                            }) { Text(stringResource(R.string.h3_clear)) }
                         }
-                        Text("填了就绕过比例选择器，按 32 对齐写入本次提交副本。", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.h3_exact_hint), style = MaterialTheme.typography.labelSmall)
                         Row(verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = draft.multiple,
                                 onValueChange = { text -> update(draft.copy(multiple = text.filter(Char::isDigit))) },
-                                label = { Text("对齐倍数 (8–128)") }, singleLine = true, enabled = !busy,
+                                label = { Text(stringResource(R.string.h3_align_multiple)) }, singleLine = true, enabled = !busy,
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
-                                spec.resolution?.multiple?.let { "工作流用 $it" } ?: "工作流未声明",
+                                spec.resolution?.multiple?.let { stringResource(R.string.h3_workflow_uses, it) } ?: stringResource(R.string.h3_workflow_undeclared),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
                     } else {
                         Text(
-                            "Scheduler / Denoise / Sampler / 输出帧率 等 ${spec.extras.count { !it.hidden && it.input !in H3Seed.INPUTS }} 项可改",
+                            stringResource(R.string.h3_extras_count, spec.extras.count { !it.hidden && it.input !in H3Seed.INPUTS }),
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -1992,14 +2006,14 @@ fun H3StudioContent(
                         OutlinedTextField(
                             value = presetName,
                             onValueChange = { presetName = it },
-                            label = { Text("预设名称") }, singleLine = true, enabled = !busy,
+                            label = { Text(stringResource(R.string.h3_preset_name)) }, singleLine = true, enabled = !busy,
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(enabled = !busy && presetName.isNotBlank(), onClick = {
                             presetStore.save(presetName.trim(), draft)
                             presets = presetStore.list()
-                            message = "已保存预设「${presetName.trim()}」"
-                        }) { Text("保存当前参数") }
+                            message = context.getString(R.string.h3_preset_saved, presetName.trim())
+                        }) { Text(stringResource(R.string.h3_save_preset)) }
                     }
                     presets.forEach { (name, snapshot) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2007,12 +2021,12 @@ fun H3StudioContent(
                                 modifier = Modifier.weight(1f))
                             TextButton(enabled = !busy, onClick = {
                                 update(snapshot.applyTo(draft))
-                                message = "已套用预设「$name」"
-                            }) { Text("套用") }
+                                message = context.getString(R.string.h3_preset_applied, name)
+                            }) { Text(stringResource(R.string.h3_apply)) }
                             TextButton(enabled = !busy, onClick = {
                                 presetStore.delete(name)
                                 presets = presetStore.list()
-                            }) { Text("删除") }
+                            }) { Text(stringResource(R.string.h3_delete)) }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2020,11 +2034,11 @@ fun H3StudioContent(
                             val name = WorkflowManager.generateUniqueDuplicateName(workflow.name)
                             runCatching {
                                 WorkflowManager.duplicateWorkflow(workflowId, name,
-                                    workflow.description.ifBlank { workflow.name } + "（副本）")
-                            }.onSuccess { message = "已另存为「$name」" }
-                                .onFailure { message = "另存失败：${it.message}" }
-                        }) { Text("另存新版本") }
-                        TextButton(onClick = onOpenWorkflowSettings) { Text("工作流管理") }
+                                    workflow.description.ifBlank { workflow.name } + context.getString(R.string.h3_copy_suffix, ""))
+                            }.onSuccess { message = context.getString(R.string.h3_saved_as, name) }
+                                .onFailure { message = context.getString(R.string.h3_save_failed, it.message.orEmpty()) }
+                        }) { Text(stringResource(R.string.h3_save_as_new)) }
+                        TextButton(onClick = onOpenWorkflowSettings) { Text(stringResource(R.string.h3_workflow_manage)) }
                     }
                 }
             }
@@ -2032,35 +2046,19 @@ fun H3StudioContent(
 
         if (showRelayHelp) AlertDialog(
             onDismissRequest = { showRelayHelp = false },
-            title = { Text("完整连拍") },
+            title = { Text(stringResource(R.string.h3_relay_title)) },
             text = {
                 Text(
-                    "用途\n" +
-                        "一次排好几段，每段跑完自动接上一段最后一帧，把长视频拆开连续生成。\n\n" +
-                        "怎么用\n" +
-                        "1. 打开开关\n" +
-                        "2. 写好提示词，点「添加到队列」，点几次就是几段\n" +
-                        "3. 只把当前这段交给服务器；跑完自动取帧、换到参考槽、提交下一段\n\n" +
-                        "注意\n" +
-                        "· 每段用的是点「添加」那一刻的参数（时长 / 比例 / 步数）\n" +
-                        "· 关掉开关会暂停，剩余段不丢，重新打开继续\n" +
-                        "· 连拍期间请不要把 App 从后台划掉：取帧和提交都要靠手机，划掉会停住\n" +
-                        "· 某段失败会停下等你，不会跳过\n\n" +
-                        "相关设置\n" +
-                        "设置 → 连拍通知（默认关闭）\n" +
-                        "打开后：通知栏会显示「已跑完 2 段，还剩 3 段」，可以在通知里暂停 / 继续；\n" +
-                        "锁屏久了也不容易被系统回收。\n" +
-                        "不开也能用完整连拍，只是后台待太久时可能被系统停下，\n" +
-                        "重开 App 会从剩下的段继续。"
+                    stringResource(R.string.h3_relay_help)
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showRelayHelp = false }) { Text("知道了") }
+                TextButton(onClick = { showRelayHelp = false }) { Text(stringResource(R.string.h3_got_it)) }
             }
         )
         if (showDeclareHelp) AlertDialog(
             onDismissRequest = { showDeclareHelp = false },
-            title = { Text("代写尾帧声明") },
+            title = { Text(stringResource(R.string.h3_declare_title)) },
             text = {
                 // Each question keeps its own small heading: the old copy packed all three into
                 // one run of text, so a reader looking for "will it duplicate mine?" had to
@@ -2068,30 +2066,27 @@ fun H3StudioContent(
                 val tailPicture = filledRefs.size + 1
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("它帮你写什么",
+                        Text(stringResource(R.string.h3_declare_what),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("在提示词开头补一行，说明第 $tailPicture 张图" +
-                            "就是上一段视频的最后一帧。")
+                        Text(stringResource(R.string.h3_declare_line, tailPicture))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("正文你只需写下一步",
+                        Text(stringResource(R.string.h3_declare_next),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("不用再描述画面，也不用重复长相、衣服，" +
-                            "那一行已经交代过了。")
+                        Text(stringResource(R.string.h3_declare_no_desc))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("会不会重复",
+                        Text(stringResource(R.string.h3_declare_dup),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("你已经手写过同样的声明，就跳过不写；" +
-                            "关掉开关也不会删掉你写的那一行。")
+                        Text(stringResource(R.string.h3_declare_dup_body))
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showDeclareHelp = false }) { Text("知道了") }
+                TextButton(onClick = { showDeclareHelp = false }) { Text(stringResource(R.string.h3_got_it)) }
             }
         )
 
@@ -2112,9 +2107,9 @@ fun H3StudioContent(
                 AppSettings.setH3PreviewEnabled(context, on)
                 H3SamplingPreviewState.setVisible(on)
                 message = if (on) {
-                    "采样预览已打开"
+                    context.getString(R.string.h3_msg_preview_on)
                 } else {
-                    "采样预览已关闭，下一轮不再占用显卡算力；想现在打开，点那一行「点开恢复」"
+                    context.getString(R.string.h3_msg_preview_off)
                 }
             }
         )
@@ -2128,9 +2123,9 @@ fun H3StudioContent(
                 if (message.isNotEmpty()) Text(
                     message,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (message.contains("失败") || message.contains("未通过") ||
-                        message.contains("无法") || message.contains("不在") || message.contains("请先") ||
-                        message.contains("需要") || message.contains("无效")) {
+                    // 提示文字的颜色按内容判定：错误类消息统一用 error 色。
+                    // 两种语言的关键词都列上，切换语言后判定不变。
+                    color = if (MESSAGE_ERROR_WORDS.any { message.contains(it) }) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.primary
@@ -2147,12 +2142,13 @@ fun H3StudioContent(
                         // bar carries parameters only, first pass then second pass on its own line.
                         val baseSummary = listOfNotNull(
                             H3Resolution.label(
+                                context,
                                 if (draft.customW.isNotBlank()) "${draft.customW}:${draft.customH}"
                                 else draft.ratio
                             ),
                             "${draft.mp} MP",
                             "${draft.seconds}s",
-                            if (stepsShown.isBlank()) null else "${stepsShown} 步"
+                            if (stepsShown.isBlank()) null else stringResource(R.string.h3_steps_count, stepsShown)
                         ).joinToString(" · ")
                         // Second pass gets its own two lines: one line of everything ran off the
                         // edge on a phone, and the values that fell off were the ones that matter.
@@ -2160,12 +2156,12 @@ fun H3StudioContent(
                             draft.extras["94:value"]?.toBooleanStrictOrNull() != true
                         val secondPassLine = when {
                             !isTurbo -> null
-                            !secondPassOn -> "二采 关"
+                            !secondPassOn -> stringResource(R.string.h3_second_pass_off)
                             else -> listOfNotNull(
-                                "二采",
+                                stringResource(R.string.h3_second_pass_short),
                                 (draft.extras["23:value"] ?: "1").let { "$it MP" },
-                                (draft.extras["102:steps"] ?: "3").let { "$it 步" },
-                                draft.extras["102:denoise"]?.let { "降噪 $it" }
+                                (draft.extras["102:steps"] ?: "3").let { stringResource(R.string.h3_steps_count, it) },
+                                draft.extras["102:denoise"]?.let { stringResource(R.string.h3_denoise_short, it) }
                             ).joinToString(" · ")
                         }
                         val accelLine = if (!isTurbo) null else {
@@ -2173,7 +2169,7 @@ fun H3StudioContent(
                             listOfNotNull(
                                 "RTX ${draft.extras["39:resize_type.scale"] ?: "1.2"}×",
                                 if (spec.extras.any { it.key == "173:value" } && frameGen != "1") {
-                                    "${frameGen}×插帧"
+                                    stringResource(R.string.h3_frame_gen_short, frameGen)
                                 } else null
                             ).joinToString(" · ").ifBlank { null }
                         }
@@ -2197,14 +2193,14 @@ fun H3StudioContent(
                         val failure = queueState.lastFailure
                             ?.takeIf { it.ownerId == H3_OWNER_ID }
                         val queueLine = when {
-                            failure != null -> "失败 · ${h3FailureGroup(failure.nodeType)}" +
+                            failure != null -> context.getString(R.string.h3_status_failed, h3FailureGroup(failure.nodeType, context)) +
                                 (failure.message.take(46).let { if (it.isBlank()) "" else "：$it" })
-                            ownJobExecuting -> "生成中 · 队列 ${queueState.totalQueueSize}"
+                            ownJobExecuting -> context.getString(R.string.h3_status_generating, queueState.totalQueueSize)
                             ownJobWaiting && queueState.ownQueuePosition != null ->
-                                "排队第 ${queueState.ownQueuePosition} 位"
-                            queueState.totalQueueSize > 0 -> "队列 ${queueState.totalQueueSize}"
-                            resultLoading -> "正在取回结果…"
-                            spec.warnings.isNotEmpty() -> "${spec.warnings.size} 项待确认（高级设置）"
+                                context.getString(R.string.h3_status_queued, queueState.ownQueuePosition)
+                            queueState.totalQueueSize > 0 -> context.getString(R.string.h3_status_queue, queueState.totalQueueSize)
+                            resultLoading -> context.getString(R.string.h3_status_fetching)
+                            spec.warnings.isNotEmpty() -> context.getString(R.string.h3_status_warnings, spec.warnings.size)
                             else -> null
                         }
                         if (queueLine != null) Text(
@@ -2238,10 +2234,10 @@ fun H3StudioContent(
         if (sourcePickerSlot != null) {
             val slot = sourcePickerSlot
             val title = when {
-                slot == "first" -> "选择首帧素材"
-                slot == "last" -> "选择尾帧素材"
-                slot?.startsWith("ref:") == true -> "选择参考图素材"
-                else -> "选择素材"
+                slot == "first" -> context.getString(R.string.h3_pick_first_frame)
+                slot == "last" -> context.getString(R.string.h3_pick_last_frame)
+                slot?.startsWith("ref:") == true -> context.getString(R.string.h3_pick_ref)
+                else -> context.getString(R.string.h3_pick_material)
             }
             val currentFile = when {
                 slot == "first" -> draft.first
@@ -2283,7 +2279,7 @@ fun H3StudioContent(
                         // 服务器素材：文件本来就在 input 里，按名字用，什么都不用传
                         item == null && localPath == null -> {
                             applySlotName(filename)
-                            message = "已载入服务器素材：$filename"
+                            message = context.getString(R.string.h3_msg_loaded_server_file, filename)
                         }
 
                         // 提取帧：文件只在这台手机上，读出来传给服务器
@@ -2291,10 +2287,10 @@ fun H3StudioContent(
                             val target = ConnectionManager.clientOrNull
                             val bytes = runCatching { java.io.File(localPath).readBytes() }.getOrNull()
                             if (target == null || bytes == null || bytes.isEmpty()) {
-                                message = "该帧无法读取，未能上传"
+                                message = context.getString(R.string.h3_msg_frame_unreadable)
                             } else {
                                 busy = true
-                                message = "正在上传提取帧…"
+                                message = context.getString(R.string.h3_msg_uploading_frame)
                                 target.uploadImage(
                                     bytes, "h3_${UUID.randomUUID()}.png",
                                     overwrite = false, returnFullPath = true
@@ -2303,8 +2299,8 @@ fun H3StudioContent(
                                         busy = false
                                         if (ok && name != null) {
                                             applySlotName(name)
-                                            message = "已载入提取帧：$filename"
-                                        } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                                            message = context.getString(R.string.h3_msg_loaded_frame, filename)
+                                        } else message = context.getString(R.string.h3_msg_upload_failed, error ?: context.getString(R.string.h3_msg_no_filename))
                                     }
                                 }
                             }
@@ -2317,10 +2313,10 @@ fun H3StudioContent(
                             val target = ConnectionManager.clientOrNull
                             val picked = item
                             if (target == null || picked == null) {
-                                message = "没有连接到服务器"
+                                message = context.getString(R.string.h3_msg_no_connection)
                             } else {
                                 busy = true
-                                message = "正在从图库取图…"
+                                message = context.getString(R.string.h3_msg_reading_gallery)
                                 scope.launch {
                                     val key = picked.toCacheKey()
                                     val bmp = MediaCache.fetchImage(key, picked.subfolder, picked.type)
@@ -2333,7 +2329,7 @@ fun H3StudioContent(
                                     if (bytes == null || bytes.isEmpty()) {
                                         main.post {
                                             busy = false
-                                            message = "这张图本地和服务器都没有了"
+                                            message = context.getString(R.string.h3_msg_gallery_gone)
                                         }
                                         return@launch
                                     }
@@ -2347,8 +2343,8 @@ fun H3StudioContent(
                                             busy = false
                                             if (ok && stored != null) {
                                                 applySlotName(stored)
-                                                message = "已取用图库图片：$filename"
-                                            } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                                                message = context.getString(R.string.h3_msg_used_gallery, filename)
+                                            } else message = context.getString(R.string.h3_msg_upload_failed, error ?: context.getString(R.string.h3_msg_no_filename))
                                         }
                                     }
                                 }
@@ -2371,7 +2367,7 @@ private fun archivePayload(context: android.content.Context, mode: H3Plan.Mode, 
 }
 
 /** Everything the plan knows about a model file cell, written back through the same `extras` map. */
-private fun modelPayload(plan: H3Plan.Spec, draft: H3Draft): Map<String, Any> {
+private fun modelPayload(plan: H3Plan.Spec, draft: H3Draft, context: Context): Map<String, Any> {
     val originals = LinkedHashMap<String, String>()
     plan.extras.forEach { originals[it.key] = it.value.toString() }
     listOfNotNull(plan.unet, plan.clip, plan.videoVae, plan.audioVae).forEach { originals[it.key] = it.value }
@@ -2382,7 +2378,12 @@ private fun modelPayload(plan: H3Plan.Spec, draft: H3Draft): Map<String, Any> {
         if (text == original) return@forEach
         val value: Any = typed[key]?.let { extra ->
             typedValue(extra.value, text, seed = extra.input in H3Seed.INPUTS)
-                ?: error("${extra.label} 需要合法数值")
+                ?: error(
+                    context.getString(
+                        R.string.h3_err_extra_invalid,
+                        if (extra.labelRes != 0) context.getString(extra.labelRes) else extra.label
+                    )
+                )
         } ?: text
         out[key] = value
     }
@@ -2463,19 +2464,19 @@ private data class H3LoraAdd(val name: String = "", val strength: String = "1.0"
  * Turn the failing node's class into the card the user would go and change. The raw class name is
  * kept in the parenthetical so a report is still traceable.
  */
-private fun h3FailureGroup(nodeType: String?): String {
+private fun h3FailureGroup(nodeType: String?, context: Context): String {
     val t = nodeType.orEmpty()
     val group = when {
-        t.isBlank() -> "执行失败"
+        t.isBlank() -> context.getString(R.string.h3_failure_exec)
         t.contains("Lora", true) -> "LoRA"
         t.contains("VAE", true) -> "VAE"
-        t.contains("UNET", true) || t.contains("Checkpoint", true) -> "模型"
-        t.contains("CLIP", true) || t.contains("TextEncode", true) -> "提示词"
-        t.contains("LoadImage", true) || t.startsWith("VHS_", true) -> "素材"
+        t.contains("UNET", true) || t.contains("Checkpoint", true) -> context.getString(R.string.h3_failure_model)
+        t.contains("CLIP", true) || t.contains("TextEncode", true) -> context.getString(R.string.h3_failure_prompt)
+        t.contains("LoadImage", true) || t.startsWith("VHS_", true) -> context.getString(R.string.h3_failure_material)
         t.contains("Sampler", true) || t.contains("Scheduler", true) ||
-            t.contains("Guider", true) || t.contains("Noise", true) -> "采样"
-        t.contains("VideoCombine", true) -> "输出合成"
-        t.contains("MiniMaxH3", true) -> "H3 核心节点"
+            t.contains("Guider", true) || t.contains("Noise", true) -> context.getString(R.string.h3_failure_sampling)
+        t.contains("VideoCombine", true) -> context.getString(R.string.h3_failure_output)
+        t.contains("MiniMaxH3", true) -> context.getString(R.string.h3_failure_h3)
         else -> t
     }
     return if (group == t) t else "$group（$t）"
@@ -2503,8 +2504,8 @@ private fun H3TurboPipelineCard(
     val frameGen = draft.extras["173:value"] ?: "1"
 
     H3Card(
-        title = "二采与 Turbo 增强设置",
-        subtitle = "两阶段采样精修 · RTX 视频超分" + (if (hasFrameGen) " · 动态插帧" else "")
+        title = stringResource(R.string.h3_second_pass_title),
+        subtitle = stringResource(if (hasFrameGen) R.string.h3_second_pass_subtitle_frames else R.string.h3_second_pass_subtitle)
     ) {
         // 顶部流程指示条
         Surface(
@@ -2518,26 +2519,26 @@ private fun H3TurboPipelineCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (secondPassEnabled) "一采+二采精修" else "一采草稿",
+                    text = if (secondPassEnabled) stringResource(R.string.h3_pipeline_full) else stringResource(R.string.h3_pipeline_draft),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (secondPassEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text("➔", style = MaterialTheme.typography.labelSmall)
                 Text(
-                    text = "RTX 超分 (${rtxScale}×)",
+                    text = stringResource(R.string.h3_rtx_scale_value, rtxScale),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (rtxScale != "1" && rtxScale != "1.0") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (hasFrameGen) {
                     Text("➔", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        text = if (frameGen != "1") "插帧 (${frameGen}×)" else "无插帧",
+                        text = if (frameGen != "1") stringResource(R.string.h3_interp_on, frameGen) else stringResource(R.string.h3_interp_off),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (frameGen != "1") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Text("➔", style = MaterialTheme.typography.labelSmall)
-                Text("保存视频", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.h3_save_video), style = MaterialTheme.typography.labelSmall)
             }
         }
 
@@ -2549,10 +2550,10 @@ private fun H3TurboPipelineCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("二采高清精修（Second Pass）", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.h3_second_pass_label), style = MaterialTheme.typography.labelLarge)
                 Text(
-                    text = if (secondPassEnabled) "开启：一采低清生成后经 Latent 放大由二采精修，#39 放大二采画面"
-                           else "关闭：跳过二采，#39 将直接对一采画面进行倍率放大",
+                    text = if (secondPassEnabled) stringResource(R.string.h3_second_pass_on_note)
+                           else stringResource(R.string.h3_second_pass_off_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2570,9 +2571,9 @@ private fun H3TurboPipelineCard(
         if (secondPassEnabled) {
             H3Divider()
             H3ParamBlock(
-                label = "二采目标像素",
+                label = stringResource(R.string.h3_second_pass_mp),
                 detail = "${secondPassMp} MP",
-                hint = "两阶段放大的目标像素量",
+                hint = stringResource(R.string.h3_hint_second_pass_mp2),
                 presets = listOf("0.5", "1", "1.5"),
                 value = secondPassMp,
                 enabled = !busy,
@@ -2584,9 +2585,9 @@ private fun H3TurboPipelineCard(
 
             H3Divider()
             H3ParamBlock(
-                label = "二采采样步数",
-                detail = "${secondPassSteps} 步",
-                hint = "Simple 调度器二次去噪步数（默认降噪 0.3）",
+                label = stringResource(R.string.h3_second_pass_steps),
+                detail = stringResource(R.string.h3_steps_count, secondPassSteps),
+                hint = stringResource(R.string.h3_hint_second_pass_denoise),
                 presets = listOf("3", "4", "5"),
                 value = secondPassSteps,
                 enabled = !busy,
@@ -2598,7 +2599,7 @@ private fun H3TurboPipelineCard(
 
             H3Divider()
             Column(Modifier.fillMaxWidth()) {
-                Text("二采 Latent 放大模型", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.h3_second_pass_model), style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -2608,7 +2609,7 @@ private fun H3TurboPipelineCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "minimax_h3_latent_upscaler_3d_fp16.safetensors（内置默认）",
+                        stringResource(R.string.h3_latent_default),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2620,9 +2621,9 @@ private fun H3TurboPipelineCard(
 
         // 2. RTX 超分倍率
         H3ParamBlock(
-            label = "RTX 视频超分倍率",
+            label = stringResource(R.string.h3_rtx_scale),
             detail = if (rtxScale == "1" || rtxScale == "1.0") "1.0×" else "${rtxScale}×",
-            hint = "Ultra 档超分辨率放大；填 1.0 即为原样不放大",
+            hint = stringResource(R.string.h3_hint_rtx_ultra),
             presets = listOf("1.0", "1.2", "1.5", "2.0"),
             value = rtxScale,
             enabled = !busy,
@@ -2636,19 +2637,19 @@ private fun H3TurboPipelineCard(
         if (hasFrameGen) {
             H3Divider()
             Column(Modifier.fillMaxWidth()) {
-                Text("视频插帧平滑", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.h3_interp_smooth), style = MaterialTheme.typography.labelLarge)
                 Text(
                     text = when (frameGen) {
-                        "2" -> "2× 帧率倍增（原生 24fps 提升至 48fps）"
-                        "3" -> "3× 帧率倍增（原生 24fps 提升至 72fps）"
-                        else -> "关闭插帧（保持原生 24fps）"
+                        "2" -> stringResource(R.string.h3_interp_2x)
+                        "3" -> stringResource(R.string.h3_interp_3x)
+                        else -> stringResource(R.string.h3_interp_none)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("1" to "1× (关)", "2" to "2× (48fps)", "3" to "3× (72fps)").forEach { (optVal, optLabel) ->
+                    listOf("1" to stringResource(R.string.h3_interp_option_off), "2" to stringResource(R.string.h3_interp_option_2x), "3" to stringResource(R.string.h3_interp_option_3x)).forEach { (optVal, optLabel) ->
                         val selected = frameGen == optVal
                         FilterChip(
                             selected = selected,
@@ -2947,15 +2948,36 @@ private fun H3ParamBlock(
 ) {
     val customActive = value.isNotBlank() && value !in presets
     Column(Modifier.fillMaxWidth()) {
+        // Label and reading share one line, the explanation gets its own. They used to share a
+        // single line with `softWrap = false` on both readings, so an English hint long enough to
+        // fill the width squeezed the label down to a few characters and stacked it letter by
+        // letter. Now the label ellipsises instead of collapsing, and the hint can never push it.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-            if (detail.isNotEmpty()) Text(
-                detail, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
-            if (hint.isNotEmpty()) Text(
-                if (detail.isEmpty()) hint else " $hint",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (detail.isNotEmpty()) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
         }
+        if (hint.isNotEmpty()) Text(
+            hint,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(Modifier.height(6.dp))
         // Four equal cells: three presets plus the custom slot, so the row can never overflow.
         Row(
@@ -2971,7 +2993,7 @@ private fun H3ParamBlock(
                 ) { onPreset(preset) }
             }
             H3ParamChip(
-                text = if (customActive) value else "自定义",
+                text = if (customActive) value else stringResource(R.string.h3_custom),
                 selected = customActive,
                 enabled = enabled,
                 modifier = Modifier.weight(1f),
@@ -3035,15 +3057,15 @@ private fun H3NumberDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    if (valid) hint else "超出允许范围",
+                    if (valid) hint else stringResource(R.string.h3_out_of_range),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.error
                 )
             }
         },
-        confirmButton = { TextButton(enabled = valid, onClick = onConfirm) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        confirmButton = { TextButton(enabled = valid, onClick = onConfirm) { Text(stringResource(R.string.h3_ok)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.h3_cancel)) } }
     )
 }
 
@@ -3058,7 +3080,7 @@ private fun H3ModelDropdown(
     onDraft: (H3Draft) -> Unit
 ) {
     if (ref == null) {
-        Text("$label：工作流里没有可编辑的加载器", style = MaterialTheme.typography.labelSmall)
+        Text(stringResource(R.string.h3_no_loader_for, label), style = MaterialTheme.typography.labelSmall)
         return
     }
     val current = draft.extras[ref.key] ?: ref.value
@@ -3074,10 +3096,10 @@ private fun H3ModelDropdown(
     // Known options that do not contain the current file: flag it before generation, not after.
     val normCurrent = current.replace('\\', '/')
     if (options.isNotEmpty() && options.none { it.replace('\\', '/') == normCurrent }) {
-        Text("服务器上找不到这个文件，生成会失败", style = MaterialTheme.typography.labelSmall,
+        Text(stringResource(R.string.h3_file_missing), style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.error)
     } else if (options.isEmpty()) {
-        Text("服务器未返回可选文件列表，可先点“刷新模型列表”",
+        Text(stringResource(R.string.h3_no_file_list),
             style = MaterialTheme.typography.labelSmall)
     }
 }
@@ -3091,7 +3113,7 @@ private fun H3PickerButton(
 ) {
     var open by remember { mutableStateOf(false) }
     TextButton(enabled = enabled && options.isNotEmpty(), onClick = { open = true }) {
-        Text(if (options.isEmpty()) "无列表" else label)
+        Text(if (options.isEmpty()) stringResource(R.string.h3_no_list) else label)
     }
     if (open) {
         AlertDialog(
@@ -3106,7 +3128,7 @@ private fun H3PickerButton(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { open = false }) { Text("关闭") } }
+            confirmButton = { TextButton(onClick = { open = false }) { Text(stringResource(R.string.h3_close)) } }
         )
     }
 }
@@ -3121,10 +3143,10 @@ private fun H3PickerField(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(value.substringAfterLast('\\').substringAfterLast('/').ifBlank { "未选择" },
+            Text(value.substringAfterLast('\\').substringAfterLast('/').ifBlank { stringResource(R.string.h3_not_selected) },
                 style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        H3PickerButton(if (options.isEmpty()) "无列表" else "选择", options, enabled, onChange)
+        H3PickerButton(if (options.isEmpty()) stringResource(R.string.h3_no_list) else stringResource(R.string.h3_select), options, enabled, onChange)
     }
 }
 
@@ -3157,24 +3179,24 @@ private fun H3SlotRow(
                 Spacer(Modifier.width(6.dp))
             }
             Text(
-                if (disabled) "$title · 本次不提交" else title,
+                if (disabled) stringResource(R.string.h3_skip_this, title) else title,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(enabled = enabled, onClick = onPick) { Text(if (file.isBlank()) "上传" else "替换") }
+            TextButton(enabled = enabled, onClick = onPick) { Text(if (file.isBlank()) stringResource(R.string.h3_upload) else stringResource(R.string.h3_replace)) }
             if (onToggle != null) TextButton(enabled = enabled, onClick = onToggle) {
-                Text(if (disabled) "启用" else "禁用")
+                Text(if (disabled) stringResource(R.string.h3_enable) else stringResource(R.string.h3_disable))
             }
-            if (onRemove != null) TextButton(enabled = enabled, onClick = onRemove) { Text("删除") }
-            if (onUp != null) TextButton(enabled = enabled, onClick = onUp) { Text("上移") }
-            if (onDown != null) TextButton(enabled = enabled, onClick = onDown) { Text("下移") }
+            if (onRemove != null) TextButton(enabled = enabled, onClick = onRemove) { Text(stringResource(R.string.h3_delete)) }
+            if (onUp != null) TextButton(enabled = enabled, onClick = onUp) { Text(stringResource(R.string.h3_move_up)) }
+            if (onDown != null) TextButton(enabled = enabled, onClick = onDown) { Text(stringResource(R.string.h3_move_down)) }
         }
         if (file.isBlank()) {
             Box(
                 Modifier.fillMaxWidth().height(84.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
-            ) { Text("未选择图片", style = MaterialTheme.typography.labelSmall) }
+            ) { Text(stringResource(R.string.h3_no_image), style = MaterialTheme.typography.labelSmall) }
         } else Box(Modifier.fillMaxWidth().alpha(if (disabled) 0.4f else 1f)) {
             H3LocalOrRemotePreview(workflowId, file, revision)
         }
@@ -3210,7 +3232,7 @@ private fun H3LocalOrRemotePreview(
     }
     val bmp = bitmap
     if (bmp != null) Image(bmp.asImageBitmap(), filename, modifier, contentScale = scale)
-    else Text(if (failed) "预览失败，请确认服务器素材仍在" else "正在加载预览…",
+    else Text(if (failed) stringResource(R.string.h3_preview_failed) else stringResource(R.string.h3_preview_loading),
         style = MaterialTheme.typography.labelSmall)
 }
 
@@ -3283,7 +3305,7 @@ private fun H3FrameSlot(
                 .clickable(enabled = enabled) { if (file.isBlank()) onPick() },
             contentAlignment = Alignment.Center
         ) {
-            if (file.isBlank()) Text("+ 选择", style = MaterialTheme.typography.labelMedium)
+            if (file.isBlank()) Text("+ " + stringResource(R.string.h3_choose), style = MaterialTheme.typography.labelMedium)
             else H3LocalOrRemotePreview(workflowId, file, revision, Modifier.fillMaxSize(), ContentScale.Crop)
         }
     }
@@ -3329,7 +3351,7 @@ private fun H3RefTile(
             Box(
                 Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
-            ) { Text("不提交", style = MaterialTheme.typography.labelSmall) }
+            ) { Text(stringResource(R.string.h3_not_submitted), style = MaterialTheme.typography.labelSmall) }
         }
         if (badge != null && !disabled) Surface(
             modifier = Modifier.align(Alignment.TopStart).padding(4.dp),
@@ -3347,7 +3369,7 @@ private fun H3RefTile(
             shape = RoundedCornerShape(7.dp)
         ) {
             Text(
-                "尾帧", style = MaterialTheme.typography.labelSmall,
+                stringResource(R.string.h3_last_frame_short), style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
             )
         }
@@ -3367,7 +3389,7 @@ private fun H3RefAddTile(
     val label = when {
         busy -> "…"
         enabled -> "+"
-        else -> "上限"
+        else -> stringResource(R.string.h3_cap)
     }
     Box(
         modifier
@@ -3411,10 +3433,10 @@ private fun H3AudioSection(
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("音频参考（可选）", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.h3_audio_ref), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.weight(1f))
             Text(
-                if (files.isEmpty()) "未选" else "${files.count { it.isNotBlank() }} / $max",
+                if (files.isEmpty()) stringResource(R.string.h3_not_selected_short) else stringResource(R.string.h3_audio_count, files.count { it.isNotBlank() }, max),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, softWrap = false,
                 color = if (files.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
@@ -3438,10 +3460,10 @@ private fun H3AudioSection(
                         " · $shown", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(onClick = { onPick(index) }, enabled = enabled) {
-                        Text("更换", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.h3_replace), style = MaterialTheme.typography.labelSmall)
                     }
                     TextButton(onClick = { onRemove(index) }, enabled = enabled) {
-                        Text("移除", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.h3_remove), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -3451,7 +3473,7 @@ private fun H3AudioSection(
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
                 ) {
-                    Text("添加第 ${files.size + 1} 段音频", maxLines = 1, softWrap = false)
+                    Text(stringResource(R.string.h3_add_audio_n, files.size + 1), maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -3480,7 +3502,7 @@ private fun H3RefEmptyTile(enabled: Boolean, onClick: () -> Unit) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                if (enabled) "添加第 1 张参考图" else "请先连接服务器",
+                if (enabled) stringResource(R.string.h3_add_first_ref) else stringResource(R.string.h3_msg_connect_first),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -3513,17 +3535,17 @@ private fun H3RefActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(enabled = enabled && canLeft, onClick = onLeft,
-                modifier = Modifier.weight(1f)) { Text("前移", style = MaterialTheme.typography.labelMedium) }
+                modifier = Modifier.weight(1f)) { Text(stringResource(R.string.h3_move_forward), style = MaterialTheme.typography.labelMedium) }
             TextButton(enabled = enabled && canRight, onClick = onRight,
-                modifier = Modifier.weight(1f)) { Text("后移", style = MaterialTheme.typography.labelMedium) }
+                modifier = Modifier.weight(1f)) { Text(stringResource(R.string.h3_move_back), style = MaterialTheme.typography.labelMedium) }
             TextButton(enabled = enabled, onClick = onReplace,
-                modifier = Modifier.weight(1f)) { Text("替换", style = MaterialTheme.typography.labelMedium) }
+                modifier = Modifier.weight(1f)) { Text(stringResource(R.string.h3_replace), style = MaterialTheme.typography.labelMedium) }
             TextButton(enabled = enabled, onClick = onToggle,
                 modifier = Modifier.weight(1f)) {
-                Text(if (disabled) "启用" else "不用", style = MaterialTheme.typography.labelMedium)
+                Text(if (disabled) stringResource(R.string.h3_enable) else stringResource(R.string.h3_not_use), style = MaterialTheme.typography.labelMedium)
             }
             TextButton(enabled = enabled, onClick = onDelete,
-                modifier = Modifier.weight(1f)) { Text("删除", style = MaterialTheme.typography.labelMedium) }
+                modifier = Modifier.weight(1f)) { Text(stringResource(R.string.h3_delete), style = MaterialTheme.typography.labelMedium) }
         }
     }
 }
@@ -3553,9 +3575,15 @@ private fun frameAspectWarning(
     val rh = ratio.substringAfter(':').toDoubleOrNull() ?: return null
     val outAspect = rw / rh
     if (Math.abs(imageAspect - outAspect) / outAspect < 0.02) return null
-    return "首帧 ${bounds.outWidth}×${bounds.outHeight} 与输出 $ratio 不一致，会被拉伸变形" +
-        "（尾帧是裁切，不会变形）"
+    return context.getString(R.string.h3_err_aspect_mismatch, bounds.outWidth, bounds.outHeight, ratio)
 }
+
+/** 错误提示的关键词，中英各一份：message 里出现任一即按错误色显示。 */
+private val MESSAGE_ERROR_WORDS = listOf(
+    "失败", "未通过", "无法", "不在", "请先", "需要", "无效",
+    "failed", "Failed", "Cannot", "cannot", "Could not", "Not connected",
+    "Connect to", "gone", "Invalid", "invalid", "Out of range", "too big"
+)
 
 // ---------------------------------------------------------------- last result
 
@@ -3683,16 +3711,16 @@ private fun H3ResultRow(
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onOpen, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "播放", modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.h3_play), modifier = Modifier.size(16.dp))
         }
         IconButton(onClick = onSave, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Download, contentDescription = "保存到相册", modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Download, contentDescription = stringResource(R.string.h3_save_album), modifier = Modifier.size(16.dp))
         }
         IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Share, contentDescription = "分享", modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.h3_share), modifier = Modifier.size(16.dp))
         }
         IconButton(onClick = onContinue, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Refresh, contentDescription = "用末帧继续", modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.h3_continue_last), modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -3782,7 +3810,7 @@ private fun H3ContinuationSlot(
         // which belongs next to the state rather than in a second row further down.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "尾帧衔接",
+                stringResource(R.string.h3_tail_link),
                 style = MaterialTheme.typography.labelMedium,
                 color = if (attached) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface
@@ -3792,7 +3820,7 @@ private fun H3ContinuationSlot(
             if (attached) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "已挂",
+                    stringResource(R.string.h3_tail_attached_badge),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -3804,19 +3832,19 @@ private fun H3ContinuationSlot(
             Spacer(Modifier.weight(1f))
             H3MiniAction(
                 label = when {
-                    attached -> "重取尾帧"
-                    hasResult -> "用尾帧继续"
-                    else -> "暂无上一段"
+                    attached -> stringResource(R.string.h3_tail_retake)
+                    hasResult -> stringResource(R.string.h3_tail_continue)
+                    else -> stringResource(R.string.h3_tail_none)
                 },
                 enabled = enabled && hasResult,
                 onClick = onCapture
             )
             Spacer(Modifier.width(4.dp))
-            H3MiniAction(label = "上传视频", enabled = enabled, onClick = onPickVideo)
+            H3MiniAction(label = stringResource(R.string.h3_upload_video), enabled = enabled, onClick = onPickVideo)
             if (attached) {
                 Spacer(Modifier.width(2.dp))
                 Text(
-                    "清除",
+                    stringResource(R.string.h3_clear_short),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
@@ -3839,7 +3867,7 @@ private fun H3ContinuationSlot(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "完整连拍",
+                        stringResource(R.string.h3_relay_title),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -3875,7 +3903,7 @@ private fun H3ContinuationSlot(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "自动编号",
+                        stringResource(R.string.h3_auto_number),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -3893,18 +3921,18 @@ private fun H3ContinuationSlot(
                 // row is 36dp tall; the 2dp below keeps 前缀 level with 自动编号.
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "每段跑完自动取尾帧，接下一段",
+                    stringResource(R.string.h3_relay_auto_tail),
                     style = noteStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "失败会停下等你；关掉能手动接",
+                    stringResource(R.string.h3_relay_fail_wait),
                     style = noteStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("前缀", style = noteStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.h3_prefix), style = noteStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(6.dp))
                     Box(
                         Modifier
@@ -3934,7 +3962,7 @@ private fun H3ContinuationSlot(
                             ),
                             decorationBox = { inner ->
                                 if (sequenceName.isBlank()) Text(
-                                    "留空 = h3_seq",
+                                    stringResource(R.string.h3_relay_prefix_hint),
                                     style = noteStyle.copy(color = faint)
                                 )
                                 inner()
@@ -3954,7 +3982,7 @@ private fun H3ContinuationSlot(
         }
 
         if (auto && queuedCount > 0) Text(
-            "已排 $queuedCount 段，跑完当前这段自动接上",
+            stringResource(R.string.h3_relay_queued_n, queuedCount),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp)

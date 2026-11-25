@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Story composer -->
+    <string name="st_title">剧情组合</string>
+    <string name="st_back">返回</string>
+    <string name="st_settings">设置</string>
+    <string name="st_library_actions">剧情词库操作</string>
+    <string name="st_import_library">导入词库</string>
+    <string name="st_export_library">导出词库</string>
+    <string name="st_reset_menu">词库还原为内置版</string>
+    <string name="st_header_counts">%1$d 项 · %2$d 词</string>
+    <string name="st_header_hint">点每项可锁定或忽略</string>
+    <string name="st_toggle_dialogue">台词</string>
+
+    <!-- Section head and field rows -->
+    <string name="st_lock">锁定</string>
+    <string name="st_locked">已锁</string>
+    <string name="st_locked_state">已锁定</string>
+    <string name="st_reroll_section">整段重抽</string>
+    <string name="st_pose_act">姿势/动作</string>
+    <string name="st_rerolled_section">已重抽「%1$s」</string>
+    <string name="st_ignored">已忽略</string>
+    <string name="st_ignore">忽略</string>
+    <string name="st_not_picked">未选</string>
+    <string name="st_no_pose">（无姿势）</string>
+    <string name="st_pairs_more">%1$s  +%2$d 组</string>
+    <string name="st_duplicate_word">「%1$s」已经在这一组里了</string>
+
+    <!-- Import / export feedback -->
+    <string name="st_import_done">已导入剧情词库 · %1$d 词</string>
+    <string name="st_import_failed">导入失败</string>
+    <string name="st_export_done">已导出</string>
+    <string name="st_export_failed">导出失败</string>
+    <string name="st_copied_clipboard">已复制到剪贴板</string>
+    <string name="st_import_mismatch_title">这是 %1$s 剧情词库</string>
+    <string name="st_import_mismatch_body">当前是 %1$s 档，导入后这一档的剧情库会被整份替换成 %2$s 的内容。要接着导入吗？</string>
+    <string name="st_import_anyway">仍然导入</string>
+    <string name="st_cancel">取消</string>
+
+    <!-- Full story dialog -->
+    <string name="st_full_story">完整剧情</string>
+    <string name="st_copied">已复制</string>
+    <string name="st_copy">复制</string>
+    <string name="st_close">关闭</string>
+
+    <!-- Reset library -->
+    <string name="st_reset_title">词库还原为内置版？</string>
+    <string name="st_reset_body">会把剧情词库换成随包版本（%1$d 词）。你导入过、改过的剧情词会丢失。\n\n当前的选择、锁定、忽略都会保留。</string>
+    <string name="st_reset">还原</string>
+    <string name="st_reset_done">已还原为内置剧情词库 · %1$d 词</string>
+
+    <!-- Word editor sheet -->
+    <string name="st_done">完成</string>
+    <string name="st_manage">管理</string>
+    <string name="st_clear">清除</string>
+    <string name="st_hint_multi">点一下加进来，再点一下拿掉。按顺序排</string>
+    <string name="st_hint_single">点一个词换成它</string>
+    <string name="st_more">更多</string>
+    <string name="st_add_placeholder">添加到这一组</string>
+    <string name="st_add">添加</string>
+    <string name="st_group_badge">%1$d组</string>
+
+    <!-- Bottom bar -->
+    <string name="st_empty_story">还没有组合出剧情</string>
+    <string name="st_reroll">换一条</string>
+
+    <!-- Pose and action pairs -->
+    <string name="st_pairs_title">姿势与动作</string>
+    <string name="st_pairs_hint">点击组卡片可切换编辑焦点。点击下方词条直接替换当前组；点🎲单独重抽该组。</string>
+    <string name="st_selected_groups">已选 %1$d 组</string>
+    <string name="st_add_pair">+ 增加新的一组</string>
+    <string name="st_pose">姿势</string>
+    <string name="st_editing_group">(编辑第 %1$d 组)</string>
+    <string name="st_add_pose">添加到姿势</string>
+    <string name="st_act_label">动作</string>
+    <string name="st_add_act">添加到动作</string>
+</resources>

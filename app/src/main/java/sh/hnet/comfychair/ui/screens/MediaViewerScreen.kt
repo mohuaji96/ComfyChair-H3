@@ -580,13 +580,23 @@ private fun MediaViewerFloatingToolbar(
 ) {
     var sourceMenuOpen by remember { mutableStateOf(false) }
     LaunchedEffect(sourceMenuOpen) { onMenuOpenChange(sourceMenuOpen) }
+    val extractFrameLabel = stringResource(R.string.viewer_extract_frame)
+    val firstFrameLabel = stringResource(
+        if (isVideo) R.string.viewer_h3_first_frame_current else R.string.viewer_h3_first_frame
+    )
+    val lastFrameLabel = stringResource(
+        if (isVideo) R.string.viewer_h3_last_frame_current else R.string.viewer_h3_last_frame
+    )
+    val refImageLabel = stringResource(
+        if (isVideo) R.string.viewer_h3_ref_current else R.string.viewer_h3_ref
+    )
     HorizontalFloatingToolbar(expanded = true, modifier = modifier) {
         TooltipIconButton(Icons.Rounded.Download, stringResource(R.string.media_viewer_save), onSave)
         TooltipIconButton(Icons.Rounded.Share, stringResource(R.string.media_viewer_share), onShare)
         if (isVideo) {
             TooltipIconButton(
                 Icons.Rounded.CameraAlt,
-                "保存当前帧到图库（抽帧）",
+                extractFrameLabel,
                 {
                     SharedVideoPlayer.pause()
                     onUseAsSource(SourceTarget.EXTRACT_FRAME_TO_GALLERY, true)
@@ -632,11 +642,11 @@ private fun MediaViewerFloatingToolbar(
                 DropdownMenuGroup(shapes = MenuDefaults.groupShape(1, 2)) {
                     val h3Items = buildList {
                         if (isVideo) {
-                            add(Triple(SourceTarget.EXTRACT_FRAME_TO_GALLERY, "保存当前帧到图库（抽帧）", Icons.Rounded.CameraAlt))
+                            add(Triple(SourceTarget.EXTRACT_FRAME_TO_GALLERY, extractFrameLabel, Icons.Rounded.CameraAlt))
                         }
-                        add(Triple(SourceTarget.H3_FIRST_FRAME, if (isVideo) "当前帧送入 H3 首帧" else "送入 H3 首帧", Icons.Rounded.AutoAwesome))
-                        add(Triple(SourceTarget.H3_LAST_FRAME, if (isVideo) "当前帧送入 H3 尾帧" else "送入 H3 尾帧", Icons.Rounded.AutoAwesome))
-                        add(Triple(SourceTarget.H3_REF_IMAGE, if (isVideo) "当前帧送入 H3 参考图" else "送入 H3 参考图", Icons.Rounded.AutoAwesome))
+                        add(Triple(SourceTarget.H3_FIRST_FRAME, firstFrameLabel, Icons.Rounded.AutoAwesome))
+                        add(Triple(SourceTarget.H3_LAST_FRAME, lastFrameLabel, Icons.Rounded.AutoAwesome))
+                        add(Triple(SourceTarget.H3_REF_IMAGE, refImageLabel, Icons.Rounded.AutoAwesome))
                     }
                     h3Items.forEachIndexed { idx, (target, textLabel, icon) ->
                         DropdownMenuItem(

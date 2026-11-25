@@ -123,8 +123,9 @@ fun SettingsRootScreen(
             }
             row { shapes ->
                 SettingsNavigationRow(
-                    shapes, Icons.Rounded.Psychology, "提示词优化",
-                    supporting = "API 供应商、密钥与系统提示词模板"
+                    shapes, Icons.Rounded.Psychology,
+                    stringResource(R.string.settings_prompt_optimize_title),
+                    supporting = stringResource(R.string.settings_prompt_optimize_sub)
                 ) { onOpenPage(SettingsRoute.Prompt) }
             }
         }

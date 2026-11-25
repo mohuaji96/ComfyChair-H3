@@ -40,11 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.storage.OptimizeHistoryStore
 import sh.hnet.comfychair.storage.OptimizeRecord
 import sh.hnet.comfychair.viewmodel.PromptOptimizerViewModel
@@ -104,19 +106,19 @@ fun PromptOptimizeSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "优化提示词",
+                    stringResource(R.string.opt_title),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { historyOpen = true }) {
-                    Text("历史 ${historyRows.size}/${OptimizeHistoryStore.MAX_RECORDS}")
+                    Text(stringResource(R.string.opt_history, historyRows.size, OptimizeHistoryStore.MAX_RECORDS))
                 }
                 Box {
                     AssistChip(
                         onClick = { providerMenu = true },
                         label = {
                             Text(
-                                provider?.name?.ifBlank { "未命名供应商" } ?: "未配置",
+                                provider?.name?.ifBlank { stringResource(R.string.po_unnamed_provider) } ?: stringResource(R.string.po_status_unconfigured),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
@@ -128,7 +130,7 @@ fun PromptOptimizeSheet(
                         providers.forEach { item ->
                             DropdownMenuItem(
                                 text = {
-                                    Text(item.name.ifBlank { "未命名供应商" }, maxLines = 1)
+                                    Text(item.name.ifBlank { stringResource(R.string.po_unnamed_provider) }, maxLines = 1)
                                 },
                                 leadingIcon = {
                                     if (item.id == currentId) {
@@ -154,25 +156,25 @@ fun PromptOptimizeSheet(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "输入",
+                    stringResource(R.string.opt_input),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    "${input.length} 字",
+                    stringResource(R.string.opt_chars, input.length),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (input != libraryPrompt) {
-                    TextButton(onClick = { input = libraryPrompt }) { Text("用词库结果") }
+                    TextButton(onClick = { input = libraryPrompt }) { Text(stringResource(R.string.opt_use_library)) }
                 }
             }
 
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text("词库组合的结果会填在这里，也可以直接写一段描述。") },
+                placeholder = { Text(stringResource(R.string.opt_input_hint)) },
                 textStyle = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,20 +194,20 @@ fun PromptOptimizeSheet(
                             strokeWidth = 2.dp
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("优化中")
+                        Text(stringResource(R.string.opt_running))
                     } else {
-                        Text(if (state.hasResult) "重新优化" else "开始优化")
+                        Text(if (state.hasResult) stringResource(R.string.opt_rerun) else stringResource(R.string.opt_start))
                     }
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
                     when {
-                        provider == null -> "先去设置 → 提示词优化 里配一个供应商"
-                        !provider.isUsable -> "供应商还缺 API URL 或模型名"
+                        provider == null -> stringResource(R.string.opt_need_provider)
+                        !provider.isUsable -> stringResource(R.string.opt_provider_incomplete)
                         state.hasResult -> "${state.elapsedMs} ms · ${
-                            if (state.english) "English" else "简体中文"
+                            if (state.english) stringResource(R.string.opt_lang_english) else stringResource(R.string.opt_lang_chinese)
                         }"
-                        else -> if (provider.english) "输出 English" else "输出 简体中文"
+                        else -> stringResource(R.string.opt_output_lang, if (provider.english) stringResource(R.string.opt_lang_english) else stringResource(R.string.opt_lang_chinese))
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -228,7 +230,7 @@ fun PromptOptimizeSheet(
                 state.errorDetail?.takeIf { it.isNotBlank() }?.let { detail ->
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "原始返回：" + detail.take(220),
+                        stringResource(R.string.po_raw_response) + detail.take(220),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -241,13 +243,13 @@ fun PromptOptimizeSheet(
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "优化后",
+                        stringResource(R.string.opt_result),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        "${resultDraft.length} 字",
+                        stringResource(R.string.opt_chars, resultDraft.length),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -263,14 +265,14 @@ fun PromptOptimizeSheet(
                 if (noteDraft.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "已调整：" + noteDraft,
+                        stringResource(R.string.opt_notes) + noteDraft,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "可以直接改，比如删掉模型自己加的人或道具。",
+                    stringResource(R.string.opt_result_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -280,18 +282,18 @@ fun PromptOptimizeSheet(
                         onClick = { viewModel.runOptimize(input, force = true) },
                         enabled = !state.running,
                         modifier = Modifier.weight(1f)
-                    ) { Text("再来一次") }
+                    ) { Text(stringResource(R.string.opt_again)) }
                     if (onApply != null) {
                         OutlinedButton(
                             onClick = { onCopy(resultDraft) },
                             enabled = resultDraft.isNotBlank(),
                             modifier = Modifier.weight(1f)
-                        ) { Text("复制") }
+                        ) { Text(stringResource(R.string.common_copy)) }
                         Button(
                             onClick = { onApply(resultDraft) },
                             enabled = resultDraft.isNotBlank(),
                             modifier = Modifier.weight(1f)
-                        ) { Text("填入提示词") }
+                        ) { Text(stringResource(R.string.opt_apply)) }
                     } else {
                         Button(
                             onClick = { onCopy(resultDraft) },

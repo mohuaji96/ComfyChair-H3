@@ -1,5 +1,8 @@
 package sh.hnet.comfychair.workflow
 
+import androidx.annotation.StringRes
+import sh.hnet.comfychair.R
+
 /**
  * What the server is doing right now, in words a user can read.
  *
@@ -10,14 +13,14 @@ package sh.hnet.comfychair.workflow
  * Only [SAMPLE] has real numbers behind it; everything else is a waiting state, and pretending
  * otherwise would invent a progress that does not exist.
  */
-enum class ProgressStage(val label: String, val determinate: Boolean) {
-    PREPARE("准备中", false),
-    LOAD_MODEL("加载模型", false),
-    SAMPLE("采样", true),
-    DECODE("解码画面", false),
-    COMPOSE("合成视频", false),
-    SAVE("写入文件", false),
-    UNKNOWN("处理中", false);
+enum class ProgressStage(val label: String, @StringRes val labelRes: Int, val determinate: Boolean) {
+    PREPARE("准备中", R.string.h3_stage_prepare, false),
+    LOAD_MODEL("加载模型", R.string.h3_stage_load_model, false),
+    SAMPLE("采样", R.string.h3_stage_sample, true),
+    DECODE("解码画面", R.string.h3_stage_decode, false),
+    COMPOSE("合成视频", R.string.h3_stage_compose, false),
+    SAVE("写入文件", R.string.h3_stage_save, false),
+    UNKNOWN("处理中", R.string.h3_stage_unknown, false);
 
     companion object {
         /**

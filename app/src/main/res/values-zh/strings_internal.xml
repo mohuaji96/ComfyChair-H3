@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 内部提示：没有 context 的解析层与补丁层 -->
+
+    <!-- ComfyExpr：工作流表达式解析错误 -->
+    <string name="exp_trailing_chars">尾随字符</string>
+    <string name="exp_incomplete">表达式不完整</string>
+    <string name="exp_missing_rparen">缺少右括号</string>
+    <string name="exp_call_missing_rparen">调用缺少右括号</string>
+    <string name="exp_unknown_variable">未知变量 %1$s</string>
+    <string name="exp_unparsable">无法解析 %1$s</string>
+    <string name="exp_unknown_function">未知函数 %1$s</string>
+
+    <!-- H3ApiPatch：拒绝合并的原因 -->
+    <string name="patch_add_conflict">新增图片节点 ID 与编辑器冲突</string>
+    <string name="patch_target_deleted">H3 修改目标已被删除或绕过：%1$s</string>
+    <string name="patch_target_type_changed">H3 修改目标类型已变化</string>
+    <string name="patch_link_conflict">连线冲突 #%1$s.%2$s：H3 快速参数不合并结构性改动，请重新打开面板或使用专业编辑器</string>
+    <string name="patch_link_literal">连线冲突 #%1$s.%2$s：执行 JSON 中该输入仍是连线，不能直接改成字面量</string>
+
+    <!-- TagLibraryJson：导入词库的结构问题 -->
+    <string name="lib_missing_categories">缺少 categories</string>
+    <string name="lib_empty_categories">categories 为空</string>
+    <string name="lib_other_group">其他</string>
+
+    <!-- JobRecovery：读不懂的 /history 响应 -->
+    <string name="hist_bad_history">无法解析 /history 响应</string>
+    <string name="hist_missing_prompt">服务器历史中没有该 prompt_id</string>
+</resources>

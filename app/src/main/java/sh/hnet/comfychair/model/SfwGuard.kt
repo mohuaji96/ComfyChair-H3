@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.model
 
 import android.content.Context
+import sh.hnet.comfychair.R
 
 /**
  * 运行时的「零露骨」断言。
@@ -55,7 +56,7 @@ object SfwGuard {
      */
     fun validate(context: Context, library: TagLibrary): List<String> {
         val bad = mutableListOf<String>()
-        if (library.categories.isEmpty()) return listOf("没有分类")
+        if (library.categories.isEmpty()) return listOf(context.getString(R.string.err_sfw_no_categories))
 
         val forbidden = forbidden(context)
         val allow = allowed(context)
@@ -63,18 +64,24 @@ object SfwGuard {
         val ids = library.categories.map { it.id }
 
         ids.groupBy { it }.filterValues { it.size > 1 }.keys.forEach {
-            bad += "分类 id 重复：$it"
+            bad += context.getString(R.string.err_sfw_duplicate_id, it)
         }
 
         library.categories.forEach { category ->
             category.slots.forEach { slot ->
-                if (slot.pool.isEmpty()) bad += "${category.label}·${slot.label} 是空池"
+                if (slot.pool.isEmpty()) {
+                    bad += context.getString(R.string.err_sfw_empty_pool, category.label, slot.label)
+                }
                 slot.pool.forEach { word ->
                     val hit = forbidden.firstOrNull { it in word }
-                    if (hit != null && word !in allow) bad += "命中禁词「$hit」：$word"
+                    if (hit != null && word !in allow) {
+                        bad += context.getString(R.string.err_sfw_forbidden_hit, hit, word)
+                    }
                     val owner = seen.putIfAbsent(word, category.id)
                     if (owner != null && owner != category.id) {
-                        bad += "跨分类重复「$word」（${owner} 与 ${category.id}）"
+                        bad += context.getString(
+                            R.string.err_sfw_cross_duplicate, word, owner, category.id
+                        )
                     }
                 }
             }
@@ -82,10 +89,10 @@ object SfwGuard {
 
         library.category("people")?.slots?.forEach { slot ->
             slot.pool.filter { it.contains("两男") || it.contains("三男") || it.contains("多男") }
-                .forEach { bad += "出现多男结构：$it" }
+                .forEach { bad += context.getString(R.string.err_sfw_multi_male, it) }
         }
         library.constraints.peopleCount.forEach { (word, count) ->
-            if (count > 3) bad += "人数超过 3：$word = $count"
+            if (count > 3) bad += context.getString(R.string.err_sfw_people_over, word, count)
         }
 
         return bad.take(MAX_REPORT)
@@ -107,15 +114,15 @@ object SfwGuard {
     /** 剧情词库的导入体检，口径与标签词库一致：只查安全与结构。 */
     fun validate(context: Context, library: StoryLibrary): List<String> {
         val bad = mutableListOf<String>()
-        if (library.pools.isEmpty()) bad += "没有词池"
-        if (library.casts.isEmpty()) bad += "没有人数结构"
+        if (library.pools.isEmpty()) bad += context.getString(R.string.err_sfw_no_pools)
+        if (library.casts.isEmpty()) bad += context.getString(R.string.err_sfw_no_casts)
 
         val forbidden = forbidden(context)
         val allow = allowed(context)
         fun check(where: String, word: String) {
             if (word.isBlank()) return
             val hit = forbidden.firstOrNull { it in word } ?: return
-            if (word !in allow) bad += "$where 命中禁词「$hit」：$word"
+            if (word !in allow) bad += context.getString(R.string.err_sfw_hit_in, where, hit, word)
         }
         library.pools.forEach { (name, words) -> words.forEach { check(name, it.text) } }
         library.casts.forEach { (id, cast) ->
@@ -131,7 +138,7 @@ object SfwGuard {
         return words.asSequence()
             .mapNotNull { word ->
                 val hit = forbidden.firstOrNull { it in word } ?: return@mapNotNull null
-                "「$hit」→ $word"
+                context.getString(R.string.err_sfw_violation, hit, word)
             }
             .take(MAX_REPORT)
             .toList()

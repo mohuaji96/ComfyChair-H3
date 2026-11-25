@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ApiFormat
 import sh.hnet.comfychair.storage.ApiProviderStore
 import sh.hnet.comfychair.ui.components.BottomActionBar
@@ -58,28 +61,28 @@ fun ApiProviderListScreen(
     var menuFor by remember { mutableStateOf<String?>(null) }
 
     SettingsDetailScaffold(
-        title = "API 供应商",
+        title = stringResource(R.string.po_providers_title),
         onBack = onBack,
         status = {
             TextButton(onClick = {
                 viewModel.addProvider()?.let { onEdit(it.id) }
-            }) { Text("＋ 添加") }
+            }) { Text(stringResource(R.string.po_add_short)) }
         },
         bottomBar = {
             BottomActionBar {
                 SettingsPrimaryButton(
-                    text = "新建供应商",
+                    text = stringResource(R.string.po_new_provider),
                     onClick = { viewModel.addProvider()?.let { onEdit(it.id) } },
                     modifier = Modifier.weight(1f)
                 )
             }
         }
     ) {
-        SettingsSectionLabel("全部", note = "${providers.size} 个")
+        SettingsSectionLabel(stringResource(R.string.po_all), note = stringResource(R.string.po_provider_count, providers.size))
 
         if (providers.isEmpty()) {
             Text(
-                "还没有供应商。加一个之后，把接口地址、Key 和模型名填上就能用。",
+                stringResource(R.string.po_list_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -91,11 +94,11 @@ fun ApiProviderListScreen(
             providers.forEachIndexed { index, provider ->
                 if (index > 0) SettingsRowDivider()
                 SettingsItemRow(
-                    title = provider.name.ifBlank { "未命名供应商" },
+                    title = provider.name.ifBlank { stringResource(R.string.po_unnamed_provider) },
                     meta = listOf(
-                        provider.model.ifBlank { "未填模型名" },
-                        formatName(provider.format),
-                        if (keys[provider.id] == true) "已配置 Key" else "未配置 Key"
+                        provider.model.ifBlank { stringResource(R.string.po_no_model) },
+                        formatName(context, provider.format),
+                        if (keys[provider.id] == true) stringResource(R.string.po_key_set) else stringResource(R.string.po_key_missing)
                     ).joinToString(" · "),
                     active = provider.id == currentId,
                     onClick = { onEdit(provider.id) },
@@ -104,7 +107,7 @@ fun ApiProviderListScreen(
                             IconButton(onClick = { menuFor = provider.id }) {
                                 Icon(
                                     Icons.Default.MoreVert,
-                                    contentDescription = "更多",
+                                    contentDescription = stringResource(R.string.po_more),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -113,14 +116,14 @@ fun ApiProviderListScreen(
                                 onDismissRequest = { menuFor = null }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("复制一份") },
+                                    text = { Text(stringResource(R.string.po_duplicate)) },
                                     onClick = {
                                         menuFor = null
                                         viewModel.duplicate(provider.id)?.let { onEdit(it.id) }
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("上移") },
+                                    text = { Text(stringResource(R.string.po_move_up)) },
                                     enabled = index > 0,
                                     onClick = {
                                         menuFor = null
@@ -128,7 +131,7 @@ fun ApiProviderListScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("下移") },
+                                    text = { Text(stringResource(R.string.po_move_down)) },
                                     enabled = index < providers.lastIndex,
                                     onClick = {
                                         menuFor = null
@@ -142,10 +145,10 @@ fun ApiProviderListScreen(
             }
         }
 
-        SettingsSectionLabel("说明")
+        SettingsSectionLabel(stringResource(R.string.po_note_section))
         SettingsGroupCard {
             Text(
-                "每个供应商的地址、Key、模型各自保存，切换不会丢。删掉正在用的一个时，会自动换到剩下的第一个。",
+                stringResource(R.string.po_list_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
@@ -156,8 +159,8 @@ fun ApiProviderListScreen(
     }
 }
 
-private fun formatName(format: ApiFormat): String = when (format) {
-    ApiFormat.OPENAI_CHAT -> "OpenAI 兼容"
+private fun formatName(context: Context, format: ApiFormat): String = when (format) {
+    ApiFormat.OPENAI_CHAT -> context.getString(R.string.po_format_openai_compat)
     ApiFormat.OPENAI_RESPONSES -> "OpenAI Responses"
     ApiFormat.ANTHROPIC -> "Anthropic"
     ApiFormat.GEMINI -> "Gemini"

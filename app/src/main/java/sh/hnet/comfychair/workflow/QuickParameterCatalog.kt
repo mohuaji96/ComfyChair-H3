@@ -1,7 +1,10 @@
 package sh.hnet.comfychair.workflow
 
+import android.content.Context
+import androidx.annotation.StringRes
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.R
 
 /** A conservative, workflow-independent discovery index for LiteGraph widget values.
  *
@@ -17,14 +20,22 @@ object QuickParameterCatalog {
         val nodeType: String,
         val nodeTitle: String,
         val field: String,
-        val label: String,
+        /** Field name resource; 0 when the field has no friendly name and [field] is shown as is. */
+        @StringRes val labelRes: Int,
         val value: Any,
         val group: Group,
         val bypassed: Boolean,
         val editable: Boolean,
-        val reason: String? = null
+        /** Why the entry is not editable, as a resource; null when it is editable. */
+        @StringRes val reasonRes: Int? = null
     ) {
         val key: String get() = "$nodeId:${this.field}"
+
+        /** `name · node title`, the form the quick panel shows. */
+        fun displayLabel(context: Context): String {
+            val name = if (labelRes != 0) context.getString(labelRes) else field.replace('_', ' ')
+            return "$name · $nodeTitle"
+        }
     }
 
     fun discover(source: String): List<Entry> {
@@ -70,11 +81,11 @@ object QuickParameterCatalog {
                     }
                     add(Entry(
                         nodeId = nodeId, nodeType = type, nodeTitle = title,
-                        field = field, label = humanLabel(type, title, field), value = value,
+                        field = field, labelRes = humanLabel(type, title, field), value = value,
                         group = group, bypassed = bypassed,
                         editable = !linked && safelyIndexed,
-                        reason = when { linked -> "由上游连线提供，请修改源节点";
-                            !safelyIndexed -> "控件位置无法安全定位"; else -> null }
+                        reasonRes = when { linked -> R.string.qp_reason_linked;
+                            !safelyIndexed -> R.string.qp_reason_unindexed; else -> null }
                     ))
                 }
             }
@@ -102,25 +113,27 @@ object QuickParameterCatalog {
         }
     }
 
-    private fun humanLabel(type: String, title: String, field: String): String = when (field.lowercase()) {
-        "image" -> "图片"
-        "video" -> "视频"
-        "audio" -> "音频"
-        "text", "prompt" -> "提示词"
-        "unet_name", "ckpt_name", "model_name" -> "模型"
-        "lora_name" -> "LoRA"
-        "strength_model" -> "LoRA 强度"
-        "clip_name" -> "文本编码器"
-        "vae_name" -> "VAE"
-        "aspect_ratio" -> "宽高比"
-        "megapixels" -> "像素量 (MP)"
-        "width" -> "宽度"
-        "height" -> "高度"
-        "steps" -> "采样步数"
-        "scheduler" -> "调度器"
-        "sampler_name" -> "采样器"
-        "denoise" -> "去噪强度"
-        "value" -> if (title.contains("duration", true)) "时长（秒）" else "值"
-        else -> field.replace('_', ' ')
-    } + " · $title"
+    /** Field name resource; 0 means no friendly name (the raw field is shown). */
+    @StringRes
+    private fun humanLabel(type: String, title: String, field: String): Int = when (field.lowercase()) {
+        "image" -> R.string.qp_image
+        "video" -> R.string.qp_video
+        "audio" -> R.string.qp_audio
+        "text", "prompt" -> R.string.qp_prompt
+        "unet_name", "ckpt_name", "model_name" -> R.string.qp_model
+        "lora_name" -> R.string.qp_lora
+        "strength_model" -> R.string.qp_lora_strength
+        "clip_name" -> R.string.qp_clip
+        "vae_name" -> R.string.qp_vae
+        "aspect_ratio" -> R.string.qp_aspect_ratio
+        "megapixels" -> R.string.qp_megapixels
+        "width" -> R.string.qp_width
+        "height" -> R.string.qp_height
+        "steps" -> R.string.qp_steps
+        "scheduler" -> R.string.qp_scheduler
+        "sampler_name" -> R.string.qp_sampler
+        "denoise" -> R.string.qp_denoise
+        "value" -> if (title.contains("duration", true)) R.string.qp_duration else R.string.qp_value
+        else -> 0
+    }
 }

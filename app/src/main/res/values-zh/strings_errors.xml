@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 来自 SfwGuard 与两个词库存取、会显示到界面上的错误与校验提示 -->
+
+    <string name="err_profile_mismatch">档位不符</string>
+
+    <!-- SfwGuard：标签词库与剧情词库的导入体检 -->
+    <string name="err_sfw_no_categories">没有分类</string>
+    <string name="err_sfw_duplicate_id">分类 id 重复：%1$s</string>
+    <string name="err_sfw_empty_pool">%1$s·%2$s 是空池</string>
+    <string name="err_sfw_forbidden_hit">命中禁词「%1$s」：%2$s</string>
+    <string name="err_sfw_cross_duplicate">跨分类重复「%1$s」（%2$s 与 %3$s）</string>
+    <string name="err_sfw_multi_male">出现多男结构：%1$s</string>
+    <string name="err_sfw_people_over">人数超过 3：%1$s = %2$d</string>
+    <string name="err_sfw_no_pools">没有词池</string>
+    <string name="err_sfw_no_casts">没有人数结构</string>
+    <string name="err_sfw_hit_in">%1$s 命中禁词「%2$s」：%3$s</string>
+    <string name="err_sfw_violation">「%1$s」→ %2$s</string>
+
+    <!-- TagLibraryStore -->
+    <string name="err_tl_read_failed">无法读取文件</string>
+    <string name="err_tl_schema_too_new">词库版本过新（schemaVersion %1$d），请升级应用</string>
+    <string name="err_tl_write_failed">无法写入词库文件，请检查存储空间</string>
+    <string name="err_tl_export_failed">无法写入文件</string>
+    <string name="err_tl_upgrade_kept">词库已更新到 %1$s，你加的 %2$d 个词保留了</string>
+    <string name="err_tl_upgrade_new">词库已更新到 %1$s，新增 %2$d 个词</string>
+    <string name="err_tl_upgrade_plain">词库已更新到 %1$s</string>
+
+    <!-- StoryLibraryStore -->
+    <string name="err_st_read_failed">读不到这个文件</string>
+    <string name="err_st_not_story">这份文件不像剧情词库</string>
+    <string name="err_st_write_failed">写不进这个位置</string>
+    <string name="err_st_write_file">写不进 %1$s</string>
+
+    <!-- PromptOptimizer：填写校验、传输与协议错误 -->
+    <string name="poe_missing_url">还没填 API URL</string>
+    <string name="poe_missing_model">还没填模型名</string>
+    <string name="poe_http_status">HTTP %1$d</string>
+    <string name="poe_http_key">密钥无效或无权限</string>
+    <string name="poe_http_not_found">地址或模型名不对</string>
+    <string name="poe_http_rate_limited">触发限流，稍后再试</string>
+    <string name="poe_http_server">服务端错误</string>
+    <string name="poe_truncated">模型输出被截断：推理内容占满了 max_tokens，把「最大 token」调大再试</string>
+    <string name="poe_content_filtered">输出被内容审核拦下了</string>
+    <string name="poe_empty_body">接口回话了，但正文是空的</string>
+    <string name="poe_stream_unsupported">返回的是流式格式，当前只支持非流式响应</string>
+    <string name="poe_unparsable">返回内容解析不出来</string>
+    <string name="poe_empty_result">模型返回了空内容</string>
+    <string name="poe_timeout">请求超时（%1$ds），模型或中转站太慢</string>
+    <string name="poe_timeout_hint">可在「高级设置 → 超时」里调大</string>
+    <string name="poe_dns_failed">域名解析失败，检查 API URL</string>
+    <string name="poe_tls_error">HTTPS 证书错误：%1$s</string>
+    <string name="poe_request_failed">请求失败：%1$s</string>
+</resources>

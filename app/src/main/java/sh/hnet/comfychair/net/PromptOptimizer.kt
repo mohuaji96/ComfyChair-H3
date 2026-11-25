@@ -6,8 +6,10 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ApiFormat
 import sh.hnet.comfychair.model.ApiProvider
+import sh.hnet.comfychair.model.LocalizedText
 import sh.hnet.comfychair.util.DebugLogger
 import java.util.concurrent.TimeUnit
 
@@ -29,8 +31,16 @@ object PromptOptimizer {
 
     sealed class Outcome {
         data class Ok(val text: String, val elapsedMs: Long) : Outcome()
-        /** [message] is safe to show; [detail] keeps the raw body for the log. */
-        data class Error(val message: String, val detail: String? = null) : Outcome()
+        /**
+         * [message] is safe to show and is finished by the screen, so it reads in the active
+         * language; [detail] keeps the raw body for the log; [hint] is an optional extra line
+         * such as "raise the timeout".
+         */
+        data class Error(
+            val message: LocalizedText,
+            val detail: String? = null,
+            val hint: LocalizedText? = null
+        ) : Outcome()
     }
 
     // ---------------------------------------------------------------- url handling
@@ -298,46 +308,35 @@ object PromptOptimizer {
         return matches.last().groupValues[1].trim().takeIf { it.isNotBlank() }
     }
 
-    private fun diagnoseEmpty(raw: String): String? = try {
+    private fun diagnoseEmpty(raw: String): LocalizedText? = try {
         val json = JSONObject(raw)
         val choice = json.optJSONArray("choices")?.optJSONObject(0)
         val finish = choice?.optString("finish_reason").orEmpty()
         when {
-            finish.equals("length", true) ->
-                "模型输出被截断：推理内容占满了 max_tokens，把「最大 token」调大再试"
-            finish.equals("content_filter", true) -> "输出被内容审核拦下了"
-            choice != null -> "接口回话了，但正文是空的"
-            json.has("data") -> "返回的是流式格式，当前只支持非流式响应"
+            finish.equals("length", true) -> LocalizedText(R.string.poe_truncated)
+            finish.equals("content_filter", true) -> LocalizedText(R.string.poe_content_filtered)
+            choice != null -> LocalizedText(R.string.poe_empty_body)
+            json.has("data") -> LocalizedText(R.string.poe_stream_unsupported)
             else -> null
         }
     } catch (e: Exception) {
         null
     }
 
-    /** Pulls a human-readable reason out of whatever error shape the vendor returned. */
-    private fun errorMessage(code: Int, raw: String): String {
-        val parsed = try {
-            val json = JSONObject(raw)
-            json.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
-                ?: json.optString("message").takeIf { it.isNotBlank() }
-                ?: json.optString("error").takeIf { it.isNotBlank() && !it.startsWith("{") }
-        } catch (e: Exception) {
-            null
-        }
-        val short = parsed?.take(180) ?: raw.take(180)
-        val hint = when (code) {
-            401, 403 -> "密钥无效或无权限"
-            404 -> "地址或模型名不对"
-            429 -> "触发限流，稍后再试"
-            in 500..599 -> "服务端错误"
-            else -> ""
-        }
-        return buildString {
-            append("HTTP $code")
-            if (hint.isNotEmpty()) append(" · ").append(hint)
-            if (short.isNotBlank()) append(" · ").append(short)
-        }
+    /** A short localized explanation for the status code, or null when the code speaks for itself. */
+    private fun httpHint(code: Int): LocalizedText? = when (code) {
+        401, 403 -> LocalizedText(R.string.poe_http_key)
+        404 -> LocalizedText(R.string.poe_http_not_found)
+        429 -> LocalizedText(R.string.poe_http_rate_limited)
+        in 500..599 -> LocalizedText(R.string.poe_http_server)
+        else -> null
     }
+
+    /**
+     * The headline for a failed call. The vendor's own sentence rides inside the raw body that
+     * the screen shows underneath, so this line only has to carry the status code.
+     */
+    private fun errorMessage(code: Int): LocalizedText = LocalizedText(R.string.poe_http_status, code)
 
     // ---------------------------------------------------------------- calls
 
@@ -350,8 +349,8 @@ object PromptOptimizer {
         .build()
 
     private fun execute(provider: ApiProvider, apiKey: String, input: String, forTest: Boolean): Outcome {
-        if (provider.baseUrl.isBlank()) return Outcome.Error("还没填 API URL")
-        if (provider.model.isBlank()) return Outcome.Error("还没填模型名")
+        if (provider.baseUrl.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_url))
+        if (provider.model.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_model))
 
         val started = System.currentTimeMillis()
         val body = bodyFor(provider, input, forTest)
@@ -364,28 +363,34 @@ object PromptOptimizer {
                 val elapsed = System.currentTimeMillis() - started
                 if (!response.isSuccessful) {
                     DebugLogger.w(TAG, "Request failed ${response.code}: ${raw.take(400)}")
-                    return Outcome.Error(errorMessage(response.code, raw), raw)
+                    return Outcome.Error(errorMessage(response.code), raw, httpHint(response.code))
                 }
                 val text = parse(provider, raw, allowReasoning = forTest)
                     ?: return Outcome.Error(
-                        diagnoseEmpty(raw) ?: "返回内容解析不出来",
+                        diagnoseEmpty(raw) ?: LocalizedText(R.string.poe_unparsable),
                         raw
                     )
                 val cleaned = cleanResult(text)
                 if (cleaned.isBlank()) {
-                    return Outcome.Error(diagnoseEmpty(raw) ?: "模型返回了空内容", raw)
+                    return Outcome.Error(
+                        diagnoseEmpty(raw) ?: LocalizedText(R.string.poe_empty_result),
+                        raw
+                    )
                 }
                 Outcome.Ok(cleaned, elapsed)
             }
         } catch (e: java.net.SocketTimeoutException) {
-            Outcome.Error("请求超时（${timeout}s），模型或中转站太慢", "可在「高级设置 → 超时」里调大")
+            Outcome.Error(
+                LocalizedText(R.string.poe_timeout, timeout),
+                hint = LocalizedText(R.string.poe_timeout_hint)
+            )
         } catch (e: java.net.UnknownHostException) {
-            Outcome.Error("域名解析失败，检查 API URL")
+            Outcome.Error(LocalizedText(R.string.poe_dns_failed))
         } catch (e: javax.net.ssl.SSLException) {
-            Outcome.Error("HTTPS 证书错误：${e.message}")
+            Outcome.Error(LocalizedText(R.string.poe_tls_error, e.message.orEmpty()))
         } catch (e: Exception) {
             DebugLogger.e(TAG, "Request failed: ${e.message}")
-            Outcome.Error("请求失败：${e.message ?: e.javaClass.simpleName}")
+            Outcome.Error(LocalizedText(R.string.poe_request_failed, e.message ?: e.javaClass.simpleName))
         }
     }
 

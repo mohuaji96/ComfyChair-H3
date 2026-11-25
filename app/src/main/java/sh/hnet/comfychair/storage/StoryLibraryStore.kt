@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import sh.hnet.comfychair.model.ContentProfile
 import sh.hnet.comfychair.model.SfwGuard
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.StoryLibrary
 import sh.hnet.comfychair.model.StoryLibraryJson
 import sh.hnet.comfychair.util.DebugLogger
@@ -187,15 +188,15 @@ class StoryLibraryStore private constructor(
     }
 
     /** 导入的文件自报的是另一个档，先让用户确认再收。 */
-    class ProfileMismatch(val found: ContentProfile) : IllegalArgumentException("档位不符")
+    class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
     fun importFrom(uri: Uri, force: Boolean = false): Result<StoryLibrary> = runCatching {
         val text = context.contentResolver.openInputStream(uri)?.use { input ->
             input.bufferedReader(Charsets.UTF_8).readText()
-        } ?: error("读不到这个文件")
+        } ?: error(context.getString(R.string.err_st_read_failed))
         val incoming = StoryLibraryJson.parse(text)
         require(incoming.pools.isNotEmpty() && incoming.casts.isNotEmpty()) {
-            "这份文件不像剧情词库"
+            context.getString(R.string.err_st_not_story)
         }
         // 与标签词库同口径：跨档问一句，但不当成硬拒绝。
         val declared = when (incoming.profile) {
@@ -203,7 +204,9 @@ class StoryLibraryStore private constructor(
             "nsfw" -> ContentProfile.NSFW
             else -> ContentProfile.fromRating(incoming.rating)
         }
-        if (!force && declared != profile) throw ProfileMismatch(declared)
+        if (!force && declared != profile) {
+            throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
+        }
         if (workingFile.exists()) {
             runCatching { backupFile.writeText(workingFile.readText(Charsets.UTF_8), Charsets.UTF_8) }
         }
@@ -216,7 +219,7 @@ class StoryLibraryStore private constructor(
     fun exportTo(uri: Uri): Result<Unit> = runCatching {
         context.contentResolver.openOutputStream(uri)?.use { output ->
             output.write(StoryLibraryJson.write(_library.value).toByteArray(Charsets.UTF_8))
-        } ?: error("写不进这个位置")
+        } ?: error(context.getString(R.string.err_st_write_failed))
     }
 
     fun resetToDefault(): StoryLibrary {
@@ -242,11 +245,11 @@ class StoryLibraryStore private constructor(
         temp.writeText(text, Charsets.UTF_8)
         if (target.exists() && !target.delete()) {
             temp.delete()
-            error("写不进 ${target.name}")
+            error(context.getString(R.string.err_st_write_file, target.name))
         }
         if (!temp.renameTo(target)) {
             temp.delete()
-            error("写不进 ${target.name}")
+            error(context.getString(R.string.err_st_write_file, target.name))
         }
     }
 

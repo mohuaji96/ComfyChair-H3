@@ -4,6 +4,9 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.pow
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.model.LocalizedException
+import sh.hnet.comfychair.model.LocalizedText
 
 /**
  * Evaluator for the arithmetic subset used by `ComfyMathExpression`.
@@ -33,7 +36,7 @@ object ComfyExpr {
         fun parseAll(): Double {
             val v = expr()
             skipSpace()
-            require(i == text.length) { "尾随字符" }
+            if (i != text.length) throw LocalizedException(LocalizedText(R.string.exp_trailing_chars))
             return v
         }
 
@@ -78,13 +81,15 @@ object ComfyExpr {
 
         private fun atom(): Double {
             skipSpace()
-            require(i < text.length) { "表达式不完整" }
+            if (i >= text.length) throw LocalizedException(LocalizedText(R.string.exp_incomplete))
             val c = text[i]
             if (c == '(') {
                 i++
                 val v = expr()
                 skipSpace()
-                require(i < text.length && text[i] == ')') { "缺少右括号" }
+                if (i >= text.length || text[i] != ')') {
+                    throw LocalizedException(LocalizedText(R.string.exp_missing_rparen))
+                }
                 i++
                 return v
             }
@@ -106,16 +111,19 @@ object ComfyExpr {
                             args += expr()
                             skipSpace()
                             if (i < text.length && text[i] == ',') { i++; continue }
-                            require(i < text.length && text[i] == ')') { "调用缺少右括号" }
+                            if (i >= text.length || text[i] != ')') {
+                                throw LocalizedException(LocalizedText(R.string.exp_call_missing_rparen))
+                            }
                             i++
                             break
                         }
                     }
                     return call(name, args)
                 }
-                return vars[name] ?: throw IllegalArgumentException("未知变量 $name")
+                return vars[name]
+                    ?: throw LocalizedException(LocalizedText(R.string.exp_unknown_variable, name))
             }
-            throw IllegalArgumentException("无法解析 ${text.substring(i).take(8)}")
+            throw LocalizedException(LocalizedText(R.string.exp_unparsable, text.substring(i).take(8)))
         }
 
         private fun call(name: String, args: List<Double>): Double = when (name) {
@@ -128,7 +136,7 @@ object ComfyExpr {
             "min" -> args.reduce { a, b -> if (a <= b) a else b }
             "sqrt" -> kotlin.math.sqrt(args[0])
             "pow" -> args[0].pow(args[1])
-            else -> throw IllegalArgumentException("未知函数 $name")
+            else -> throw LocalizedException(LocalizedText(R.string.exp_unknown_function, name))
         }
 
         /** Python `%`: the sign follows the divisor, unlike Kotlin's `%`. */

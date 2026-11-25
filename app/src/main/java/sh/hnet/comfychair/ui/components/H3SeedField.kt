@@ -29,12 +29,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.workflow.H3Seed
 
 /**
@@ -67,13 +69,15 @@ fun H3SeedField(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "随机种子",
+                stringResource(R.string.seed_title),
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurface
             )
             Box(Modifier.width(8.dp))
             Text(
-                if (auto) "每次随机" else "固定",
+                stringResource(
+                    if (auto) R.string.seed_mode_random else R.string.seed_mode_fixed
+                ),
                 style = MaterialTheme.typography.labelMedium,
                 color = if (auto) colors.primary else colors.onSurfaceVariant
             )
@@ -96,7 +100,7 @@ fun H3SeedField(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Shuffle,
-                        contentDescription = "每次随机",
+                        contentDescription = stringResource(R.string.seed_mode_random),
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -150,7 +154,7 @@ fun H3SeedField(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.Casino,
-                        contentDescription = "摇一个",
+                        contentDescription = stringResource(R.string.seed_cd_roll),
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -164,7 +168,10 @@ fun H3SeedField(
                     enabled = enabled,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
-                    Text("恢复随机", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        stringResource(R.string.seed_restore_random),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
         }

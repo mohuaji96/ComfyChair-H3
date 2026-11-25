@@ -2,6 +2,7 @@ package sh.hnet.comfychair.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import android.net.Uri
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.BuildConfig
 import sh.hnet.comfychair.model.ContentProfile
 import androidx.compose.runtime.Composable
@@ -66,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,13 +175,13 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     var pendingImport by remember { mutableStateOf<Pair<Uri, ContentProfile>?>(null) }
     fun runImport(uri: Uri, force: Boolean) {
         store.importFrom(uri, force)
-            .onSuccess { lib -> say("已导入剧情词库 · ${lib.wordCount} 词") }
+            .onSuccess { lib -> say(context.getString(R.string.st_import_done, lib.wordCount)) }
             .onFailure { err ->
                 val mismatch = err as? StoryLibraryStore.ProfileMismatch
                 if (mismatch != null && !force) {
                     pendingImport = uri to mismatch.found
                 } else {
-                    say(err.message ?: "导入失败")
+                    say(err.message ?: context.getString(R.string.st_import_failed))
                 }
             }
     }
@@ -191,8 +194,8 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     ) { uri ->
         uri?.let {
             store.exportTo(it)
-                .onSuccess { say("已导出") }
-                .onFailure { err -> say(err.message ?: "导出失败") }
+                .onSuccess { say(context.getString(R.string.st_export_done)) }
+                .onFailure { err -> say(err.message ?: context.getString(R.string.st_export_failed)) }
         }
     }
 
@@ -206,7 +209,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 onCopy = {
                     if (composed.isNotBlank()) {
                         clipboard.setText(AnnotatedString(composed))
-                        say("已复制到剪贴板")
+                        say(context.getString(R.string.st_copied_clipboard))
                     }
                 },
                 // 换一条是常规操作，不必每次弹提示；只有规则临时改了分项才说一句。
@@ -232,7 +235,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 onExport = {
                     exportLauncher.launch(
-                        profile.exportFileName("剧情组合", BuildConfig.VERSION_NAME)
+                        profile.exportFileName(context.getString(R.string.st_title), BuildConfig.VERSION_NAME)
                     )
                 },
                 onReset = { confirmReset = true }
@@ -242,7 +245,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TogglePill("台词", dialogue) { dialogue = it }
+                TogglePill(stringResource(R.string.st_toggle_dialogue), dialogue) { dialogue = it }
                 Spacer(Modifier.weight(1f))
             }
 
@@ -284,7 +287,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                                     lockedSections = lockedSections - section.label
                                 }
                                 val notes = reroll(fields.map { it.key }.toSet())
-                                say(notes.firstOrNull() ?: "已重抽「${section.label}」")
+                                say(notes.firstOrNull() ?: context.getString(R.string.st_rerolled_section, section.label))
                             }
                         )
                     }
@@ -318,16 +321,16 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                         ) {
                             // 姿势和动作是一对，合成一行显示，点开也一起改。
                             FieldRow(
-                                label = "姿势/动作",
-                                text = pairSummary(picks),
+                                label = stringResource(R.string.st_pose_act),
+                                text = pairSummary(picks, context),
                                 locked = picks[StoryGenerator.POSE]?.locked == true,
                                 ignored = false,
-                                empty = pairSummary(picks) == "未选",
+                                empty = pairIsEmpty(picks),
                                 onClick = { pairEditing = true },
                                 onReroll = {
                                     // 姿势与动作是一对，一起重抽，否则两边规则互相打脸
                                     val notes = reroll(setOf(StoryGenerator.POSE, StoryGenerator.ACT))
-                                    say(notes.firstOrNull() ?: "已重抽「姿势/动作」")
+                                    say(notes.firstOrNull() ?: context.getString(R.string.st_rerolled_section, context.getString(R.string.st_pose_act)))
                                 }
                             )
                             return@items
@@ -341,11 +344,11 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                                 onEdit = { f -> editing = f.key },
                                 onRerollOne = { f ->
                                     val notes = reroll(setOf(f.key))
-                                    say(notes.firstOrNull() ?: "已重抽「${f.label}」")
+                                    say(notes.firstOrNull() ?: context.getString(R.string.st_rerolled_section, f.label))
                                 },
                                 onRerollAll = {
                                     val notes = reroll(group.map { it.key }.toSet())
-                                    say(notes.firstOrNull() ?: "已重抽「${field.groupLabel}」")
+                                    say(notes.firstOrNull() ?: context.getString(R.string.st_rerolled_section, field.groupLabel))
                                 }
                             )
                             return@items
@@ -354,8 +357,8 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                         FieldRow(
                             label = field.label,
                             text = when {
-                                pick.ignored -> "已忽略"
-                                pick.value.isEmpty() -> "未选"
+                                pick.ignored -> stringResource(R.string.st_ignored)
+                                pick.value.isEmpty() -> stringResource(R.string.st_not_picked)
                                 else -> generator.label(field.key, pick.value)
                             },
                             locked = pick.locked,
@@ -365,7 +368,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                             onClick = { editing = field.key },
                             onReroll = {
                                 val notes = reroll(setOf(field.key))
-                                say(notes.firstOrNull() ?: "已重抽「${field.label}」")
+                                say(notes.firstOrNull() ?: context.getString(R.string.st_rerolled_section, field.label))
                             }
                         )
                     }
@@ -407,7 +410,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
             onAddCustom = { text ->
                 val pool = field?.pool.orEmpty()
                 if (store.addCustom(pool, text)) picks = picks + (key to pick.copy(value = text, ignored = false))
-                else say("「$text」已经在这一组里了")
+                else say(context.getString(R.string.st_duplicate_word, text))
             },
             onToggleExcluded = { text -> store.toggleExcluded(field?.pool.orEmpty(), text) },
             onDeleteWord = { text ->
@@ -430,21 +433,24 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     pendingImport?.let { (uri, found) ->
         AlertDialog(
             onDismissRequest = { pendingImport = null },
-            title = { Text("这是 ${found.label} 剧情词库") },
+            title = { Text(stringResource(R.string.st_import_mismatch_title, found.label)) },
             text = {
                 Text(
-                    "当前是 ${profile.label} 档，导入后这一档的剧情库会被整份替换成" +
-                        " ${found.label} 的内容。要接着导入吗？"
+                    stringResource(
+                        R.string.st_import_mismatch_body,
+                        profile.label,
+                        found.label
+                    )
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingImport = null
                     runImport(uri, force = true)
-                }) { Text("仍然导入") }
+                }) { Text(stringResource(R.string.st_import_anyway)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingImport = null }) { Text("取消") }
+                TextButton(onClick = { pendingImport = null }) { Text(stringResource(R.string.st_cancel)) }
             }
         )
     }
@@ -452,7 +458,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     if (showFull && composed.isNotBlank()) {
         AlertDialog(
             onDismissRequest = { showFull = false },
-            title = { Text("完整剧情") },
+            title = { Text(stringResource(R.string.st_full_story)) },
             text = {
                 Column(
                     Modifier
@@ -464,12 +470,12 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(ClipboardManager::class.java)
                     clipboard?.setPrimaryClip(ClipData.newPlainText("story", composed))
-                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.st_copied), Toast.LENGTH_SHORT).show()
                     showFull = false
-                }) { Text("复制") }
+                }) { Text(stringResource(R.string.st_copy)) }
             },
             dismissButton = {
-                TextButton(onClick = { showFull = false }) { Text("关闭") }
+                TextButton(onClick = { showFull = false }) { Text(stringResource(R.string.st_close)) }
             }
         )
     }
@@ -596,23 +602,21 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("词库还原为内置版？") },
+            title = { Text(stringResource(R.string.st_reset_title)) },
             text = {
                 Text(
-                    "会把剧情词库换成随包版本（${library.wordCount} 词）。" +
-                        "你导入过、改过的剧情词会丢失。\n\n" +
-                        "当前的选择、锁定、忽略都会保留。"
+                    stringResource(R.string.st_reset_body, library.wordCount)
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmReset = false
                     val lib = store.resetToDefault()
-                    say("已还原为内置剧情词库 · ${lib.wordCount} 词")
-                }) { Text("还原") }
+                    say(context.getString(R.string.st_reset_done, lib.wordCount))
+                }) { Text(stringResource(R.string.st_reset)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmReset = false }) { Text("取消") }
+                TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.st_cancel)) }
             }
         )
     }
@@ -635,18 +639,18 @@ private fun StoryHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.st_back))
         }
         Column(Modifier.weight(1f)) {
-            Text("剧情组合", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.st_title), style = MaterialTheme.typography.titleMedium)
             // 和词库组合页顶端同一副样子：数量、版本一行，操作提示一行。
             Text(
-                "$fieldCount 项 · $wordCount 词" + if (version.isBlank()) "" else " · $version",
+                stringResource(R.string.st_header_counts, fieldCount, wordCount) + if (version.isBlank()) "" else " · $version",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "点每项可锁定或忽略",
+                stringResource(R.string.st_header_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -658,24 +662,24 @@ private fun StoryHeader(
         IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
             Icon(
                 androidx.compose.material.icons.Icons.Outlined.Settings,
-                contentDescription = "设置"
+                contentDescription = stringResource(R.string.st_settings)
             )
         }
         Box {
             IconButton(onClick = { onMenuOpenChange(true) }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "剧情词库操作")
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.st_library_actions))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
                 DropdownMenuItem(
-                    text = { Text("导入词库") },
+                    text = { Text(stringResource(R.string.st_import_library)) },
                     onClick = { onMenuOpenChange(false); onImport() }
                 )
                 DropdownMenuItem(
-                    text = { Text("导出词库") },
+                    text = { Text(stringResource(R.string.st_export_library)) },
                     onClick = { onMenuOpenChange(false); onExport() }
                 )
                 DropdownMenuItem(
-                    text = { Text("词库还原为内置版") },
+                    text = { Text(stringResource(R.string.st_reset_menu)) },
                     onClick = { onMenuOpenChange(false); onReset() }
                 )
             }
@@ -729,7 +733,7 @@ private fun SectionHead(
         Spacer(Modifier.weight(1f))
         // 锁和重抽分两个点击区：整行统一可点的时候，想锁住这一段很容易顺手把它换掉。
         Text(
-            if (locked) "已锁" else "锁住",
+            if (locked) stringResource(R.string.st_locked) else stringResource(R.string.st_lock),
             style = MaterialTheme.typography.labelSmall,
             color = if (locked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
             modifier = Modifier
@@ -739,7 +743,7 @@ private fun SectionHead(
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            "整段重抽",
+            stringResource(R.string.st_reroll_section),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier
@@ -806,8 +810,8 @@ private fun FieldGroupRow(
                 ) {
                     Text(
                         when {
-                            pick.ignored -> "已忽略"
-                            empty -> "未选"
+                            pick.ignored -> stringResource(R.string.st_ignored)
+                            empty -> stringResource(R.string.st_not_picked)
                             else -> valueLabel(field, pick.value)
                         },
                         style = MaterialTheme.typography.labelMedium,
@@ -901,26 +905,31 @@ private fun FieldRow(
 }
 
 /** 主戏是一串词，pill 上放不下就折成「第一段 +N」。 */
-private fun actLabel(value: String): String {
+private fun actLabel(value: String, notPicked: String): String {
     val parts = value.split(StoryGenerator.SEP).filter { it.isNotBlank() }
-    if (parts.isEmpty()) return "未选"
+    if (parts.isEmpty()) return notPicked
     return if (parts.size == 1) parts[0] else "${parts[0]} +${parts.size - 1}"
 }
 
 /** 主戏能排一串：点一下加进来，再点一下拿掉。 */
 
+/** True when neither pose nor action has a word. */
+private fun pairIsEmpty(picks: Map<String, StoryPick>): Boolean =
+    picks[StoryGenerator.POSE]?.value.orEmpty().split(StoryGenerator.SEP).none { it.isNotBlank() } &&
+        picks[StoryGenerator.ACT]?.value.orEmpty().split(StoryGenerator.SEP).none { it.isNotBlank() }
+
 /** 一行里显示第一组配对，后面用 +N 组表示还有几组。 */
-private fun pairSummary(picks: Map<String, StoryPick>): String {
+private fun pairSummary(picks: Map<String, StoryPick>, context: Context): String {
     val poses = picks[StoryGenerator.POSE]?.value.orEmpty()
         .split(StoryGenerator.SEP).filter { it.isNotBlank() }
     val acts = picks[StoryGenerator.ACT]?.value.orEmpty()
         .split(StoryGenerator.SEP).filter { it.isNotBlank() }
-    if (poses.isEmpty() && acts.isEmpty()) return "未选"
-    val head = poses.firstOrNull() ?: "（无姿势）"
+    if (poses.isEmpty() && acts.isEmpty()) return context.getString(R.string.st_not_picked)
+    val head = poses.firstOrNull() ?: context.getString(R.string.st_no_pose)
     val tail = acts.firstOrNull().orEmpty()
     val text = if (tail.isEmpty()) head else "$head → $tail"
     val groups = maxOf(poses.size, acts.size)
-    return if (groups > 1) "$text  +${groups - 1} 组" else text
+    return if (groups > 1) context.getString(R.string.st_pairs_more, text, groups - 1) else text
 }
 private fun toggleAct(current: String, value: String): String {
     val parts = current.split(StoryGenerator.SEP).filter { it.isNotBlank() }.toMutableList()
@@ -969,19 +978,19 @@ private fun StorySheet(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onLock) {
-                    Text(if (pick.locked) "已锁定" else "锁定")
+                    Text(if (pick.locked) stringResource(R.string.st_locked_state) else stringResource(R.string.st_lock))
                 }
                 OutlinedButton(onClick = onIgnore) {
-                    Text(if (pick.ignored) "已忽略" else "忽略")
+                    Text(if (pick.ignored) stringResource(R.string.st_ignored) else stringResource(R.string.st_ignore))
                 }
-                OutlinedButton(onClick = onClear) { Text("清除") }
+                OutlinedButton(onClick = onClear) { Text(stringResource(R.string.st_clear)) }
                 OutlinedButton(onClick = { managing = !managing }) {
-                    Text(if (managing) "完成" else "管理")
+                    Text(if (managing) stringResource(R.string.st_done) else stringResource(R.string.st_manage))
                 }
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                if (multi) "点一下加进来，再点一下拿掉。按顺序排" else "点一个词换成它",
+                if (multi) stringResource(R.string.st_hint_multi) else stringResource(R.string.st_hint_single),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1004,7 +1013,7 @@ private fun StorySheet(
             if (popular.isNotEmpty() && others.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "更多",
+                    stringResource(R.string.st_more),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1022,7 +1031,7 @@ private fun StorySheet(
                     onValueChange = { addText = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("添加到这一组", style = MaterialTheme.typography.bodySmall) },
+                    placeholder = { Text(stringResource(R.string.st_add_placeholder), style = MaterialTheme.typography.bodySmall) },
                     textStyle = MaterialTheme.typography.bodySmall
                 )
                 IconButton(
@@ -1032,7 +1041,7 @@ private fun StorySheet(
                             addText = ""
                         }
                     }
-                ) { Icon(Icons.Default.Add, contentDescription = "添加") }
+                ) { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.st_add)) }
             }
             }
     }
@@ -1088,7 +1097,7 @@ private fun Chips(
                     )
                     if (badge != null && !managing) {
                         Text(
-                            "${badge}组",
+                            stringResource(R.string.st_group_badge, badge),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -1129,7 +1138,7 @@ private fun StoryBottomBar(
             Spacer(Modifier.height(9.dp))
             if (composed.isBlank()) {
                 Text(
-                    "还没有组合出剧情",
+                    stringResource(R.string.st_empty_story),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1150,12 +1159,12 @@ private fun StoryBottomBar(
                     modifier = Modifier.weight(1f).height(44.dp),
                     enabled = composed.isNotBlank(),
                     shape = RoundedCornerShape(13.dp)
-                ) { Text("复制") }
+                ) { Text(stringResource(R.string.st_copy)) }
                 Button(
                     onClick = onReroll,
                     modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(13.dp)
-                ) { Text("换一条") }
+                ) { Text(stringResource(R.string.st_reroll)) }
             }
         }
     }
@@ -1219,24 +1228,24 @@ private fun PairSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
         ) {
-            Text("姿势与动作", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.st_pairs_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                "点击组卡片可切换编辑焦点。点击下方词条直接替换当前组；点🎲单独重抽该组。",
+                stringResource(R.string.st_pairs_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onToggleLock) {
-                    Text(if (locked) "已锁定" else "锁定")
+                    Text(if (locked) stringResource(R.string.st_locked_state) else stringResource(R.string.st_lock))
                 }
                 OutlinedButton(onClick = { managing = !managing }) {
-                    Text(if (managing) "完成" else "管理")
+                    Text(if (managing) stringResource(R.string.st_done) else stringResource(R.string.st_manage))
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("已选 $pairCount 组", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.st_selected_groups, pairCount), style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(6.dp))
             for (index in 0 until pairCount) {
                 val isFocused = index == activeIndex
@@ -1296,11 +1305,11 @@ private fun PairSheet(
                 },
                 modifier = Modifier.padding(top = 4.dp)
             ) {
-                Text("+ 增加新的一组")
+                Text(stringResource(R.string.st_add_pair))
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                "姿势" + if (pairCount > 0) " (编辑第 ${activeIndex + 1} 组)" else "",
+                stringResource(R.string.st_pose) + if (pairCount > 0) " " + stringResource(R.string.st_editing_group, activeIndex + 1) else "",
                 style = MaterialTheme.typography.labelMedium
             )
             Spacer(Modifier.height(6.dp))
@@ -1313,12 +1322,12 @@ private fun PairSheet(
                 highlighted = highlightedPoses,
                 groupBadge = poseGroupMap
             )
-            AddRow("添加到姿势", addPose, { addPose = it }) {
+            AddRow(stringResource(R.string.st_add_pose), addPose, { addPose = it }) {
                 if (addPose.isNotBlank()) { onAddCustom("pose", addPose); addPose = "" }
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                "动作" + if (pairCount > 0) " (编辑第 ${activeIndex + 1} 组)" else "",
+                stringResource(R.string.st_act_label) + if (pairCount > 0) " " + stringResource(R.string.st_editing_group, activeIndex + 1) else "",
                 style = MaterialTheme.typography.labelMedium
             )
             Spacer(Modifier.height(6.dp))
@@ -1331,7 +1340,7 @@ private fun PairSheet(
                 highlighted = highlightedActs,
                 groupBadge = actGroupMap
             )
-            AddRow("添加到动作", addAct, { addAct = it }) {
+            AddRow(stringResource(R.string.st_add_act), addAct, { addAct = it }) {
                 if (addAct.isNotBlank()) { onAddCustom("act", addAct); addAct = "" }
             }
         }

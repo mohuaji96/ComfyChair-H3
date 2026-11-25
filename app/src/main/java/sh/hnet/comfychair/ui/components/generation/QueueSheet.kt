@@ -144,7 +144,7 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "H3 连拍进行中 · 已完成 $relayDone / 剩 $relayRemaining 段",
+                                    stringResource(R.string.queue_relay_progress, relayDone, relayRemaining),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
@@ -162,7 +162,7 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                                 // queued behind the running one.
                                 onClick = { sh.hnet.comfychair.queue.H3RelayQueue.clear(context) }
                             ) {
-                                Text("停止连拍", color = MaterialTheme.colorScheme.error)
+                                Text(stringResource(R.string.queue_stop_relay), color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -305,7 +305,7 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                 item(key = "fail-last-${lastFailure.promptId}") {
                     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         Text(
-                            "最近一次执行失败",
+                            stringResource(R.string.queue_last_failed),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(bottom = 4.dp)

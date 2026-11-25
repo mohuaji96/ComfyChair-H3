@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -61,6 +62,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.cache.InMemoryVideo
 import sh.hnet.comfychair.connection.WebSocketMessage
 
@@ -95,19 +97,20 @@ fun H3SamplingPreviewStrip(
     val step = frame?.step?.takeIf { it > 0 } ?: fallbackStep
     val total = frame?.total?.takeIf { it > 0 } ?: fallbackTotal
     val stepText = when {
-        frame == null && step > 0 && total > 0 -> "正在采样 · 第 $step/$total 步"
-        frame == null -> "等待第一步画面…"
-        total > 0 && step > 0 -> "第 $step/$total 步"
+        frame == null && step > 0 && total > 0 -> stringResource(R.string.smp_step_sampling, step, total)
+        frame == null -> stringResource(R.string.smp_waiting_first)
+        total > 0 && step > 0 -> stringResource(R.string.smp_step_of, step, total)
         // Step 0 initial noise preview or the server's own preview without a step counter.
-        frame.step == 0 && frame.total > 0 -> "初始噪声 · 共 ${frame.total} 步"
-        step <= 0 -> "当前画面"
-        else -> "第 $step 步"
+        frame.step == 0 && frame.total > 0 -> stringResource(R.string.smp_initial_noise, frame.total)
+        step <= 0 -> stringResource(R.string.smp_current_frame)
+        else -> stringResource(R.string.smp_step_only, step)
     }
 
     // Off and folded both end up as one thin line; they differ in what a tap does and in what the
     // line says, so "I closed it" never has to become "I lost it until the next run".
     if (!visible || collapsed) {
-        val foldLabel = if (visible) "采样预览 · $stepText" else "采样预览已关 · 点开恢复"
+        val foldLabel = if (visible) stringResource(R.string.smp_fold_visible, stepText)
+        else stringResource(R.string.smp_fold_hidden)
         Surface(
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(10.dp),
@@ -151,18 +154,19 @@ fun H3SamplingPreviewStrip(
         ) {
             Thumbnail(frame, playVideo = !zoomed)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("采样预览", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.smp_title), style = MaterialTheme.typography.labelMedium)
                 Text(stepText, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 frame?.stepMillis?.let {
-                    Text("每步约 ${"%.1f".format(it / 1000.0)} 秒", style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.smp_seconds_per_step, "%.1f".format(it / 1000.0)),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             IconButton(onClick = { zoomed = true }, enabled = frame != null) {
-                Icon(Icons.Filled.OpenInFull, contentDescription = "放大")
+                Icon(Icons.Filled.OpenInFull, contentDescription = stringResource(R.string.smp_cd_zoom))
             }
             if (onTogglePreview != null) {
                 IconButton(onClick = { onTogglePreview(false) }) {
@@ -170,7 +174,7 @@ fun H3SamplingPreviewStrip(
                 }
             }
             IconButton(onClick = { collapsed = true }) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "收起")
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.smp_cd_collapse))
             }
         }
     }
@@ -209,16 +213,24 @@ fun H3SamplingPreviewStrip(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stepText + (frame.stepMillis?.let { " · 每步约 ${"%.1f".format(it / 1000.0)} 秒" } ?: ""),
+                        Text(stepText + (frame.stepMillis?.let {
+                            " · " + stringResource(
+                                R.string.smp_seconds_per_step,
+                                "%.1f".format(it / 1000.0)
+                            )
+                        } ?: ""),
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (onCancel != null) TextButton(onClick = {
                             zoomed = false
                             onCancel()
-                        }) { Text("中止当前生成") }
+                        }) { Text(stringResource(R.string.smp_cancel_run)) }
                         IconButton(onClick = { zoomed = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = "关闭")
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.smp_cd_close)
+                            )
                         }
                     }
                 }
@@ -266,7 +278,7 @@ private fun Thumbnail(frame: WebSocketMessage.SamplingPreview?, playVideo: Boole
         contentAlignment = Alignment.Center
     ) {
         if (frame == null) {
-            Text("等待中", style = MaterialTheme.typography.labelSmall,
+            Text(stringResource(R.string.smp_waiting_short), style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             PreviewPicture(
@@ -300,7 +312,7 @@ private fun PreviewPicture(
         if (frame.bitmap != null && animated == null) {
             Image(
                 bitmap = frame.bitmap.asImageBitmap(),
-                contentDescription = "采样预览",
+                contentDescription = stringResource(R.string.smp_title),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )

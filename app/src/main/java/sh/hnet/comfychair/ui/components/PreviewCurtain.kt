@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.components
 
+import sh.hnet.comfychair.R
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,11 +79,11 @@ fun HiddenResultState(onRestore: () -> Unit, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "结果已隐藏",
+            text = stringResource(R.string.curtain_hidden),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        TextButton(onClick = onRestore) { Text("点此恢复") }
+        TextButton(onClick = onRestore) { Text(stringResource(R.string.curtain_restore)) }
     }
 }
 
@@ -100,7 +102,7 @@ fun HideResultButton(onHide: () -> Unit, modifier: Modifier = Modifier) {
         IconButton(onClick = onHide) {
             Icon(
                 imageVector = Icons.Outlined.VisibilityOff,
-                contentDescription = "隐藏结果",
+                contentDescription = stringResource(R.string.curtain_hide),
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }

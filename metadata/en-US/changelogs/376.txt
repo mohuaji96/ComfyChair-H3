@@ -1,0 +1,5 @@
+v0.9.8.8382.616-h3
+- The whole interface is now bilingual: H3 workspace, settings, relay notifications, result hiding, template library, gallery, sampling preview, prompt optimization with its provider pages, tag and story composers
+- Aspect presets and the advanced parameter names follow the language too
+- Fixed long English labels collapsing a parameter row into one letter per line and clipping the hint
+- Chinese wording is unchanged

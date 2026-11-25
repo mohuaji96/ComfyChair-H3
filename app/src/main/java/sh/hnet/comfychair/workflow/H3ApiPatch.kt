@@ -3,6 +3,9 @@ package sh.hnet.comfychair.workflow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.model.LocalizedException
+import sh.hnet.comfychair.model.LocalizedText
 
 /** Explicit changes only: untouched professional edits, links and metadata survive. */
 object H3ApiPatch {
@@ -44,7 +47,9 @@ object H3ApiPatch {
             val w=working.getJSONObject(nodeId);val o=origin.optJSONObject(nodeId)
             if(o==null) {
                 if(target.has(nodeId)) {
-                    require(equivalent(target.getJSONObject(nodeId),w)) { "新增图片节点 ID 与编辑器冲突" }
+                    if(!equivalent(target.getJSONObject(nodeId),w)) {
+                        throw LocalizedException(LocalizedText(R.string.patch_add_conflict))
+                    }
                 } else {
                     target.put(nodeId,JSONObject(w.toString()))
                     added += nodeId
@@ -54,8 +59,11 @@ object H3ApiPatch {
                 val wi=w.getJSONObject("inputs");val oi=o.getJSONObject("inputs")
                 val changed=(wi.keys().asSequence().toSet()+oi.keys().asSequence().toSet()).filter { !equivalent(wi.opt(it),oi.opt(it)) }
                 if(changed.isNotEmpty()) {
-                    val t=target.optJSONObject(nodeId) ?: error("H3 修改目标已被删除或绕过：$nodeId")
-                    require(t.optString("class_type")==o.optString("class_type")) { "H3 修改目标类型已变化" }
+                    val t=target.optJSONObject(nodeId)
+                        ?: throw LocalizedException(LocalizedText(R.string.patch_target_deleted, nodeId))
+                    if(t.optString("class_type")!=o.optString("class_type")) {
+                        throw LocalizedException(LocalizedText(R.string.patch_target_type_changed))
+                    }
                     val ti=t.getJSONObject("inputs")
                     changed.forEach { key ->
                         val next = if (wi.has(key)) wi.get(key) else null
@@ -63,8 +71,10 @@ object H3ApiPatch {
                         when {
                             // A new/rewired link is a structural edit: accept only if already applied.
                             next is JSONArray -> {
-                                require(equivalent(current, next)) {
-                                    "连线冲突 #$nodeId.$key：H3 快速参数不合并结构性改动，请重新打开面板或使用专业编辑器"
+                                if (!equivalent(current, next)) {
+                                    throw LocalizedException(
+                                        LocalizedText(R.string.patch_link_conflict, nodeId, key)
+                                    )
                                 }
                             }
                             // Explicit slot deletion (setReference(null)) removes a wire on purpose.
@@ -73,8 +83,8 @@ object H3ApiPatch {
                                 changes += Change(nodeId,key,current,null,"link-remove")
                             }
                             // Never turn a wire into a literal behind the user's back.
-                            current is JSONArray -> error(
-                                "连线冲突 #$nodeId.$key：执行 JSON 中该输入仍是连线，不能直接改成字面量"
+                            current is JSONArray -> throw LocalizedException(
+                                LocalizedText(R.string.patch_link_literal, nodeId, key)
                             )
                             else -> {
                                 if (wi.has(key) && next !== JSONObject.NULL) ti.put(key,next) else ti.remove(key)

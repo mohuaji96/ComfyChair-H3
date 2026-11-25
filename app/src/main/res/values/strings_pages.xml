@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Template library / template detail -->
+    <string name="tpl_title">Template library</string>
+    <string name="tpl_detail_title">Template</string>
+    <string name="tpl_detail_missing">This template no longer exists.</string>
+    <string name="tpl_custom_count">%1$d custom</string>
+    <string name="tpl_note_count">%1$d items</string>
+    <string name="tpl_note_none_yet">None yet</string>
+    <string name="tpl_import_from_file">Import file</string>
+    <string name="tpl_new_blank">New blank</string>
+    <string name="tpl_default_imported_name">Imported template</string>
+    <string name="tpl_default_new_name">New template</string>
+    <string name="tpl_notice_import_failed">Could not read that file, or it is too short to be a template</string>
+    <string name="tpl_notice_imported">Imported and enabled “%1$s”</string>
+    <string name="tpl_notice_copied">Copied as “%1$s” and enabled</string>
+    <string name="tpl_notice_activated">Enabled “%1$s”</string>
+    <string name="tpl_notice_saved">Saved “%1$s”</string>
+    <string name="tpl_notice_saved_short">Saved</string>
+    <string name="tpl_notice_renamed">Renamed to “%1$s”</string>
+    <string name="tpl_notice_exported">Exported %1$s.md</string>
+    <string name="tpl_notice_export_failed">Export failed. Try another folder.</string>
+    <string name="tpl_section_builtin">Built-in</string>
+    <string name="tpl_section_custom">Custom</string>
+    <string name="tpl_section_name">Name</string>
+    <string name="tpl_section_body">Body</string>
+    <string name="tpl_note_readonly">Read-only</string>
+    <string name="tpl_note_readonly_preview">Read-only preview</string>
+    <string name="tpl_action_copy">Copy</string>
+    <string name="tpl_action_copy_as_custom">Copy as custom</string>
+    <string name="tpl_action_activate">Activate</string>
+    <string name="tpl_action_enabled">Enabled</string>
+    <string name="tpl_action_delete">Delete</string>
+    <string name="tpl_action_export_md">Export .md</string>
+    <string name="tpl_action_edit">Edit</string>
+    <string name="tpl_status_builtin">Built-in · read-only</string>
+    <string name="tpl_status_custom">Custom</string>
+    <string name="tpl_meta_chars">%1$d characters</string>
+    <string name="tpl_meta_chars_with_blurb">%1$s · %2$d characters</string>
+    <string name="tpl_meta_lines">%1$d lines</string>
+    <string name="tpl_meta_modified_at">Modified %1$s</string>
+    <string name="tpl_meta_copied_from">Copied from “%1$s”</string>
+    <string name="tpl_meta_manual_import">Imported manually</string>
+    <string name="tpl_empty_custom">No custom templates yet. Copy a built-in one, or import from a file.</string>
+    <string name="tpl_field_name">Template name</string>
+    <string name="tpl_rename_title">Rename</string>
+    <string name="tpl_save">Save</string>
+    <string name="tpl_cancel">Cancel</string>
+    <string name="tpl_delete_title">Delete “%1$s”?</string>
+    <string name="tpl_delete_body">This cannot be undone. If it is in use, the app switches back to the compact built-in template.</string>
+    <string name="tpl_footnote_builtin">Built-in templates cannot be renamed or deleted. Choose “Copy as custom” first; changes stay in the copy.</string>
+    <string name="tpl_footnote_custom">The preview shows the first %1$d lines. Tap “Edit” to read and change the whole text.</string>
+    <string name="tpl_blurb_lite">The default template in clause style: framing, contact, limbs, dressing and de-duplication are all covered, with the fewest words, so the same image comes out faster and cheaper. Use it for everyday batches.</string>
+    <string name="tpl_blurb_long">The full manual, with counter-examples and reasoning. An extra layer of why-this-would-fail keeps drafts with many characters, complex poses and awkward locations from going wrong, so there is less rework. The cost is about 4x the context per call: slower, and more expensive.</string>
+
+    <!-- Gallery cache dialog -->
+    <string name="gal_cache_clear_title">Clear cache</string>
+    <string name="gal_cache_clear_body">Only cached images and records on this phone are deleted. Items already saved to the gallery are untouched.</string>
+    <string name="gal_cache_clear_detail">%1$d items will be deleted (about %2$s MB); %3$d favorites are kept.</string>
+    <string name="gal_cache_clear_note">Dates and prompts are cleared too. Items download again when opened, so they will not open offline.</string>
+    <string name="gal_cache_cleared">Cleared %1$d items · freed %2$s MB</string>
+    <string name="gal_cache_clear_action">Clear</string>
+    <string name="gal_cancel">Cancel</string>
+
+    <!-- Media viewer actions -->
+    <string name="viewer_extract_frame">Save frame to gallery</string>
+    <string name="viewer_h3_first_frame">Send to H3 first frame</string>
+    <string name="viewer_h3_first_frame_current">Send current frame to H3 first frame</string>
+    <string name="viewer_h3_last_frame">Send to H3 last frame</string>
+    <string name="viewer_h3_last_frame_current">Send current frame to H3 last frame</string>
+    <string name="viewer_h3_ref">Send to H3 reference image</string>
+    <string name="viewer_h3_ref_current">Send current frame to H3 reference image</string>
+
+    <!-- Sampling preview strip -->
+    <string name="smp_title">Sampling preview</string>
+    <string name="smp_step_sampling">Sampling · step %1$d/%2$d</string>
+    <string name="smp_step_of">Step %1$d/%2$d</string>
+    <string name="smp_step_only">Step %1$d</string>
+    <string name="smp_initial_noise">Initial noise · %1$d steps</string>
+    <string name="smp_current_frame">Current frame</string>
+    <string name="smp_waiting_first">Waiting for the first frame…</string>
+    <string name="smp_waiting_short">Waiting</string>
+    <string name="smp_fold_visible">Sampling preview · %1$s</string>
+    <string name="smp_fold_hidden">Sampling preview off · tap to resume</string>
+    <string name="smp_seconds_per_step">About %1$s s per step</string>
+    <string name="smp_cd_zoom">Zoom in</string>
+    <string name="smp_cd_collapse">Collapse</string>
+    <string name="smp_cd_close">Close</string>
+    <string name="smp_cancel_run">Stop this run</string>
+
+    <!-- Seed field -->
+    <string name="seed_title">Seed</string>
+    <string name="seed_mode_random">Random each run</string>
+    <string name="seed_mode_fixed">Fixed</string>
+    <string name="seed_cd_roll">Roll one</string>
+    <string name="seed_restore_random">Back to random</string>
+
+    <!-- Prompt editor -->
+    <string name="pe_cd_fullscreen">Edit fullscreen</string>
+    <string name="pe_optimize">AI optimize</string>
+    <string name="pe_copied">Copied to clipboard</string>
+
+    <!-- Prompt preset menu -->
+    <string name="preset_optimize_prompt">AI optimize prompt</string>
+</resources>

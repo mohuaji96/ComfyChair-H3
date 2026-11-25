@@ -28,7 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.storage.OptimizeRecord
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -65,23 +67,23 @@ fun OptimizeHistorySheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "优化历史",
+                    stringResource(R.string.hist_title),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { confirmClear = true }, enabled = rows.isNotEmpty()) {
-                    Text("清空")
+                    Text(stringResource(R.string.hist_clear))
                 }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
                     onClick = { onlyFavorites = false },
-                    label = { Text("全部 ${rows.size}") }
+                    label = { Text(stringResource(R.string.hist_all, rows.size)) }
                 )
                 AssistChip(
                     onClick = { onlyFavorites = true },
-                    label = { Text("收藏 ${rows.count { it.favorite }}") }
+                    label = { Text(stringResource(R.string.hist_favorites, rows.count { it.favorite })) }
                 )
             }
 
@@ -89,7 +91,7 @@ fun OptimizeHistorySheet(
 
             if (shown.isEmpty()) {
                 Text(
-                    if (rows.isEmpty()) "还没有记录，优化一次之后会出现在这里。" else "没有收藏的记录。",
+                    if (rows.isEmpty()) stringResource(R.string.hist_empty) else stringResource(R.string.hist_empty_fav),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 28.dp)
@@ -118,16 +120,16 @@ fun OptimizeHistorySheet(
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("清空历史") },
-            text = { Text("会删掉全部 ${rows.size} 条记录，收藏的也一起删。删了不能恢复。") },
+            title = { Text(stringResource(R.string.hist_clear_title)) },
+            text = { Text(stringResource(R.string.hist_clear_body, rows.size)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
                     onClear()
-                }) { Text("清空") }
+                }) { Text(stringResource(R.string.hist_clear)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("取消") }
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -170,7 +172,7 @@ private fun HistoryRow(
                     .padding(horizontal = 10.dp)
             )
             Text(
-                "删除",
+                stringResource(R.string.common_delete),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.clickable(onClick = onDelete)
@@ -178,7 +180,7 @@ private fun HistoryRow(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "入 " + record.input,
+            stringResource(R.string.hist_input_tag) + record.input,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -186,14 +188,14 @@ private fun HistoryRow(
         )
         Spacer(Modifier.height(3.dp))
         Text(
-            "出 " + record.output,
+            stringResource(R.string.hist_output_tag) + record.output,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "${record.inChars} → ${record.outChars} 字" +
+            stringResource(R.string.hist_chars, record.inChars, record.outChars) +
                 if (record.note.isBlank()) "" else " · ${record.note}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

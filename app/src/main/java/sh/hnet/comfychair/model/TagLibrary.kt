@@ -2,6 +2,7 @@ package sh.hnet.comfychair.model
 
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.R
 
 /**
  * One slot of a category: an interchangeable pool of tags.
@@ -465,13 +466,13 @@ object TagLibraryJson {
     fun parse(text: String): TagLibrary {
         val root = JSONObject(text)
         val categoriesJson = root.optJSONArray("categories")
-            ?: throw IllegalArgumentException("缺少 categories")
+            ?: throw LocalizedException(LocalizedText(R.string.lib_missing_categories))
         val categories = migrate(
             (0 until categoriesJson.length()).mapNotNull { index ->
                 categoriesJson.optJSONObject(index)?.let(::readCategory)
             }
         )
-        if (categories.isEmpty()) throw IllegalArgumentException("categories 为空")
+        if (categories.isEmpty()) throw LocalizedException(LocalizedText(R.string.lib_empty_categories))
 
         val rules = root.optJSONObject("rules")
         val meta = root.optJSONObject("meta")
@@ -940,7 +941,8 @@ object TagLibraryJson {
             val node = array.optJSONObject(index) ?: return@mapNotNull null
             val words = node.strList("words")
             if (words.isEmpty()) return@mapNotNull null
-            StyleGroup(label = node.optString("label").ifBlank { "其他" }, words = words)
+            // An unnamed group keeps an empty label; the sheet shows R.string.lib_other_group for it.
+            StyleGroup(label = node.optString("label"), words = words)
         }
     }
 

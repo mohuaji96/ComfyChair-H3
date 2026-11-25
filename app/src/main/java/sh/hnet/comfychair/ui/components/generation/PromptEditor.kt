@@ -174,7 +174,7 @@ fun PromptDock(
             onCopy = { text ->
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("prompt", text))
-                Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.pe_copied), Toast.LENGTH_SHORT).show()
                 showOptimizeSheet = false
             },
             onApply = { text ->
@@ -275,7 +275,7 @@ private fun PromptComposer(
                 ) {
                     Icon(
                         Icons.Rounded.OpenInFull,
-                        contentDescription = "全屏编辑",
+                        contentDescription = stringResource(R.string.pe_cd_fullscreen),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(19.dp)
                     )
@@ -459,7 +459,7 @@ private fun PromptEditor(
                         ) {
                             Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("AI 优化")
+                            Text(stringResource(R.string.pe_optimize))
                         }
                     }
                     Spacer(Modifier.weight(1f))

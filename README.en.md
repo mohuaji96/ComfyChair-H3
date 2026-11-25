@@ -307,7 +307,7 @@ Release builds need a signing configuration. Debug builds install directly, but 
 
 | | |
 | :--- | :--- |
-| Version | 0.9.8.8382.612-h3 (version code 372) |
+| Version | 0.9.8.8382.616-h3 (version code 376) |
 | Platform | Android 13 (API 33) and newer |
 | Package | `com.comfychair.h3` |
 | Base | [ComfyChair](https://github.com/legal-hkr/comfychair) (GPL-3.0) |

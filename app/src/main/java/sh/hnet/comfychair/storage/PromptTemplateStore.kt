@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.storage
 
+import sh.hnet.comfychair.R
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,15 +28,20 @@ object PromptTemplates {
     const val LONG_ID = "builtin_long"
     const val LITE_ID = "builtin_lite"
 
-    fun builtIns(longBody: String, liteBody: String): List<PromptTemplate> = listOf(
-        PromptTemplate(
-            LONG_ID, "完整版", longBody, builtIn = true,
-            blurb = "最细 · 难稿稳，少返工"
-        ),
-        PromptTemplate(
-            LITE_ID, "精简版", liteBody, builtIn = true,
-            blurb = "默认 · 判断全，出图快"
-        )
+    /**
+     * Names and blurbs come in as parameters so this stays a pure function the tests can call
+     * without an Android context; the store resolves them from resources before calling.
+     */
+    fun builtIns(
+        longBody: String,
+        liteBody: String,
+        longName: String,
+        liteName: String,
+        longBlurb: String = "",
+        liteBlurb: String = ""
+    ): List<PromptTemplate> = listOf(
+        PromptTemplate(LONG_ID, longName, longBody, builtIn = true, blurb = longBlurb),
+        PromptTemplate(LITE_ID, liteName, liteBody, builtIn = true, blurb = liteBlurb)
     )
 
     /** Falls back to the lite template, which is the default, when the active id is gone. */
@@ -90,7 +96,11 @@ object PromptTemplateStore {
     fun load(context: Context): List<PromptTemplate> {
         val builtIns = PromptTemplates.builtIns(
             readAsset(context, "prompt_expert.md"),
-            readAsset(context, "prompt_expert_lite.md")
+            readAsset(context, "prompt_expert_lite.md"),
+            context.getString(R.string.tpl_builtin_long_name),
+            context.getString(R.string.tpl_builtin_lite_name),
+            context.getString(R.string.tpl_builtin_long_blurb),
+            context.getString(R.string.tpl_builtin_lite_blurb)
         )
         return builtIns + loadCustom(context)
     }
@@ -107,7 +117,7 @@ object PromptTemplateStore {
                     add(
                         PromptTemplate(
                             id = id,
-                            name = o.optString("name").ifEmpty { "自定义" },
+                            name = o.optString("name").ifEmpty { context.getString(R.string.tpl_custom_default) },
                             body = o.optString("body"),
                             builtIn = false,
                             updatedAt = o.optLong("updatedAt"),
@@ -177,7 +187,7 @@ object PromptTemplateStore {
         if (legacy.isNotBlank() && legacy.trim() !in builtInBodies) {
             val template = PromptTemplate(
                 id = "custom_1",
-                name = "自定义 1",
+                name = context.getString(R.string.tpl_custom_first),
                 body = legacy,
                 builtIn = false,
                 updatedAt = System.currentTimeMillis()
@@ -212,7 +222,7 @@ object PromptTemplateStore {
         val all = load(context)
         val template = PromptTemplate(
             id = "custom_${System.currentTimeMillis()}",
-            name = name ?: PromptTemplates.uniqueName(all, "${source.name}·副本"),
+            name = name ?: PromptTemplates.uniqueName(all, context.getString(R.string.tpl_copy_suffix, source.name)),
             body = source.body,
             builtIn = false,
             updatedAt = System.currentTimeMillis(),

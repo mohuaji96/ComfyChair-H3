@@ -145,7 +145,7 @@ fun PromptPresetDropdown(
                 if (onOptimizePrompt != null) {
                     val primary = MaterialTheme.colorScheme.primary
                     DropdownMenuItem(
-                        text = { Text("AI 优化提示词", color = primary) },
+                        text = { Text(stringResource(R.string.preset_optimize_prompt), color = primary) },
                         shape = MenuDefaults.itemShape(0, 1).shape,
                         leadingIcon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = primary) },
                         onClick = {

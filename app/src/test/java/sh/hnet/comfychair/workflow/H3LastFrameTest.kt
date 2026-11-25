@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.workflow
 
+import sh.hnet.comfychair.R
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -58,6 +59,6 @@ class H3LastFrameTest {
                 clearLastFrame = true
             )
         )
-        assertTrue(result.errors.any { it.contains("至少要选一张") })
+        assertTrue(result.errors.any { it.resId == R.string.plan_err_fl_frames })
     }
 }

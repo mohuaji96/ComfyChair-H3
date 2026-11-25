@@ -318,21 +318,25 @@ fun GalleryScreen(
         if (showClearConfirm) {
             AlertDialog(
                 onDismissRequest = { showClearConfirm = false },
-                title = { Text("清空缓存") },
+                title = { Text(stringResource(R.string.gal_cache_clear_title)) },
                 text = {
                     val total = uiState.items.size
                     val favoritesCount = LocalCachePolicy.favorites(context).size
                     val megabytes = cacheUsedBytes / (1024.0 * 1024.0)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("只删除手机里的缓存图片和记录，已保存到相册的不受影响。")
+                        Text(stringResource(R.string.gal_cache_clear_body))
                         Text(
-                            "将删除 ${total - favoritesCount} 张（约 %.0f MB），已收藏 %d 张会保留。"
-                                .format(megabytes, favoritesCount),
+                            stringResource(
+                                R.string.gal_cache_clear_detail,
+                                total - favoritesCount,
+                                "%.0f".format(megabytes),
+                                favoritesCount
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "日期和提示词会一起清掉，清空后点开时才重新下载，离线时打不开。",
+                            stringResource(R.string.gal_cache_clear_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -369,7 +373,11 @@ fun GalleryScreen(
                                 val freedMb = ((before - kept).coerceAtLeast(0)) / (1024.0 * 1024.0)
                                 Toast.makeText(
                                     context,
-                                    "已清空 $removed 张 · 释放 %.0f MB".format(freedMb),
+                                    context.getString(
+                                        R.string.gal_cache_cleared,
+                                        removed,
+                                        "%.0f".format(freedMb)
+                                    ),
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -377,10 +385,12 @@ fun GalleryScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
-                    ) { Text("清空") }
+                    ) { Text(stringResource(R.string.gal_cache_clear_action)) }
                 },
                 dismissButton = {
-                    OutlinedButton(onClick = { showClearConfirm = false }) { Text("取消") }
+                    OutlinedButton(onClick = { showClearConfirm = false }) {
+                        Text(stringResource(R.string.gal_cancel))
+                    }
                 }
             )
         }

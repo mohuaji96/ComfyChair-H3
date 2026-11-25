@@ -84,7 +84,20 @@
 
 ## 八、语言资源
 
-界面文案走 `strings.xml`，自研功能的条目统一放在 `strings_h3.xml`（`values/` 英文、`values-zh/` 中文）。
+界面文案走 `strings.xml`，自研功能的条目按域拆在 `strings_*.xml`（`values/` 英文、`values-zh/` 中文）：
+
+| 文件 | 用途 |
+| :--- | :--- |
+| `strings_h3.xml` | H3 工作区、比例名、工作流字段名 |
+| `strings_h3msg.xml` | H3 识别告警与计划层提示 |
+| `strings_ui.xml` | 设置、队列、通知、连拍、幕布、菜单 |
+| `strings_pages.xml` | 模板库、图库、大图、采样预览、种子 |
+| `strings_composer.xml` | 词库组合页 |
+| `strings_story.xml` | 剧情组合页 |
+| `strings_errors.xml` | 提示词优化与供应商页 |
+| `strings_internal.xml` | 表达式、补丁、词库解析、历史恢复的报错 |
+
+不带上下文的层（网络、解析、补丁）不拼句子，统一交 `model/LocalizedText`（资源编号 + 参数），界面显示时用 `format(context)` 或 `Throwable.localizedText(context)` 取字。
 
 - 四种额外语言（德、西、法、波）的翻译保留在 `values-de` 等目录里当底稿，但 `localeFilters` 只打包 `en` 与 `zh`
 - 要恢复某种语言：从 `localeFilters` 去掉它、在语言列表与 `locales_config.xml` 加回
@@ -92,6 +105,7 @@
 
 ## 九、待完成
 
-- H3 提示词区与生成页的界面文案（含 ViewModel 中的状态消息，需改成资源 id + 参数）
-- 提示词页、剧情页、优化供应商、模板库的界面文案
+- 词库与剧情的分类标题、槽位名（词库数据，暂不动）
+- 工作流参数面板里的字段名（来自工作流 JSON，属用户文件内容）
+- 尾帧声明正文与优化器发给模型的指令（内容，不跟界面语言走）
 - Release 613 的 tag 指向同步前的提交，下一版重新打 tag 即可消除

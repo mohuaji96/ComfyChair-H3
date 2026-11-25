@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tag composer: header -->
+    <string name="tc_title">Tag composer</string>
+    <string name="tc_export_file_name">Tag composer</string>
+    <string name="tc_header_counts">%1$d groups · %2$d tags</string>
+    <string name="tc_header_hint">Tap a category name to reroll it</string>
+    <string name="tc_story">Story</string>
+    <string name="tc_settings">Settings</string>
+    <string name="tc_library_menu">Library actions</string>
+    <string name="tc_import_merge">Import and merge</string>
+    <string name="tc_import_replace">Import and overwrite</string>
+    <string name="tc_export_library">Export library</string>
+    <string name="tc_reset_library">Restore built-in library</string>
+
+    <!-- Tag composer: mode and guards -->
+    <string name="tc_mode_solo">Solo</string>
+    <string name="tc_mode_multi">Group</string>
+    <string name="tc_guard_strict">Enhanced</string>
+    <string name="tc_guard_normal">Standard</string>
+    <string name="tc_guard_dedupe">Dedupe</string>
+    <string name="tc_guard_no_dedupe">No dedupe</string>
+    <string name="tc_guard_adult">NSFW</string>
+    <string name="tc_guard_strict_title">Enhanced mode</string>
+    <string name="tc_guard_strict_desc">Conflict guards plus light prompt cleanup</string>
+    <string name="tc_guard_normal_title">Standard mode</string>
+    <string name="tc_guard_normal_desc">Basic conflict guards, no cleanup</string>
+    <string name="tc_guard_dedupe_title">Recent dedupe</string>
+    <string name="tc_guard_dedupe_desc">Recently drawn words show up less</string>
+    <string name="tc_guard_nsfw_title">NSFW library</string>
+    <string name="tc_guard_nsfw_desc">Off keeps the SFW library only, never mixed</string>
+    <string name="tc_guard_detail">Details  ›</string>
+
+    <!-- Tag composer: guard details -->
+    <string name="tc_got_it">Got it</string>
+    <string name="tc_guard_detail_title_four">What the four switches do</string>
+    <string name="tc_guard_detail_title_three">What the three switches do</string>
+    <string name="tc_guard_detail_intro_four">The top two are exclusive; the bottom two toggle on their own</string>
+    <string name="tc_guard_detail_intro_three">The two below toggle on their own</string>
+    <string name="tc_guard_block_strict_1">Words that fight each other are blocked: standing while lying, dressed while nude, the same idea twice</string>
+    <string name="tc_guard_block_strict_2">Impossible frames are blocked too: only two hands, nowhere to sit, a back view with a chest description</string>
+    <string name="tc_guard_block_strict_3">Style and main color each become a full sentence, which models read more reliably</string>
+    <string name="tc_guard_block_normal_1">Only blocks words that fight each other, the first case above</string>
+    <string name="tc_guard_block_normal_2">Hand count and space limits are not checked</string>
+    <string name="tc_guard_block_normal_3">Style and main color output a few words, with no finishing phrase</string>
+    <string name="tc_guard_block_dedupe_1">Within one slot, recently drawn words drop to a quarter chance, not disabled</string>
+    <string name="tc_guard_block_dedupe_2">No effect with fewer than 4 candidates</string>
+    <string name="tc_guard_block_nsfw_1">On draws adult words only, off draws everyday words only, never half and half in one output</string>
+    <string name="tc_guard_block_nsfw_2">Kept after switching off: deep V, slits, backless, swimwear, lip bite. Sexy counts as everyday, only explicit is removed</string>
+    <string name="tc_guard_block_nsfw_3">Does not apply to words you typed yourself or to the system prompt in Settings</string>
+    <string name="tc_guard_note_pair">Tap the lit switch again and the other lights up; they never both go out.</string>
+    <string name="tc_guard_note_strike">Struck-through words are unavailable in both modes, judged by the same rules.</string>
+    <string name="tc_guard_tip_title">Note</string>
+    <string name="tc_guard_tip_body">The cleanup built into Enhanced mode only joins style and main color into one sentence. Convenient, but still fallible. For better results, use Optimize in the bottom bar to rewrite via the API.</string>
+
+    <!-- Tag composer: SFW intro -->
+    <string name="tc_sfw_intro_title">Switched to SFW</string>
+    <string name="tc_sfw_intro_head_1">Still sexy</string>
+    <string name="tc_sfw_intro_body_1">Deep V, slits, lip bite and swimwear all stay</string>
+    <string name="tc_sfw_intro_head_2">Only the explicit goes</string>
+    <string name="tc_sfw_intro_body_2">Genitals, sex acts, body fluids</string>
+    <string name="tc_sfw_intro_head_3">Nothing is deleted</string>
+    <string name="tc_sfw_intro_body_3">The gallery and submitted jobs are untouched</string>
+
+    <!-- Tag composer: list -->
+    <string name="tc_library_empty">The library did not load. Export a copy and check the file format.</string>
+    <string name="tc_scene_ignored">Scene ignored: all place requirements (needs a bed, needs a wall) are off</string>
+    <string name="tc_other">Other</string>
+    <string name="tc_locked">Locked</string>
+    <string name="tc_lock">Lock</string>
+    <string name="tc_reroll_section">Reroll section</string>
+    <string name="tc_skipped">Skipped this time</string>
+    <string name="tc_ignored">Ignored</string>
+    <string name="tc_unselected">None</string>
+
+    <!-- Tag composer: bottom bar -->
+    <string name="tc_empty_prompt">Nothing composed yet</string>
+    <string name="tc_copy">Copy</string>
+    <string name="tc_randomize">Randomize</string>
+    <string name="tc_optimize">Optimize</string>
+    <string name="tc_optimized_ms">Optimized · %1$d ms</string>
+    <string name="tc_copied">Copied to clipboard</string>
+    <string name="tc_copied_negative">Negative prompt copied</string>
+    <string name="tc_copied_optimized">Optimized prompt copied</string>
+
+    <!-- Tag composer: full prompt -->
+    <string name="tc_full_prompt_title">Full prompt</string>
+    <string name="tc_negative_label">Negative prompt (paste into the negative field)</string>
+    <string name="tc_copy_negative">Copy negative</string>
+    <string name="tc_close">Close</string>
+
+    <!-- Tag composer: slot sheet -->
+    <string name="tc_slot_locked">Locked</string>
+    <string name="tc_slot_lock">Lock</string>
+    <string name="tc_ignore">Ignore</string>
+    <string name="tc_clear">Clear</string>
+    <string name="tc_why_empty">Why this is empty: %1$s</string>
+    <string name="tc_manage_hint">Tap the eye to exclude, the bin to delete</string>
+    <string name="tc_pick_hint">Tap a word to use it</string>
+    <string name="tc_done">Done</string>
+    <string name="tc_manage">Manage</string>
+    <string name="tc_word_reason">%1$s: %2$s</string>
+    <string name="tc_add_to_group">Add to this group</string>
+    <string name="tc_add">Add</string>
+
+    <!-- Tag composer: import and reset dialogs -->
+    <string name="tc_import_confirm_title">%1$s library</string>
+    <string name="tc_import_confirm_merge">Current profile is %1$s. Importing merges the %2$s library into it. Continue?</string>
+    <string name="tc_import_confirm_replace">Current profile is %1$s. Importing replaces it with the %2$s library. Continue?</string>
+    <string name="tc_import_anyway">Import anyway</string>
+    <string name="tc_cancel">Cancel</string>
+    <string name="tc_reset_confirm_title">Restore the built-in library?</string>
+    <string name="tc_reset_confirm_body">The library becomes the bundled version (%1$d tags). Any words you edited or added in the app are lost.\n\nSelections, locks, ignores and optimization history are kept.</string>
+    <string name="tc_restore">Restore</string>
+
+    <!-- Tag composer: status messages -->
+    <string name="tc_list_sep">", "</string>
+    <string name="tc_or_sep">" or "</string>
+    <string name="tc_word_wrapped">%1$s</string>
+    <string name="tc_library_updated_defaults">Library updated. Off by default: %1$s</string>
+    <string name="tc_profile_switch_dropped">Switched to %1$s, dropped %2$d items that do not apply</string>
+    <string name="tc_conflict_swapped">%1$s changed because of a conflict</string>
+    <string name="tc_need_male_raised">%1$s needs a man; head count set to %2$s</string>
+    <string name="tc_need_locked_provider">%1$s needs %2$s, but %3$s is locked. Unlock it first.</string>
+    <string name="tc_need_filled">%1$s needs %2$s, so %3$s is set to %4$s</string>
+    <string name="tc_need_missing">%1$s needs %2$s and the library has nothing to fill it. Cancelled.</string>
+    <string name="tc_need_people_overflow">%1$s needs %2$d people; this tab cannot hold them</string>
+    <string name="tc_need_people_raised">%1$s needs %2$d people; head count set to %3$s</string>
+    <string name="tc_lock_no_words">No available word in this slot right now. Resolve the conflict first.</string>
+    <string name="tc_word_exists">%1$s is already in the library</string>
+    <string name="tc_keep_one_word">Each group needs at least one word</string>
+    <string name="tc_import_merged">Merged</string>
+    <string name="tc_import_imported">Imported</string>
+    <string name="tc_import_done">%1$s %2$s: %3$d categories, %4$d tags</string>
+    <string name="tc_library_word">library</string>
+    <string name="tc_import_failed">Import failed: %1$s</string>
+    <string name="tc_bad_file">Bad file format</string>
+    <string name="tc_export_done">Exported to the chosen file</string>
+    <string name="tc_export_failed">Export failed: %1$s</string>
+    <string name="tc_write_failed">Cannot write</string>
+    <string name="tc_reset_done">Restored the built-in library: %1$d categories, %2$d tags</string>
+</resources>

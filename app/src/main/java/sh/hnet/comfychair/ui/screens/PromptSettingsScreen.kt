@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,10 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ApiFormat
 import sh.hnet.comfychair.model.ApiProvider
 import sh.hnet.comfychair.storage.PromptTemplateStore
@@ -79,58 +82,58 @@ fun PromptSettingsScreen(
     }
 
     SettingsDetailScaffold(
-        title = "提示词优化",
+        title = stringResource(R.string.settings_prompt_optimize_title),
         onBack = onNavigateToGeneration
     ) {
         Spacer(Modifier.height(4.dp))
 
         if (current == null) {
             Text(
-                "还没有供应商。先加一个，优化才能用。",
+                stringResource(R.string.po_no_provider),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 12.dp, bottom = 12.dp)
             )
             SettingsPrimaryButton(
-                text = "添加供应商",
+                text = stringResource(R.string.po_add_provider),
                 onClick = onOpenProviders,
                 modifier = Modifier.fillMaxWidth()
             )
             return@SettingsDetailScaffold
         }
 
-        SettingsSectionLabel("当前使用")
+        SettingsSectionLabel(stringResource(R.string.po_current))
         SettingsGroupCard {
             SettingsNavRow(
-                label = "供应商",
-                value = current.name.ifBlank { "未命名供应商" },
-                sub = formatName(current.format) + " · " + current.model.ifBlank { "未填模型名" },
+                label = stringResource(R.string.po_provider),
+                value = current.name.ifBlank { stringResource(R.string.po_unnamed_provider) },
+                sub = formatName(context, current.format) + " · " + current.model.ifBlank { stringResource(R.string.po_no_model) },
                 onClick = onOpenProviders
             )
             SettingsRowDivider()
             SettingsNavRow(
-                label = "模板",
+                label = stringResource(R.string.po_template),
                 value = activeTemplate.name,
-                sub = (if (activeTemplate.builtIn) "内置" else "自定义") + " · " +
-                    activeTemplate.body.lineSequence().count() + " 行",
+                sub = (if (activeTemplate.builtIn) stringResource(R.string.po_builtin) else stringResource(R.string.po_custom)) + " · " +
+                    stringResource(R.string.po_lines, activeTemplate.body.lineSequence().count()),
                 onClick = onOpenTemplates
             )
         }
 
-        SettingsSectionLabel("本次优化")
+        SettingsSectionLabel(stringResource(R.string.po_this_run))
         SettingsGroupCard {
             Row(
                 Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "输出语言",
+                    stringResource(R.string.po_output_language),
                     fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
                 SettingsSegmented(
-                    options = listOf("English", "中文"),
+                    options = listOf(stringResource(R.string.po_lang_english), stringResource(R.string.po_lang_chinese)),
                     selected = if (current.english) 0 else 1,
                     onSelect = { index ->
                         val english = index == 0
@@ -147,7 +150,7 @@ fun PromptSettingsScreen(
             )
         }
 
-        SettingsFootnote("token、超时、接口路径在「API 供应商」里配一次即可。优化入口在「词库组合」窗口底部。")
+        SettingsFootnote(stringResource(R.string.po_footnote))
     }
 }
 
@@ -159,7 +162,7 @@ private fun TemperatureBlock(value: Float, onChange: (Float) -> Unit) {
     Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "温度",
+                stringResource(R.string.po_temperature),
                 fontSize = 13.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
@@ -182,12 +185,12 @@ private fun TemperatureBlock(value: Float, onChange: (Float) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                "0 忠于原标签",
+                stringResource(R.string.po_temp_low),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
             )
             Text(
-                "1 自由改写",
+                stringResource(R.string.po_temp_high),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
             )
@@ -195,8 +198,8 @@ private fun TemperatureBlock(value: Float, onChange: (Float) -> Unit) {
     }
 }
 
-private fun formatName(format: ApiFormat): String = when (format) {
-    ApiFormat.OPENAI_CHAT -> "OpenAI 兼容"
+private fun formatName(context: Context, format: ApiFormat): String = when (format) {
+    ApiFormat.OPENAI_CHAT -> context.getString(R.string.po_format_openai_compat)
     ApiFormat.OPENAI_RESPONSES -> "OpenAI Responses"
     ApiFormat.ANTHROPIC -> "Anthropic"
     ApiFormat.GEMINI -> "Gemini"

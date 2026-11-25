@@ -21,9 +21,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.storage.PromptTemplateStore
 import sh.hnet.comfychair.storage.PromptTemplates
 import sh.hnet.comfychair.ui.components.BottomActionBar
@@ -66,9 +68,9 @@ fun TemplateDetailScreen(
     val template = list.firstOrNull { it.id == templateId }
 
     if (template == null) {
-        SettingsDetailScaffold(title = "模板", onBack = onBack) {
+        SettingsDetailScaffold(title = stringResource(R.string.tpl_detail_title), onBack = onBack) {
             Text(
-                "这个模板已经不在了。",
+                stringResource(R.string.tpl_detail_missing),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 16.dp)
@@ -86,7 +88,8 @@ fun TemplateDetailScreen(
                 out.write(template.body.toByteArray(Charsets.UTF_8))
             }
         }.isSuccess
-        notice = if (ok) "已导出 ${template.name}.md" else "导出失败，换个目录再试"
+        notice = if (ok) context.getString(R.string.tpl_notice_exported, template.name)
+        else context.getString(R.string.tpl_notice_export_failed)
     }
 
     val lines = remember(template.id, template.body) { template.body.lineSequence().count() }
@@ -101,7 +104,9 @@ fun TemplateDetailScreen(
         onBack = onBack,
         status = {
             Text(
-                if (template.builtIn) "内置 · 只读" else "自定义",
+                stringResource(
+                    if (template.builtIn) R.string.tpl_status_builtin else R.string.tpl_status_custom
+                ),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -110,17 +115,20 @@ fun TemplateDetailScreen(
             BottomActionBar {
                 if (template.builtIn) {
                     SettingsSecondaryButton(
-                        text = "复制为自定义",
+                        text = stringResource(R.string.tpl_action_copy_as_custom),
                         onClick = {
                             val copy = PromptTemplateStore.copyAsCustom(context, template)
                             PromptTemplateStore.setActive(context, copy.id)
-                            notice = "已复制为「${copy.name}」并启用"
+                            notice = context.getString(R.string.tpl_notice_copied, copy.name)
                             version++
                         },
                         modifier = Modifier.weight(1f)
                     )
                     SettingsPrimaryButton(
-                        text = if (template.id == activeId) "已启用" else "启动",
+                        text = stringResource(
+                            if (template.id == activeId) R.string.tpl_action_enabled
+                            else R.string.tpl_action_activate
+                        ),
                         onClick = {
                             PromptTemplateStore.setActive(context, template.id)
                             version++
@@ -129,14 +137,17 @@ fun TemplateDetailScreen(
                         modifier = Modifier.weight(1f)
                     )
                 } else {
-                    SettingsDangerButton("删除", onClick = { confirmDelete = true })
+                    SettingsDangerButton(
+                        stringResource(R.string.tpl_action_delete),
+                        onClick = { confirmDelete = true }
+                    )
                     SettingsSecondaryButton(
-                        text = "导出 .md",
+                        text = stringResource(R.string.tpl_action_export_md),
                         onClick = { exportLauncher.launch(template.name + ".md") },
                         modifier = Modifier.weight(1f)
                     )
                     SettingsPrimaryButton(
-                        text = "编辑",
+                        text = stringResource(R.string.tpl_action_edit),
                         onClick = { editing = true },
                         modifier = Modifier.weight(1f)
                     )
@@ -149,13 +160,8 @@ fun TemplateDetailScreen(
         if (template.blurb.isNotEmpty()) {
             Text(
                 when (template.id) {
-                    PromptTemplates.LITE_ID ->
-                        "条款式写法的默认模板。取景、接触、肢体、穿脱、去重这五类判断都在，" +
-                            "字数最少，同一张图出得更快、更省，日常批量用它。"
-                    PromptTemplates.LONG_ID ->
-                        "带反例和推演的完整手册。多一层「为什么不能这样」的讲透，" +
-                            "角色多、体位复杂、场地刁钻的稿子更不容易翻车、返工少。" +
-                            "代价是每次调用约 4 倍上下文，慢一些，也贵一些。"
+                    PromptTemplates.LITE_ID -> stringResource(R.string.tpl_blurb_lite)
+                    PromptTemplates.LONG_ID -> stringResource(R.string.tpl_blurb_long)
                     else -> template.blurb
                 },
                 fontSize = 12.sp,
@@ -168,13 +174,24 @@ fun TemplateDetailScreen(
             Modifier.padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("$lines 行", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.tpl_meta_lines, lines),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.width(14.dp))
-            Text("${template.body.length} 字", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.tpl_meta_chars, template.body.length),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (template.updatedAt > 0) {
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    "修改于 " + SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(template.updatedAt)),
+                    stringResource(
+                        R.string.tpl_meta_modified_at,
+                        SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(template.updatedAt))
+                    ),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -183,7 +200,7 @@ fun TemplateDetailScreen(
 
         if (template.sourceName.isNotBlank()) {
             Text(
-                "复制自「${template.sourceName}」",
+                stringResource(R.string.tpl_meta_copied_from, template.sourceName),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
@@ -191,10 +208,10 @@ fun TemplateDetailScreen(
         }
 
         if (!template.builtIn) {
-            SettingsSectionLabel("名称")
+            SettingsSectionLabel(stringResource(R.string.tpl_section_name))
             SettingsGroupCard {
                 SettingsNavRow(
-                    label = "模板名称",
+                    label = stringResource(R.string.tpl_field_name),
                     value = template.name,
                     onClick = {
                         renameDraft = template.name
@@ -213,7 +230,10 @@ fun TemplateDetailScreen(
             )
         }
 
-        SettingsSectionLabel("正文", note = "只读预览")
+        SettingsSectionLabel(
+            stringResource(R.string.tpl_section_body),
+            note = stringResource(R.string.tpl_note_readonly_preview)
+        )
         SettingsGroupCard {
             Text(
                 preview,
@@ -226,9 +246,9 @@ fun TemplateDetailScreen(
         }
 
         if (template.builtIn) {
-            SettingsFootnote("内置模板不能改名、不能删除。要改就先「复制为自定义」，改动只落在副本上。")
+            SettingsFootnote(stringResource(R.string.tpl_footnote_builtin))
         } else {
-            SettingsFootnote("预览只显示前 $PREVIEW_LINES 行，点「编辑」看全文并修改。")
+            SettingsFootnote(stringResource(R.string.tpl_footnote_custom, PREVIEW_LINES))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -244,7 +264,7 @@ fun TemplateDetailScreen(
                     template.copy(name = name, body = body, updatedAt = System.currentTimeMillis())
                 )
                 editing = false
-                notice = "已保存"
+                notice = context.getString(R.string.tpl_notice_saved_short)
                 version++
             }
         )
@@ -254,12 +274,12 @@ fun TemplateDetailScreen(
     if (renameOpen && !template.builtIn) {
         AlertDialog(
             onDismissRequest = { renameOpen = false },
-            title = { Text("改名") },
+            title = { Text(stringResource(R.string.tpl_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = renameDraft,
                     onValueChange = { renameDraft = it },
-                    label = { Text("模板名称") },
+                    label = { Text(stringResource(R.string.tpl_field_name)) },
                     singleLine = true
                 )
             },
@@ -269,15 +289,17 @@ fun TemplateDetailScreen(
                         val newName = renameDraft.trim()
                         if (newName.isNotEmpty()) {
                             PromptTemplateStore.saveCustom(context, template.copy(name = newName))
-                            notice = "已改名为「$newName」"
+                            notice = context.getString(R.string.tpl_notice_renamed, newName)
                             version++
                         }
                         renameOpen = false
                     }
-                ) { Text("保存") }
+                ) { Text(stringResource(R.string.tpl_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { renameOpen = false }) { Text("取消") }
+                TextButton(onClick = { renameOpen = false }) {
+                    Text(stringResource(R.string.tpl_cancel))
+                }
             }
         )
     }
@@ -285,8 +307,8 @@ fun TemplateDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("删除「${template.name}」？") },
-            text = { Text("删除后不能恢复。如果它正在使用，会自动切回精简版内置模板。") },
+            title = { Text(stringResource(R.string.tpl_delete_title, template.name)) },
+            text = { Text(stringResource(R.string.tpl_delete_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
@@ -294,10 +316,12 @@ fun TemplateDetailScreen(
                     PromptTemplateStore.delete(context, template.id)
                     PromptTemplateStore.setActive(context, next)
                     onBack()
-                }) { Text("删除") }
+                }) { Text(stringResource(R.string.tpl_action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.tpl_cancel))
+                }
             }
         )
     }

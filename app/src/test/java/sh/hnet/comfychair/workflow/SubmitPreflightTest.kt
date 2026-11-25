@@ -47,7 +47,7 @@ class SubmitPreflightTest {
         val json = prompt("83" to node("LoraLoaderModelOnly", "lora_name", "{{lora_name}}")).toString()
         val r = SubmitPreflight.prepare(json) { _, _ -> listOf("a.safetensors") }
         assertFalse(r.ok)
-        assertTrue(r.issues.single().detail.contains("{{lora_name}}"))
+        assertTrue(r.issues.single().args.joinToString().contains("{{lora_name}}"))
     }
 
     @Test fun knownNameIsLeftByteIdentical() {

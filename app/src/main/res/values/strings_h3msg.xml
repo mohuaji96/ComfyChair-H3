@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- H3 workflow adapter: recognition warnings, binding labels and edit errors -->
+    <string name="ad_ambiguous_cores">Detected %1$d H3 core nodes (%2$s); the executing branch cannot be determined. Confirm it in the professional editor.</string>
+    <string name="ad_mapping_failed">%1$s cannot be mapped safely (%2$s.%3$s)</string>
+    <string name="ad_prompt_unsupported">The prompt is not a supported text node. Use the professional editor.</string>
+    <string name="ad_prompt_ambiguous">The prompt has %1$d candidate sources (%2$s); no single source was chosen automatically.</string>
+    <string name="ad_lora_stack">LoRA stack #%1$s %2$s detected; dynamic stacks cannot be quick-edited here. Edit them in the professional editor.</string>
+    <string name="ad_lora_unsupported">Unsupported LoRA node #%1$s %2$s detected; confirm its file and strength in the professional editor.</string>
+    <string name="ad_first_frame_missing">No safely editable LoadImage found for the first frame</string>
+    <string name="ad_last_frame_missing">No safely editable LoadImage found for the last frame</string>
+    <string name="ad_ref_not_loadimage">Reference image %1$d is not a supported LoadImage source</string>
+    <string name="ad_ref_slots_limited">The original workflow has only %1$d reference inputs; ref_image_2 is added only after a third image is uploaded, and the existing order is kept.</string>
+    <string name="ad_missing_mapping">No unique safe mapping was found for %1$s. Adjust it in the professional editor.</string>
+    <string name="ad_ref_out_of_range">Reference input %1$s is outside the quick panel range and is kept as is</string>
+    <string name="ad_note_bypassed">Bypassed or muted: shown for diagnostics only, quick editing is disabled</string>
+
+    <string name="ad_label_prompt">Prompt</string>
+    <string name="ad_label_video_vae">Video VAE</string>
+    <string name="ad_label_audio_vae">Audio VAE</string>
+    <string name="ad_label_clip">CLIP model</string>
+    <string name="ad_label_aspect_ratio">Aspect ratio</string>
+    <string name="ad_label_megapixels">Resolution (megapixels)</string>
+    <string name="ad_label_duration">Video length (seconds)</string>
+    <string name="ad_label_unet">UNet model</string>
+    <string name="ad_label_lora_file">LoRA file</string>
+    <string name="ad_label_lora_model_strength">LoRA strength (model)</string>
+    <string name="ad_label_lora_clip_strength">LoRA strength (CLIP)</string>
+    <string name="ad_label_seed">Seed</string>
+    <string name="ad_label_generation_switch">Generation mode switch</string>
+    <string name="ad_label_steps">Steps</string>
+    <string name="ad_label_steps_branch_true">Steps branch (on_true)</string>
+    <string name="ad_label_steps_branch_false">Steps branch (on_false)</string>
+    <string name="ad_label_steps_branch_node">Steps (branch node #%1$s)</string>
+    <string name="ad_label_frame_first">First frame</string>
+    <string name="ad_label_frame_last">Last frame</string>
+    <string name="ad_label_reference">Reference image %1$s</string>
+
+    <string name="ad_err_read_only">%1$s is read-only (the node is bypassed or its path is unproven)</string>
+    <string name="ad_err_now_linked">This parameter is now a connection. Reopen the panel.</string>
+    <string name="ad_err_type_mismatch">Parameter type mismatch</string>
+    <string name="ad_err_not_h3">Not an H3 workflow</string>
+    <string name="ad_err_unknown_frame">Unknown keyframe input: %1$s</string>
+    <string name="ad_err_r2v_no_frames">Reference-to-video has no keyframe inputs</string>
+
+    <!-- Quick parameter catalog: field names and reasons -->
+    <string name="qp_image">Image</string>
+    <string name="qp_video">Video</string>
+    <string name="qp_audio">Audio</string>
+    <string name="qp_prompt">Prompt</string>
+    <string name="qp_model">Model</string>
+    <string name="qp_lora">LoRA</string>
+    <string name="qp_lora_strength">LoRA strength</string>
+    <string name="qp_clip">Text encoder</string>
+    <string name="qp_vae">VAE</string>
+    <string name="qp_aspect_ratio">Aspect ratio</string>
+    <string name="qp_megapixels">Megapixels (MP)</string>
+    <string name="qp_width">Width</string>
+    <string name="qp_height">Height</string>
+    <string name="qp_steps">Sampling steps</string>
+    <string name="qp_scheduler">Scheduler</string>
+    <string name="qp_sampler">Sampler</string>
+    <string name="qp_denoise">Denoise strength</string>
+    <string name="qp_duration">Length (seconds)</string>
+    <string name="qp_value">Value</string>
+    <string name="qp_reason_linked">Provided by an upstream link; edit the source node</string>
+    <string name="qp_reason_unindexed">The widget position cannot be located safely</string>
+
+    <!-- H3 plan: discovery warnings, submission errors, notes and mode hints -->
+    <string name="plan_prompt_ambiguous">The prompt source is not unique (%1$d candidates). Change it in the professional editor.</string>
+    <string name="plan_resolution_incomplete">Resolution node #%1$s is missing its aspect ratio or megapixel count, so the ratio selector is unavailable</string>
+    <string name="plan_size_fixed">The workflow fixes width and height directly: ratio and megapixels cannot be edited, but exact sizes can be set under advanced settings</string>
+    <string name="plan_duration_not_numeric">The video length does not come from an editable number node, so it cannot be changed</string>
+    <string name="plan_steps_missing">No editable sampling steps node was found; Steps cannot be edited</string>
+    <string name="plan_unet_missing">No base model (UNETLoader) was found</string>
+    <string name="plan_output_missing">No video output node was found; results may not appear in the video list</string>
+    <string name="plan_refcore_mismatch">This workflow has reference image inputs, but they do not match its core node</string>
+
+    <string name="plan_err_invalid_json">The workflow is not valid JSON or cannot be parsed</string>
+    <string name="plan_err_no_core">The core node no longer exists</string>
+    <string name="plan_err_i2v_first">I2V needs a first frame image. Upload one first.</string>
+    <string name="plan_err_fl_frames">Keyframe video needs at least one image</string>
+    <string name="plan_err_r2v_ref">R2V needs at least one reference image</string>
+    <string name="plan_err_mode_unsupported">This workflow does not support %1$s</string>
+    <string name="plan_err_core_no_frames">The core node of this workflow does not accept keyframes. Switch to a keyframe workflow.</string>
+    <string name="plan_err_ref_limit">The server accepts only %1$d reference images</string>
+    <string name="plan_err_ref_slots">This workflow has only %1$d reference inputs; image %2$d does not fit</string>
+    <string name="plan_err_audio_node_missing">Reference audio node #%1$s no longer exists</string>
+    <string name="plan_err_res_node_missing">The resolution node no longer exists</string>
+    <string name="plan_err_custom_wh">Custom size needs both width and height</string>
+    <string name="plan_err_ratio">The server does not accept the ratio %1$s</string>
+    <string name="plan_err_duration_node_missing">The duration node no longer exists</string>
+    <string name="plan_err_steps_node_missing">The steps node no longer exists</string>
+    <string name="plan_err_lora_tail">The end of the model chain could not be found, so LoRA cannot be appended</string>
+    <string name="plan_err_extra_missing">Advanced parameter %1$s no longer exists</string>
+    <string name="plan_err_extra_linked">Advanced parameter %1$s is now a connection and cannot be written directly</string>
+
+    <string name="plan_note_t2v">T2V: neither keyframe is submitted (only this submission copy changes)</string>
+    <string name="plan_note_i2v">I2V: only the first frame is submitted</string>
+    <string name="plan_note_fl_both">FL2V: first and last frames are submitted together</string>
+    <string name="plan_note_fl_last">Last-frame mode: only the last frame is submitted and the shot ends on it</string>
+    <string name="plan_note_fl_first">FL2V: only the first frame is submitted</string>
+    <string name="plan_note_r2v">R2V: %1$d reference image(s) submitted</string>
+    <string name="plan_note_guides">This workflow attaches keyframes through guide nodes instead of core node inputs</string>
+    <string name="plan_note_audio">Reference audio %1$d → %2$s</string>
+    <string name="plan_note_custom_wh">Custom size written straight to the core node: %1$s × %2$s (bypasses the ratio selector, this submission only)</string>
+    <string name="plan_note_aligned32">Aligned to a multiple of 32 (node constraint)</string>
+    <string name="plan_note_ratio">Ratio → %1$s</string>
+    <string name="plan_note_megapixels">Megapixels → %1$s MP</string>
+    <string name="plan_note_multiple">Alignment multiple → %1$d</string>
+    <string name="plan_note_wh">Size → %1$s × %2$s</string>
+    <string name="plan_note_duration_frames">Length %1$ss → %2$d frames</string>
+    <string name="plan_note_duration_expression">Length %1$ss → %2$s frames (computed by the workflow expression)</string>
+    <string name="plan_note_steps">Steps → %1$d</string>
+    <string name="plan_note_lora">LoRA → %1$s</string>
+    <string name="plan_note_lora_added">Appended %1$d LoRA(s) (this submission only)</string>
+    <string name="plan_note_turbo_bypass_all">Turbo: both keyframe guides are bypassed and the pure text-to-video chain is wired directly</string>
+    <string name="plan_note_turbo_first_only">Turbo: the first-frame guide is active and the last-frame guide is bypassed</string>
+    <string name="plan_note_turbo_both">Turbo: both keyframe guides are attached</string>
+    <string name="plan_note_turbo_last_only">Turbo: the last-frame guide is active and the first-frame guide is bypassed</string>
+
+    <string name="plan_hint_t2v">No first or last frame is submitted</string>
+    <string name="plan_hint_i2v">Only the first frame is submitted</string>
+    <string name="plan_hint_fl2v">First and last frames; a last frame alone also works</string>
+    <string name="plan_hint_r2v">3 reference images, up to %1$d</string>
+</resources>

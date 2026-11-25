@@ -65,10 +65,10 @@ class H3RelayService : Service() {
         val done = H3RelayStatus.done.value
         val remaining = H3RelayStatus.remaining.value
         val detail = H3RelayStatus.detail.value
-        val title = if (paused) "完整连拍已暂停 · 还剩 $remaining 段" else "完整连拍进行中"
+        val title = if (paused) getString(R.string.relay_title_paused, remaining) else getString(R.string.relay_title_running)
         // The segment counter says how far the run got; it says nothing about the segment that is
         // actually costing the time. That line goes first, the tally moves to the sub-text.
-        val body = if (detail.isNotBlank()) detail else "已跑完 $done 段，还剩 $remaining 段"
+        val body = if (detail.isNotBlank()) detail else getString(R.string.relay_body_progress, done, remaining)
 
         val toggle = PendingIntent.getService(
             this, 1,
@@ -81,11 +81,11 @@ class H3RelayService : Service() {
             .setSmallIcon(R.drawable.h3_24px)
             .setContentTitle(title)
             .setContentText(body)
-            .setSubText(if (detail.isNotBlank()) "已跑完 $done 段，还剩 $remaining 段" else null)
+            .setSubText(if (detail.isNotBlank()) getString(R.string.relay_body_progress, done, remaining) else null)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
-            .addAction(0, if (paused) "继续" else "暂停", toggle)
+            .addAction(0, getString(if (paused) R.string.relay_action_resume else R.string.relay_action_pause), toggle)
             .build()
     }
 
@@ -101,8 +101,8 @@ class H3RelayService : Service() {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             if (manager.getNotificationChannel(CHANNEL_ID) != null) return
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "完整连拍", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "连拍进度与暂停"
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.relay_channel_name), NotificationManager.IMPORTANCE_LOW).apply {
+                    description = context.getString(R.string.relay_channel_desc)
                     setShowBadge(false)
                 }
             )

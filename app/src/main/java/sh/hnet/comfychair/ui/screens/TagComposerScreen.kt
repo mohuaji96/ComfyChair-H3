@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import sh.hnet.comfychair.BuildConfig
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ContentProfile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -69,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -159,11 +161,11 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                 onRandomize = { viewModel.randomizeAll() },
                 onCopy = {
                     copyToClipboard(context, composed)
-                    viewModel.hint("已复制到剪贴板")
+                    viewModel.hint(context.getString(R.string.tc_copied))
                 },
                 onOptimize = { showOptimize = true },
                 optimizeHint = if (optimizeState.hasResult) {
-                    "已优化 · ${optimizeState.elapsedMs} ms"
+                    stringResource(R.string.tc_optimized_ms, optimizeState.elapsedMs)
                 } else null
             )
         }
@@ -185,7 +187,10 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                 onImportReplace = { importReplaceLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 onExport = {
                     exportLauncher.launch(
-                        viewModel.profile.exportFileName("词库组合", BuildConfig.VERSION_NAME)
+                        viewModel.profile.exportFileName(
+                            context.getString(R.string.tc_export_file_name),
+                            BuildConfig.VERSION_NAME
+                        )
                     )
                 },
                 onReset = { confirmReset = true },
@@ -231,7 +236,7 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                 if (library.categories.isEmpty()) {
                     item {
                         Text(
-                            "词库没有加载出来，导出一份再检查一下文件格式。",
+                             stringResource(R.string.tc_library_empty),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(vertical = 24.dp)
@@ -246,7 +251,7 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                 if (scenePick != null && scenePick.ignored) {
                     item(key = "scene-ignored-note") {
                         Text(
-                            "已忽略场景：场地相关的限制（需要床、需要墙）全部失效",
+                             stringResource(R.string.tc_scene_ignored),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -283,7 +288,9 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                     }
                 }
                 if (ungrouped.isNotEmpty()) {
-                    item(key = "section-ungrouped") { SectionHeader("其他") { } }
+                    item(key = "section-ungrouped") {
+                        SectionHeader(stringResource(R.string.tc_other)) { }
+                    }
                     items(ungrouped, key = { it.id }) { category ->
                         CategoryRow(
                             category = category,
@@ -306,12 +313,12 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
             onDismiss = { showFull = false },
             onCopy = {
                 copyToClipboard(context, composed)
-                viewModel.hint("已复制到剪贴板")
+                viewModel.hint(context.getString(R.string.tc_copied))
                 showFull = false
             },
             onCopyNegative = {
                 copyToClipboard(context, negatives)
-                viewModel.hint("已复制负向提示词")
+                viewModel.hint(context.getString(R.string.tc_copied_negative))
             }
         )
     }
@@ -322,7 +329,7 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
             onDismiss = { showOptimize = false },
             onCopy = {
                 copyToClipboard(context, it)
-                viewModel.hint("已复制优化后的提示词")
+                viewModel.hint(context.getString(R.string.tc_copied_optimized))
             }
         )
     }
@@ -358,19 +365,26 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
     viewModel.pendingImport?.let { pending ->
         AlertDialog(
             onDismissRequest = { viewModel.dismissPendingImport() },
-            title = { Text("这是 ${pending.found.label} 词库") },
+            title = { Text(stringResource(R.string.tc_import_confirm_title, pending.found.label)) },
             text = {
                 Text(
-                    "当前是 ${viewModel.profile.label} 档，导入后这一档的词库会被" +
-                        (if (pending.merge) "合并进" else "整份替换成") +
-                        " ${pending.found.label} 的内容。要接着导入吗？"
+                    stringResource(
+                        if (pending.merge) R.string.tc_import_confirm_merge
+                        else R.string.tc_import_confirm_replace,
+                        viewModel.profile.label,
+                        pending.found.label
+                    )
                 )
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmPendingImport() }) { Text("仍然导入") }
+                TextButton(onClick = { viewModel.confirmPendingImport() }) {
+                    Text(stringResource(R.string.tc_import_anyway))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissPendingImport() }) { Text("取消") }
+                TextButton(onClick = { viewModel.dismissPendingImport() }) {
+                    Text(stringResource(R.string.tc_cancel))
+                }
             }
         )
     }
@@ -378,22 +392,20 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("词库还原为内置版？") },
+            title = { Text(stringResource(R.string.tc_reset_confirm_title)) },
             text = {
-                Text(
-                    "会把词库换成随包版本（${library.tagCount} 词）。" +
-                        "你在 App 里改过、加过的词会丢失。\n\n" +
-                        "当前选择、锁定、忽略和优化历史都会保留。"
-                )
+                Text(stringResource(R.string.tc_reset_confirm_body, library.tagCount))
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmReset = false
                     viewModel.resetLibrary()
-                }) { Text("还原") }
+                }) { Text(stringResource(R.string.tc_restore)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmReset = false }) { Text("取消") }
+                TextButton(onClick = { confirmReset = false }) {
+                    Text(stringResource(R.string.tc_cancel))
+                }
             }
         )
     }
@@ -418,20 +430,21 @@ private fun ComposerHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text("词库组合", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.tc_title), style = MaterialTheme.typography.titleMedium)
             // 两个组合页的顶端写成同一副样子：数量、版本一行，操作提示一行。
             Text(
-                "$groupCount 项 · $tagCount 词" + if (version.isBlank()) "" else " · $version",
+                stringResource(R.string.tc_header_counts, groupCount, tagCount) +
+                    if (version.isBlank()) "" else " · $version",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "点分类名可单独重随",
+                stringResource(R.string.tc_header_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        TextButton(onClick = onStory) { Text("剧情") }
+        TextButton(onClick = onStory) { Text(stringResource(R.string.tc_story)) }
         // Queue pill, same as the generation tabs: a run started elsewhere stays watchable here.
         sh.hnet.comfychair.ui.components.QueueIndicatorPill(modifier = Modifier.padding(horizontal = 4.dp))
         onStatusLamp()
@@ -439,18 +452,30 @@ private fun ComposerHeader(
         IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
             Icon(
                 androidx.compose.material.icons.Icons.Outlined.Settings,
-                contentDescription = "设置"
+                contentDescription = stringResource(R.string.tc_settings)
             )
         }
         Box {
             IconButton(onClick = { onMenuOpenChange(true) }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "词库操作")
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.tc_library_menu))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
-                DropdownMenuItem(text = { Text("导入并合并") }, onClick = { onMenuOpenChange(false); onImportMerge() })
-                DropdownMenuItem(text = { Text("导入并覆盖") }, onClick = { onMenuOpenChange(false); onImportReplace() })
-                DropdownMenuItem(text = { Text("导出词库") }, onClick = { onMenuOpenChange(false); onExport() })
-                DropdownMenuItem(text = { Text("词库还原为内置版") }, onClick = { onMenuOpenChange(false); onReset() })
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.tc_import_merge)) },
+                    onClick = { onMenuOpenChange(false); onImportMerge() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.tc_import_replace)) },
+                    onClick = { onMenuOpenChange(false); onImportReplace() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.tc_export_library)) },
+                    onClick = { onMenuOpenChange(false); onExport() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.tc_reset_library)) },
+                    onClick = { onMenuOpenChange(false); onReset() }
+                )
             }
         }
     }
@@ -466,10 +491,16 @@ private fun ModeSwitch(mode: String, sfw: Boolean, onSelect: (String) -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        ModeButton("单人", mode == TagComposerState.MODE_SOLO, sfw, Modifier.weight(1f)) {
+        ModeButton(
+            stringResource(R.string.tc_mode_solo),
+            mode == TagComposerState.MODE_SOLO, sfw, Modifier.weight(1f)
+        ) {
             onSelect(TagComposerState.MODE_SOLO)
         }
-        ModeButton("多人", mode == TagComposerState.MODE_MULTI, sfw, Modifier.weight(1f)) {
+        ModeButton(
+            stringResource(R.string.tc_mode_multi),
+            mode == TagComposerState.MODE_MULTI, sfw, Modifier.weight(1f)
+        ) {
             onSelect(TagComposerState.MODE_MULTI)
         }
     }
@@ -500,9 +531,14 @@ private fun GuardPill(
     var open by remember { mutableStateOf(false) }
     var showDetail by remember { mutableStateOf(false) }
     // SFW 库没有增强模式的约束表，这一档固定按普通跑，状态里也不提「增强」。
-    val state = (if (sfw) "" else (if (strict) "增强" else "普通") + " · ") +
-        (if (avoidRepeat) "去重" else "不去重") + " · " +
-        (if (sfw) "SFW" else "成人")
+    val strictLabel = stringResource(
+        if (strict) R.string.tc_guard_strict else R.string.tc_guard_normal
+    )
+    val repeatLabel = stringResource(
+        if (avoidRepeat) R.string.tc_guard_dedupe else R.string.tc_guard_no_dedupe
+    )
+    val ageLabel = if (sfw) "SFW" else stringResource(R.string.tc_guard_adult)
+    val state = (if (sfw) "" else "$strictLabel · ") + "$repeatLabel · " + ageLabel
     Box {
         Surface(
             color = when {
@@ -531,33 +567,33 @@ private fun GuardPill(
         ) {
             if (!sfw) {
                 GuardRow(
-                    title = "增强模式",
-                    desc = "防冲突增强，提示词简单优化",
+                    title = stringResource(R.string.tc_guard_strict_title),
+                    desc = stringResource(R.string.tc_guard_strict_desc),
                     on = strict,
                     dim = !strict
                 ) { onStrict(!strict); open = false }
                 GuardRow(
-                    title = "普通模式",
-                    desc = "基础防冲突，无优化",
+                    title = stringResource(R.string.tc_guard_normal_title),
+                    desc = stringResource(R.string.tc_guard_normal_desc),
                     on = !strict,
                     dim = strict
                 ) { onStrict(!strict); open = false }
             }
             GuardRow(
-                title = "近期去重",
-                desc = "刚抽到过的词少出现",
+                title = stringResource(R.string.tc_guard_dedupe_title),
+                desc = stringResource(R.string.tc_guard_dedupe_desc),
                 on = avoidRepeat
             ) { onAvoidRepeat(!avoidRepeat); open = false }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             GuardRow(
-                title = "NSFW 词库",
-                desc = "关闭后只用 SFW 词库，不混出",
+                title = stringResource(R.string.tc_guard_nsfw_title),
+                desc = stringResource(R.string.tc_guard_nsfw_desc),
                 on = !sfw
                 // 开关不收起菜单：拨完还要接着点「详细说明」，收起来等于多一步。
             ) { onSfw(!sfw) }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Text(
-                "详细说明  ›",
+                stringResource(R.string.tc_guard_detail),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -610,61 +646,67 @@ private fun GuardDetailDialog(sfw: Boolean, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("知道了") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.tc_got_it)) }
         },
         title = {
             Text(
-                if (sfw) "三盏开关各管什么" else "四盏开关各管什么",
+                stringResource(
+                    if (sfw) R.string.tc_guard_detail_title_three
+                    else R.string.tc_guard_detail_title_four
+                ),
                 style = MaterialTheme.typography.titleMedium
             )
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    if (sfw) "下面两盏各自开关" else "上面两盏每次只能亮一盏，下面两盏各自开关",
+                    stringResource(
+                        if (sfw) R.string.tc_guard_detail_intro_three
+                        else R.string.tc_guard_detail_intro_four
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (!sfw) {
                     GuardBlock(
-                        tag = "增强模式",
+                        tag = stringResource(R.string.tc_guard_strict_title),
                         accent = MaterialTheme.colorScheme.primary,
-                        headline = "防冲突增强，提示词简单优化",
+                        headline = stringResource(R.string.tc_guard_strict_desc),
                         lines = listOf(
-                            "词和词打架要拦：站着又说躺着、穿着又说全裸、一个意思写两遍",
-                            "画面做不到的也拦：只有两只手、坐的地方没面、背影不写胸前",
-                            "风格和主色各写成完整一句，模型读得准"
+                            stringResource(R.string.tc_guard_block_strict_1),
+                            stringResource(R.string.tc_guard_block_strict_2),
+                            stringResource(R.string.tc_guard_block_strict_3)
                         )
                     )
                     GuardTip()
                 }
                 GuardBlock(
-                    tag = "普通模式",
+                    tag = stringResource(R.string.tc_guard_normal_title),
                     accent = MaterialTheme.colorScheme.tertiary,
-                    headline = "基础防冲突，无优化",
+                    headline = stringResource(R.string.tc_guard_normal_desc),
                     lines = listOf(
-                        "只拦词和词打架，就是上面第一条",
-                        "手够不够、地方撑不撑得住，不查",
-                        "风格和主色只出几个词，不加任何收尾"
+                        stringResource(R.string.tc_guard_block_normal_1),
+                        stringResource(R.string.tc_guard_block_normal_2),
+                        stringResource(R.string.tc_guard_block_normal_3)
                     )
                 )
                 GuardBlock(
-                    tag = "近期去重",
+                    tag = stringResource(R.string.tc_guard_dedupe_title),
                     accent = MaterialTheme.colorScheme.secondary,
-                    headline = "刚抽到过的词少出现",
+                    headline = stringResource(R.string.tc_guard_dedupe_desc),
                     lines = listOf(
-                        "同一个格子，最近抽到的词概率降到四分之一，不是禁用",
-                        "候选不到 4 个时不生效"
+                        stringResource(R.string.tc_guard_block_dedupe_1),
+                        stringResource(R.string.tc_guard_block_dedupe_2)
                     )
                 )
                 GuardBlock(
-                    tag = "NSFW 词库",
+                    tag = stringResource(R.string.tc_guard_nsfw_title),
                     accent = MaterialTheme.colorScheme.tertiary,
-                    headline = "关掉就只用 SFW 词库，两边不混",
+                    headline = stringResource(R.string.tc_guard_nsfw_desc),
                     lines = listOf(
-                        "开着只抽成人词，关掉只抽日常词，同一次输出不会一半一半",
-                        "关掉后这些还留着：深 V、开衩、露背、泳装、咬唇 —— 性感算日常，只去掉露骨",
-                        "管不到自己手写的词，也管不到设置里自己填的系统提示词"
+                        stringResource(R.string.tc_guard_block_nsfw_1),
+                        stringResource(R.string.tc_guard_block_nsfw_2),
+                        stringResource(R.string.tc_guard_block_nsfw_3)
                     )
                 )
                 if (!sfw) {
@@ -673,18 +715,18 @@ private fun GuardDetailDialog(sfw: Boolean, onDismiss: () -> Unit) {
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                        Text(
-                            "再点一次亮着的那盏，另一盏就会亮，不会两个都灭。",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "灰色划线的词两种模式都选不了，判据是同一套。",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                         Text(
+                             stringResource(R.string.tc_guard_note_pair),
+                             style = MaterialTheme.typography.labelSmall,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                         )
+                         Text(
+                             stringResource(R.string.tc_guard_note_strike),
+                             style = MaterialTheme.typography.labelSmall,
+                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                         )
+                     }
                 }
                 }
             }
@@ -702,13 +744,29 @@ private fun GuardDetailDialog(sfw: Boolean, onDismiss: () -> Unit) {
 private fun SfwIntroDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } },
-        title = { Text("已切到 SFW", style = MaterialTheme.typography.titleMedium) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.tc_got_it)) }
+        },
+        title = {
+            Text(
+                stringResource(R.string.tc_sfw_intro_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SfwIntroLine("性感还在", "深 V、开衩、咬唇、泳装这些都保留")
-                SfwIntroLine("只去掉露骨", "性器官、性行为、体液")
-                SfwIntroLine("不移除历史", "图库与已提交的任务不受影响")
+                SfwIntroLine(
+                    stringResource(R.string.tc_sfw_intro_head_1),
+                    stringResource(R.string.tc_sfw_intro_body_1)
+                )
+                SfwIntroLine(
+                    stringResource(R.string.tc_sfw_intro_head_2),
+                    stringResource(R.string.tc_sfw_intro_body_2)
+                )
+                SfwIntroLine(
+                    stringResource(R.string.tc_sfw_intro_head_3),
+                    stringResource(R.string.tc_sfw_intro_body_3)
+                )
             }
         }
     )
@@ -775,13 +833,12 @@ private fun GuardTip() {
     ) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             Text(
-                "注意",
+                stringResource(R.string.tc_guard_tip_title),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
-                "增强模式自带的优化只是把风格、主色串成完整一句，图省事，但依然会出错。" +
-                    "想要更好的效果，用底栏的「优化」调 API 重写一遍。",
+                stringResource(R.string.tc_guard_tip_body),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
@@ -858,7 +915,7 @@ private fun SectionHeader(
         )
         Spacer(Modifier.weight(1f))
         Text(
-            if (locked) "已锁" else "锁住",
+            stringResource(if (locked) R.string.tc_locked else R.string.tc_lock),
             style = MaterialTheme.typography.labelSmall,
             color = if (locked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
             modifier = Modifier
@@ -868,7 +925,7 @@ private fun SectionHeader(
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            "整段重抽",
+            stringResource(R.string.tc_reroll_section),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier
@@ -915,8 +972,8 @@ private fun CategoryRow(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (skipped) {
-                Text(
-                    "本次已跳过",
+                 Text(
+                     stringResource(R.string.tc_skipped),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(top = 5.dp)
@@ -941,8 +998,8 @@ private fun CategoryRow(
 private fun SlotPill(pick: TagPick, label: String?, held: Boolean = false, onClick: () -> Unit) {
     // An ignored slot is off, not empty: showing its leftover value made the state invisible.
     val text = when {
-        pick.ignored -> "已忽略"
-        pick.value.isEmpty() -> "未选"
+        pick.ignored -> stringResource(R.string.tc_ignored)
+        pick.value.isEmpty() -> stringResource(R.string.tc_unselected)
         else -> pick.value
     }
     // 段锁用整段淡底 + 描边，单格锁仍是实心琥珀，两层状态互不吃掉。
@@ -1018,8 +1075,8 @@ private fun ComposerBottomBar(
             Spacer(Modifier.height(9.dp))
             Box(Modifier.fillMaxWidth().clickable(onClick = onExpand)) {
                 if (composed.isBlank()) {
-                    Text(
-                        "还没有组合出内容",
+                     Text(
+                         stringResource(R.string.tc_empty_prompt),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1047,18 +1104,18 @@ private fun ComposerBottomBar(
                     onClick = onCopy,
                     modifier = Modifier.weight(1f).height(44.dp),
                     enabled = composed.isNotBlank(),
-                    shape = RoundedCornerShape(13.dp)
-                ) { Text("复制") }
-                OutlinedButton(
-                    onClick = onRandomize,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(13.dp)
-                ) { Text("随机") }
-                Button(
-                    onClick = onOptimize,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(13.dp)
-                ) { Text("优化") }
+                     shape = RoundedCornerShape(13.dp)
+                 ) { Text(stringResource(R.string.tc_copy)) }
+                 OutlinedButton(
+                     onClick = onRandomize,
+                     modifier = Modifier.weight(1f).height(44.dp),
+                     shape = RoundedCornerShape(13.dp)
+                 ) { Text(stringResource(R.string.tc_randomize)) }
+                 Button(
+                     onClick = onOptimize,
+                     modifier = Modifier.weight(1f).height(44.dp),
+                     shape = RoundedCornerShape(13.dp)
+                 ) { Text(stringResource(R.string.tc_optimize)) }
             }
         }
     }
@@ -1074,7 +1131,7 @@ private fun FullPromptDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("完整提示词") },
+        title = { Text(stringResource(R.string.tc_full_prompt_title)) },
         text = {
             androidx.compose.foundation.layout.Column(
                 modifier = Modifier
@@ -1089,7 +1146,7 @@ private fun FullPromptDialog(
                         modifier = Modifier.height(16.dp)
                     )
                     Text(
-                        text = "负向提示词（贴到 negative 框）",
+                         text = stringResource(R.string.tc_negative_label),
                         style = MaterialTheme.typography.labelMedium
                     )
                     androidx.compose.foundation.layout.Spacer(
@@ -1101,12 +1158,16 @@ private fun FullPromptDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onCopy) { Text("复制") } },
+        confirmButton = {
+            TextButton(onClick = onCopy) { Text(stringResource(R.string.tc_copy)) }
+        },
         dismissButton = {
             if (negative.isNotEmpty()) {
-                TextButton(onClick = onCopyNegative) { Text("复制负向") }
+                TextButton(onClick = onCopyNegative) {
+                    Text(stringResource(R.string.tc_copy_negative))
+                }
             } else {
-                TextButton(onClick = onDismiss) { Text("关闭") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.tc_close)) }
             }
         }
     )
@@ -1135,6 +1196,7 @@ private fun SlotSheet(
     onToggleExcluded: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
      var manage by remember(category.id, slot.id) { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
 
@@ -1159,13 +1221,13 @@ private fun SlotSheet(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onLock) {
-                    Text(if (pick.locked) "已锁定" else "锁定")
+                    Text(stringResource(if (pick.locked) R.string.tc_slot_locked else R.string.tc_slot_lock))
                 }
                 OutlinedButton(onClick = onIgnore) {
-                    Text(if (pick.ignored) "已忽略" else "忽略")
+                    Text(stringResource(if (pick.ignored) R.string.tc_ignored else R.string.tc_ignore))
                 }
                 OutlinedButton(onClick = onClear) {
-                    Text("清除")
+                    Text(stringResource(R.string.tc_clear))
                 }
             }
             if (note != null) {
@@ -1193,40 +1255,46 @@ private fun SlotSheet(
             }
             if (reason != null) {
                 Text(
-                    "为什么是空的：$reason",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary,
+                     stringResource(R.string.tc_why_empty, reason),
+                     style = MaterialTheme.typography.labelSmall,
+                     color = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (manage) "点眼睛排除随机，点垃圾桶删除" else "点一个词换成它",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { manage = !manage }) {
-                    Text(if (manage) "完成" else "管理")
-                }
+                 Text(
+                     stringResource(
+                         if (manage) R.string.tc_manage_hint else R.string.tc_pick_hint
+                     ),
+                     style = MaterialTheme.typography.labelSmall,
+                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                     modifier = Modifier.weight(1f)
+                 )
+                 TextButton(onClick = { manage = !manage }) {
+                     Text(stringResource(if (manage) R.string.tc_done else R.string.tc_manage))
+                 }
             }
             Spacer(Modifier.height(4.dp))
 
             if (groups.isEmpty()) {
                 PoolChips(
                     pool, pick.value, slot.excluded, manage, blocked,
-                    { tag, why2 -> why = "「$tag」$why2" },
-                    onPick, onToggleExcluded, onRemove
-                )
-            } else {
+                     { tag, why2 -> why = context.getString(R.string.tc_word_reason, tag, why2) },
+                     onPick, onToggleExcluded, onRemove
+                 )
+             } else {
                 // 33 mediums in one flat run is a wall of chips. The library ships the three
                 // buckets the player actually thinks in, and anything hand-added lands last.
                 val known = groups.flatMap { it.words }.toSet()
                 val loose = pool.filter { it !in known }
-                val sections = groups.map { it.label to it.words.filter { word -> word in pool } }
+                val sections = groups.map {
+                    it.label.ifBlank { stringResource(R.string.lib_other_group) } to
+                        it.words.filter { word -> word in pool }
+                }
                     .filter { it.second.isNotEmpty() } +
-                    if (loose.isEmpty()) emptyList() else listOf("其他" to loose)
+                    if (loose.isEmpty()) emptyList()
+                    else listOf(stringResource(R.string.tc_other) to loose)
                 sections.forEach { (label, words) ->
                     Text(
                         label,
@@ -1236,7 +1304,7 @@ private fun SlotSheet(
                     )
                     PoolChips(
                         words, pick.value, slot.excluded, manage, blocked,
-                        { tag, why2 -> why = "「$tag」$why2" },
+                        { tag, why2 -> why = context.getString(R.string.tc_word_reason, tag, why2) },
                         onPick, onToggleExcluded, onRemove
                     )
                 }
@@ -1247,7 +1315,7 @@ private fun SlotSheet(
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { draft = it },
-                    label = { Text("添加到这一组") },
+                     label = { Text(stringResource(R.string.tc_add_to_group)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -1260,7 +1328,7 @@ private fun SlotSheet(
                         }
                     }
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "添加")
+                     Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.tc_add))
                 }
             }
         }

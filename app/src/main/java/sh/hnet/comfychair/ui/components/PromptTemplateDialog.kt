@@ -22,10 +22,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.storage.PromptTemplate
 
 /**
@@ -48,23 +50,23 @@ fun TemplateEditorDialog(
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("编辑模板", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    Text(stringResource(R.string.tpl_edit_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                     TextButton(
                         onClick = { onSave(name.trim().ifEmpty { template.name }, body) },
                         enabled = body.isNotBlank()
-                    ) { Text("保存") }
+                    ) { Text(stringResource(R.string.common_save)) }
                 }
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("名称", fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.tpl_name), fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    "${body.lineSequence().count()} 行 · ${body.length} 字",
+                    stringResource(R.string.tpl_body_stats, body.lineSequence().count(), body.length),
                     fontSize = 10.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 8.dp)
@@ -80,9 +82,9 @@ fun TemplateEditorDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    SettingsSecondaryButton("取消", onClick = onDismiss, modifier = Modifier.weight(1f))
+                    SettingsSecondaryButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f))
                     SettingsPrimaryButton(
-                        text = "保存",
+                        text = stringResource(R.string.common_save),
                         onClick = { onSave(name.trim().ifEmpty { template.name }, body) },
                         enabled = body.isNotBlank(),
                         modifier = Modifier.weight(1f)

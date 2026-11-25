@@ -1,0 +1,5 @@
+v0.9.8.8382.613-h3
+- Language picker offers system default, English and Chinese; the German, Spanish, French and Polish sets stay in the source but are no longer packaged
+- H3 workspace, source picker, status lamp and mode names now use string resources, so non-Chinese interfaces no longer show Chinese
+- Filled 24 missing Chinese strings so nothing falls back to English
+- APK about 1.7 MB smaller

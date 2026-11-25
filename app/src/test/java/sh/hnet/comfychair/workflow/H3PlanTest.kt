@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.workflow
 
+import sh.hnet.comfychair.R
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -431,11 +432,9 @@ class H3PlanTest {
         // Every offered ratio has a gloss, and the label still starts with the value the
         // workflow receives, so a chip can never be mistaken for a different ratio.
         ratios.forEach { (name, _) ->
-            val label = H3Resolution.label(name)
-            assertTrue(label.startsWith(name))
-            assertTrue(label.length > name.length)
+            assertTrue("every offered ratio needs a gloss", H3Resolution.hasGloss(name))
         }
-        assertEquals("5:4", H3Resolution.label("5:4"))
+        assertFalse(H3Resolution.hasGloss("5:4"))
     }
 
     @Test
@@ -592,12 +591,12 @@ class H3PlanTest {
         assertNotNull("Guide Turbo 的基础步数必须成功解析", guideSpec.steps)
         assertEquals("24", guideSpec.steps!!.nodeId)
         assertEquals(8, guideSpec.steps!!.steps)
-        assertTrue("不能有步数不可编辑警告", guideSpec.warnings.none { it.contains("Steps 不可编辑") })
+        assertTrue("不能有步数不可编辑警告", guideSpec.warnings.none { it.resId == R.string.plan_steps_missing })
 
         assertNotNull("R2V Turbo 的基础步数必须成功解析", r2vSpec.steps)
         assertEquals("24", r2vSpec.steps!!.nodeId)
         assertEquals(8, r2vSpec.steps!!.steps)
-        assertTrue("不能有步数不可编辑警告", r2vSpec.warnings.none { it.contains("Steps 不可编辑") })
+        assertTrue("不能有步数不可编辑警告", r2vSpec.warnings.none { it.resId == R.string.plan_steps_missing })
 
         // 验证高级设置展示项（非 hidden）中的标签正名
         val visibleLabels = guideSpec.extras.filter { !it.hidden }.map { it.label }

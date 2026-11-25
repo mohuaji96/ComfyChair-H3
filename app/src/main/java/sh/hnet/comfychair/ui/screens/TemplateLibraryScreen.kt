@@ -20,8 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.storage.PromptTemplate
 import sh.hnet.comfychair.storage.PromptTemplateStore
 import sh.hnet.comfychair.storage.PromptTemplates
@@ -70,28 +72,31 @@ fun TemplateLibraryScreen(
             context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
         }.getOrNull()
         if (text.isNullOrBlank() || text.length < 200) {
-            notice = "文件读不出来，或内容太短不像是模板"
+            notice = context.getString(R.string.tpl_notice_import_failed)
             return@rememberLauncherForActivityResult
         }
         val created = PromptTemplate(
             id = "custom_${UUID.randomUUID()}",
-            name = PromptTemplates.uniqueName(list, queryName(context, uri) ?: "导入模板"),
+            name = PromptTemplates.uniqueName(
+                list,
+                queryName(context, uri) ?: context.getString(R.string.tpl_default_imported_name)
+            ),
             body = text,
             builtIn = false,
             updatedAt = System.currentTimeMillis()
         )
         PromptTemplateStore.saveCustom(context, created)
         PromptTemplateStore.setActive(context, created.id)
-        notice = "已导入「${created.name}」并启用"
+        notice = context.getString(R.string.tpl_notice_imported, created.name)
         refresh()
     }
 
     SettingsDetailScaffold(
-        title = "模板库",
+        title = stringResource(R.string.tpl_title),
         onBack = onBack,
         status = {
             Text(
-                "${customs.size} 份自定义",
+                stringResource(R.string.tpl_custom_count, customs.size),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -99,18 +104,21 @@ fun TemplateLibraryScreen(
         bottomBar = {
             BottomActionBar {
                 SettingsSecondaryButton(
-                    text = "从文件导入",
+                    text = stringResource(R.string.tpl_import_from_file),
                     onClick = {
                         importLauncher.launch(arrayOf("text/*", "application/octet-stream"))
                     },
                     modifier = Modifier.weight(1f)
                 )
                 SettingsPrimaryButton(
-                    text = "新建空白",
+                    text = stringResource(R.string.tpl_new_blank),
                     onClick = {
                         editing = PromptTemplate(
                             id = "custom_${UUID.randomUUID()}",
-                            name = PromptTemplates.uniqueName(list, "新模板"),
+                            name = PromptTemplates.uniqueName(
+                                list,
+                                context.getString(R.string.tpl_default_new_name)
+                            ),
                             body = "",
                             builtIn = false
                         )
@@ -129,26 +137,33 @@ fun TemplateLibraryScreen(
             )
         }
 
-        SettingsSectionLabel("内置", note = "只读")
+        SettingsSectionLabel(
+            stringResource(R.string.tpl_section_builtin),
+            note = stringResource(R.string.tpl_note_readonly)
+        )
         SettingsGroupCard {
             builtIns.forEachIndexed { index, template ->
                 if (index > 0) SettingsRowDivider()
                 SettingsItemRow(
                     title = template.name,
-                    meta = "${template.blurb} · ${template.body.length} 字",
+                    meta = stringResource(
+                        R.string.tpl_meta_chars_with_blurb,
+                        template.blurb,
+                        template.body.length
+                    ),
                     active = template.id == activeId,
                     onClick = { onOpenDetail(template.id) },
                     trailing = {
-                        SimpleTextAction("复制") {
+                        SimpleTextAction(stringResource(R.string.tpl_action_copy)) {
                             val copy = PromptTemplateStore.copyAsCustom(context, template)
                             PromptTemplateStore.setActive(context, copy.id)
-                            notice = "已复制为「${copy.name}」并启用"
+                            notice = context.getString(R.string.tpl_notice_copied, copy.name)
                             refresh()
                         }
                         if (template.id != activeId) {
-                            SimpleTextAction("启动") {
+                            SimpleTextAction(stringResource(R.string.tpl_action_activate)) {
                                 PromptTemplateStore.setActive(context, template.id)
-                                notice = "已启用「${template.name}」"
+                                notice = context.getString(R.string.tpl_notice_activated, template.name)
                                 refresh()
                             }
                         }
@@ -157,10 +172,14 @@ fun TemplateLibraryScreen(
             }
         }
 
-        SettingsSectionLabel("自定义", note = if (customs.isEmpty()) "还没有" else "${customs.size} 份")
+        SettingsSectionLabel(
+            stringResource(R.string.tpl_section_custom),
+            note = if (customs.isEmpty()) stringResource(R.string.tpl_note_none_yet)
+            else stringResource(R.string.tpl_note_count, customs.size)
+        )
         if (customs.isEmpty()) {
             Text(
-                "还没有自定义模板。复制内置的一份，或者从文件导入。",
+                stringResource(R.string.tpl_empty_custom),
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 6.dp)
@@ -172,9 +191,10 @@ fun TemplateLibraryScreen(
                     SettingsItemRow(
                         title = template.name,
                         meta = listOf(
-                            template.sourceName.takeIf { it.isNotEmpty() }?.let { "复制自「$it」" }
-                                ?: "手动导入",
-                            "${template.body.length} 字"
+                            template.sourceName.takeIf { it.isNotEmpty() }
+                                ?.let { stringResource(R.string.tpl_meta_copied_from, it) }
+                                ?: stringResource(R.string.tpl_meta_manual_import),
+                            stringResource(R.string.tpl_meta_chars, template.body.length)
                         ).joinToString(" · "),
                         active = template.id == activeId,
                         onClick = { onOpenDetail(template.id) }
@@ -196,7 +216,7 @@ fun TemplateLibraryScreen(
                 if (PromptTemplateStore.activeId(context) == null) {
                     PromptTemplateStore.setActive(context, saved.id)
                 }
-                notice = "已保存「${saved.name}」"
+                notice = context.getString(R.string.tpl_notice_saved, saved.name)
                 editing = null
                 refresh()
             }

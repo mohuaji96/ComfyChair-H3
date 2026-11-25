@@ -9,6 +9,7 @@ import sh.hnet.comfychair.model.ContentProfile
 import sh.hnet.comfychair.model.SfwGuard
 import sh.hnet.comfychair.model.TagLibrary
 import sh.hnet.comfychair.model.TagLibraryJson
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.TagSlot
 import sh.hnet.comfychair.util.DebugLogger
 import java.io.File
@@ -68,15 +69,17 @@ class TagLibraryStore private constructor(
      * app update.
      */
     /** 导入的文件自报的是另一个档，先让用户确认再收。 */
-    class ProfileMismatch(val found: ContentProfile) : IllegalArgumentException("档位不符")
+    class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
     fun importFrom(uri: Uri, merge: Boolean = false, force: Boolean = false): Result<TagLibrary> = runCatching {
         val text = context.contentResolver.openInputStream(uri)?.use { input ->
             input.bufferedReader(Charsets.UTF_8).readText()
-        } ?: throw IllegalArgumentException("无法读取文件")
+        } ?: throw IllegalArgumentException(context.getString(R.string.err_tl_read_failed))
         val incoming = TagLibraryJson.parse(text)
         if (incoming.schemaVersion > SUPPORTED_SCHEMA) {
-            throw IllegalArgumentException("词库版本过新（schemaVersion ${incoming.schemaVersion}），请升级应用")
+            throw IllegalArgumentException(
+                context.getString(R.string.err_tl_schema_too_new, incoming.schemaVersion)
+            )
         }
         // 跨档不硬拦，但要先问一句：拿 SFW 的词覆盖 NSFW 库，一次误操作就找不回来了。
         val declared = when (incoming.profile) {
@@ -84,7 +87,9 @@ class TagLibraryStore private constructor(
             "nsfw" -> ContentProfile.NSFW
             else -> ContentProfile.fromRating(incoming.rating)
         }
-        if (!force && declared != profile) throw ProfileMismatch(declared)
+        if (!force && declared != profile) {
+            throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
+        }
         val library = if (merge) mergeInto(_library.value, incoming) else incoming
         if (!merge) {
             pinnedFile.createNewFile()
@@ -205,7 +210,7 @@ class TagLibraryStore private constructor(
         val text = TagLibraryJson.write(_library.value)
         context.contentResolver.openOutputStream(uri)?.use { output ->
             output.bufferedWriter(Charsets.UTF_8).use { it.write(text) }
-        } ?: throw IllegalArgumentException("无法写入文件")
+        } ?: throw IllegalArgumentException(context.getString(R.string.err_tl_export_failed))
         Unit
     }
 
@@ -230,7 +235,7 @@ class TagLibraryStore private constructor(
             if (!tmp.renameTo(target)) {
                 target.delete()
                 if (!tmp.renameTo(target)) {
-                    throw java.io.IOException("无法写入词库文件，请检查存储空间")
+                    throw java.io.IOException(context.getString(R.string.err_tl_write_failed))
                 }
             }
         } finally {
@@ -309,9 +314,9 @@ class TagLibraryStore private constructor(
         val kept = wasThere.count { it !in shipped }
         val fresh = bundled.tagCount - before.tagCount
         return when {
-            kept > 0 -> "词库已更新到 ${bundled.version}，你加的 $kept 个词保留了"
-            fresh > 0 -> "词库已更新到 ${bundled.version}，新增 $fresh 个词"
-            else -> "词库已更新到 ${bundled.version}"
+            kept > 0 -> context.getString(R.string.err_tl_upgrade_kept, bundled.version, kept)
+            fresh > 0 -> context.getString(R.string.err_tl_upgrade_new, bundled.version, fresh)
+            else -> context.getString(R.string.err_tl_upgrade_plain, bundled.version)
         }
     }
 

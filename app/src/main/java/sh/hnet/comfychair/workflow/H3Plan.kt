@@ -1,9 +1,34 @@
 package sh.hnet.comfychair.workflow
 
+import android.content.Context
 import androidx.annotation.StringRes
 import org.json.JSONArray
 import org.json.JSONObject
 import sh.hnet.comfychair.R
+
+/**
+ * A user-facing message: the string resource plus the arguments for its placeholders.
+ *
+ * Workflow code has no Context, so it carries the resource and the interface resolves it —
+ * the same contract [H3Plan.Extra] uses for its labels.
+ */
+data class H3Message(@StringRes val resId: Int, val args: List<Any>) {
+    constructor(@StringRes resId: Int, vararg args: Any) : this(resId, args.toList())
+
+    /** Resolve against [context]; [H3Res] arguments are resolved first. */
+    fun format(context: Context): String {
+        if (args.isEmpty()) return context.getString(resId)
+        val resolved = args.map { if (it is H3Res) context.getString(it.resId) else it }
+        return context.getString(resId, *resolved.toTypedArray())
+    }
+}
+
+/** A string resource passed as a placeholder argument of another [H3Message]. */
+@JvmInline
+value class H3Res(@StringRes val resId: Int)
+
+/** An edit that cannot be applied; the interface renders [notice]. */
+class H3EditException(val notice: H3Message) : IllegalArgumentException()
 
 /**
  * Mode-driven binding plan for one H3 workflow.
@@ -98,7 +123,15 @@ object H3Plan {
      * scheduler, sampler, denoise, seed, output fps and so on. Values are read from the file and
      * written back to the same cell, never merged into another sampling path.
      */
-    data class Extra(val nodeId: String, val input: String, val label: String, val value: Any, val combo: Boolean, val hidden: Boolean = false) {
+    data class Extra(
+        val nodeId: String,
+        val input: String,
+        val label: String,
+        val value: Any,
+        val combo: Boolean,
+        val hidden: Boolean = false,
+        @StringRes val labelRes: Int = 0
+    ) {
         val key: String get() = "$nodeId:$input"
     }
 
@@ -122,7 +155,7 @@ object H3Plan {
         val outputNodeId: String?,
         val format: String,
         val extras: List<Extra>,
-        val warnings: List<String>
+        val warnings: List<H3Message>
     ) {
         val supportsFrames: Boolean get() = Mode.T2V in modes
         val supportsReferences: Boolean get() = Mode.R2V in modes
@@ -172,7 +205,7 @@ object H3Plan {
     data class LoraEdit(val id: String, val file: String? = null, val strength: Double? = null,
                         val enabled: Boolean? = null)
 
-    data class Result(val json: String, val notes: List<String>, val errors: List<String>) {
+    data class Result(val json: String, val notes: List<H3Message>, val errors: List<H3Message>) {
         val ok: Boolean get() = errors.isEmpty()
     }
 
@@ -231,7 +264,7 @@ object H3Plan {
         val core = n.getJSONObject(coreId)
         val coreClass = core.optString("class_type")
         val ci = core.optJSONObject("inputs") ?: JSONObject()
-        val warnings = mutableListOf<String>()
+        val warnings = mutableListOf<H3Message>()
 
         fun link(id: String, input: String): String? =
             (n.optJSONObject(id)?.optJSONObject("inputs")?.opt(input) as? JSONArray)
@@ -292,7 +325,7 @@ object H3Plan {
                 }
                 walk(src, 0)
                 cands.distinctBy { it.nodeId to it.input }.singleOrNull() ?: run {
-                    warnings.add("提示词来源不唯一（${cands.size} 个候选），请在专业编辑器中修改")
+                    warnings.add(H3Message(R.string.plan_prompt_ambiguous, cands.size))
                     null
                 }
             }
@@ -305,11 +338,11 @@ object H3Plan {
             val mp = (ins.opt("megapixels") as? Number)?.toDouble()
             val ar = ins.opt("aspect_ratio") as? String
             if (mp == null || ar == null) {
-                warnings.add("分辨率节点 #$id 缺少宽高比或像素量，比例选择器不可用")
+                warnings.add(H3Message(R.string.plan_resolution_incomplete, id))
                 null
             } else ResolutionTarget(id, ar, mp, (ins.opt("multiple") as? Number)?.toInt() ?: 32)
         }
-        if (resolution == null) warnings.add("宽高由工作流直接给定：比例与像素量不可编辑，可在高级设置改宽高")
+        if (resolution == null) warnings.add(H3Message(R.string.plan_size_fixed))
 
         // ---- duration (seconds -> frames)
         val duration = run {
@@ -337,7 +370,7 @@ object H3Plan {
                 val value = (leaf?.optJSONObject("inputs")?.opt("value") as? Number)?.toDouble()
                 if (leaf == null || value == null || leaf.optString("class_type") !in
                     setOf("PrimitiveFloat", "PrimitiveInt", "PrimitiveNumber")) {
-                    warnings.add("视频时长来源不是可编辑的数值节点，时长不可修改")
+                    warnings.add(H3Message(R.string.plan_duration_not_numeric))
                     null
                 } else if (exprNode != null) {
                     DurationTarget(cursor, "value", value, exprNode)
@@ -377,7 +410,7 @@ object H3Plan {
                 if (route?.activeNodeId != null && route.activeSteps != null)
                     StepsTarget(route.activeNodeId, "value", route.activeSteps.toInt())
                 else {
-                    warnings.add("未找到可编辑的采样步数节点，Steps 不可编辑")
+                    warnings.add(H3Message(R.string.plan_steps_missing))
                     null
                 }
             }
@@ -441,7 +474,7 @@ object H3Plan {
                 }
             }
         }
-        if (unet == null) warnings.add("未找到基础模型（UNETLoader）")
+         if (unet == null) warnings.add(H3Message(R.string.plan_unet_missing))
 
         // ---- images
         val hasAddGuide = n.keys().asSequence().any { n.optJSONObject(it)?.optString("class_type") == "MiniMaxH3AddGuide" }
@@ -473,11 +506,11 @@ object H3Plan {
         val outputNodeId = n.keys().asSequence().firstOrNull {
             n.optJSONObject(it)?.optString("class_type") in setOf("VHS_VideoCombine", "SaveVideo", "SaveAnimatedWEBP", "SaveAnimatedPNG")
         }
-        if (outputNodeId == null) warnings.add("未找到视频输出节点，结果可能不会出现在视频列表")
+        if (outputNodeId == null) warnings.add(H3Message(R.string.plan_output_missing))
         // The reference sockets are only unusable when the core cannot take them at all. A
         // first/last-frame template keeps them in its file and drives the same core, so warning
         // there was a false alarm on every Turbo template.
-        if (refIndices.isNotEmpty() && coreClass != REF_CORE) warnings.add("该工作流带有参考图接口但与核心节点不匹配")
+        if (refIndices.isNotEmpty() && coreClass != REF_CORE) warnings.add(H3Message(R.string.plan_refcore_mismatch))
 
         // ---- parameters that are real but not on the everyday page
         val taken = buildSet {
@@ -489,19 +522,38 @@ object H3Plan {
             add("$coreId:prompt")
         }
         val extras = mutableListOf<Extra>()
+        // Each entry carries both a plain label and a string resource: the plain one is only a
+        // fallback for logs, the interface reads the resource so an English screen never shows the
+        // Chinese node names this map used to hand straight to the UI.
         val extraMap = mapOf(
-            "BasicScheduler" to listOf("scheduler" to "采样调度 Scheduler", "steps" to "采样步数 Steps", "denoise" to "降噪强度 Denoise"),
-            "KSamplerSelect" to listOf("sampler_name" to "采样器 Sampler"),
+            "BasicScheduler" to listOf(
+                Triple("scheduler", "采样调度 Scheduler", R.string.h3_field_scheduler),
+                Triple("steps", "采样步数 Steps", R.string.h3_field_steps),
+                Triple("denoise", "降噪强度 Denoise", R.string.h3_field_denoise)
+            ),
+            "KSamplerSelect" to listOf(
+                Triple("sampler_name", "采样器 Sampler", R.string.h3_field_sampler)
+            ),
             "SamplerCustomAdvanced" to listOf(),
-            "ResolutionSelector" to listOf("multiple" to "分辨率对齐倍数"),
-            "VHS_VideoCombine" to listOf("frame_rate" to "输出帧率", "crf" to "视频质量 CRF", "format" to "视频格式"),
-            "ModelPreviewOverrideKJ" to listOf("preview_fps" to "预览帧率"),
-            "easy seed" to listOf("seed" to "随机种子 Seed"),
-            "RandomNoise" to listOf("noise_seed" to "随机种子 Seed"),
-            "PrimitiveBoolean" to listOf("value" to "开关状态"),
-            "PrimitiveFloat" to listOf("value" to "浮点数值"),
-            "INTConstant" to listOf("value" to "整型常量"),
-            "RTXVideoSuperResolution" to listOf("resize_type.scale" to "RTX超分倍率")
+            "ResolutionSelector" to listOf(
+                Triple("multiple", "分辨率对齐倍数", R.string.h3_field_res_multiple)
+            ),
+            "VHS_VideoCombine" to listOf(
+                Triple("frame_rate", "输出帧率", R.string.h3_field_frame_rate),
+                Triple("crf", "视频质量 CRF", R.string.h3_field_crf),
+                Triple("format", "视频格式", R.string.h3_field_format)
+            ),
+            "ModelPreviewOverrideKJ" to listOf(
+                Triple("preview_fps", "预览帧率", R.string.h3_field_preview_fps)
+            ),
+            "easy seed" to listOf(Triple("seed", "随机种子 Seed", R.string.h3_field_seed)),
+            "RandomNoise" to listOf(Triple("noise_seed", "随机种子 Seed", R.string.h3_field_seed)),
+            "PrimitiveBoolean" to listOf(Triple("value", "开关状态", R.string.h3_field_switch)),
+            "PrimitiveFloat" to listOf(Triple("value", "浮点数值", R.string.h3_field_float)),
+            "INTConstant" to listOf(Triple("value", "整型常量", R.string.h3_field_int)),
+            "RTXVideoSuperResolution" to listOf(
+                Triple("resize_type.scale", "RTX超分倍率", R.string.h3_field_rtx_scale)
+            )
         )
         nodeLoop@ for (id in n.keys()) {
             val node = n.optJSONObject(id) ?: continue@nodeLoop
@@ -516,29 +568,30 @@ object H3Plan {
             val isSecondPass = id == "102" || nodeTitle.contains("Second", ignoreCase = true) || nodeTitle.contains("二采")
             val isGrain = id == "174" || nodeTitle.contains("grain", ignoreCase = true)
 
-            for ((input, defaultLabel) in fields) {
+            for ((input, defaultLabel, defaultRes) in fields) {
                 val key = "$id:$input"
                 if (key in taken) continue
                 val value = ins.opt(input)
                 if (value != null && value !== JSONObject.NULL && value !is JSONArray && value !is JSONObject) {
+                    var labelRes = defaultRes
                     val label = when {
                         cls == "BasicScheduler" && isFirstPass -> when (input) {
-                            "scheduler" -> "一采采样调度 Scheduler"
-                            "denoise" -> "一采降噪强度 Denoise"
-                            "steps" -> "一采采样步数 Steps"
+                            "scheduler" -> { labelRes = R.string.h3_field_first_scheduler; "一采采样调度 Scheduler" }
+                            "denoise" -> { labelRes = R.string.h3_field_first_denoise; "一采降噪强度 Denoise" }
+                            "steps" -> { labelRes = R.string.h3_field_first_steps; "一采采样步数 Steps" }
                             else -> defaultLabel
                         }
                         cls == "BasicScheduler" && isSecondPass -> when (input) {
-                            "scheduler" -> "二采采样调度 Scheduler"
-                            "denoise" -> "二采降噪强度 Denoise"
-                            "steps" -> "二采采样步数 Steps"
+                            "scheduler" -> { labelRes = R.string.h3_field_second_scheduler; "二采采样调度 Scheduler" }
+                            "denoise" -> { labelRes = R.string.h3_field_second_denoise; "二采降噪强度 Denoise" }
+                            "steps" -> { labelRes = R.string.h3_field_second_steps; "二采采样步数 Steps" }
                             else -> defaultLabel
                         }
-                        isGrain -> "胶片颗粒强度 (0=关闭)"
-                        id == "23" -> "二采目标像素"
-                        id == "94" -> "二采跳过开关"
-                        id == "173" -> "插帧倍数"
-                        id == "39" -> "RTX 视频超分倍率"
+                        isGrain -> { labelRes = R.string.h3_field_grain; "胶片颗粒强度 (0=关闭)" }
+                        id == "23" -> { labelRes = R.string.h3_field_second_mp; "二采目标像素" }
+                        id == "94" -> { labelRes = R.string.h3_field_second_skip; "二采跳过开关" }
+                        id == "173" -> { labelRes = R.string.h3_field_frame_gen; "插帧倍数" }
+                        id == "39" -> { labelRes = R.string.h3_field_rtx_video_scale; "RTX 视频超分倍率" }
                         else -> defaultLabel
                     }
                     val hidden = when {
@@ -551,7 +604,7 @@ object H3Plan {
                         cls == "PrimitiveFloat" && (id == "23" || isSecondPass) -> true
                         else -> false
                     }
-                    extras.add(Extra(id, input, label, value, combo, hidden))
+                    extras.add(Extra(id, input, label, value, combo, hidden, labelRes))
                 }
             }
         }
@@ -611,23 +664,23 @@ object H3Plan {
      */
     fun build(source: String, spec: Spec, request: Request, aspectOptions: List<String> = emptyList()): Result {
         val (n, _) = apiNodes(source)
-            ?: return Result(source, emptyList(), listOf("工作流不是合法 JSON 或无法解析"))
-        val core = n.optJSONObject(spec.coreId) ?: return Result(source, emptyList(), listOf("核心节点已不存在"))
+            ?: return Result(source, emptyList(), listOf(H3Message(R.string.plan_err_invalid_json)))
+        val core = n.optJSONObject(spec.coreId) ?: return Result(source, emptyList(), listOf(H3Message(R.string.plan_err_no_core)))
         val ci = core.getJSONObject("inputs")
-        val notes = mutableListOf<String>()
-        val errors = mutableListOf<String>()
+        val notes = mutableListOf<H3Message>()
+        val errors = mutableListOf<H3Message>()
 
         // ---- mode decides the optional frame inputs
         when (request.mode) {
             Mode.T2V -> {
                 ci.remove("first_frame"); ci.remove("last_frame")
-                notes.add("T2V：首帧与尾帧都不提交（仅修改本次提交副本）")
+                notes.add(H3Message(R.string.plan_note_t2v))
             }
             Mode.I2V -> {
                 ci.remove("last_frame")
                 if (request.firstFrame == null && ci.opt("first_frame") !is JSONArray)
-                    errors.add("I2V 需要首帧图片，请先上传")
-                notes.add("I2V：只提交首帧")
+                    errors.add(H3Message(R.string.plan_err_i2v_first))
+                notes.add(H3Message(R.string.plan_note_i2v))
             }
             Mode.FL2V -> {
                 // Both keyframes are optional inputs of MiniMaxH3ImageToVideo, so "end on this
@@ -638,22 +691,22 @@ object H3Plan {
                 if (request.clearLastFrame) ci.remove("last_frame")
                 val hasFirst = request.firstFrame != null || ci.opt("first_frame") is JSONArray
                 val hasLast = request.lastFrame != null || ci.opt("last_frame") is JSONArray
-                if (!hasFirst && !hasLast) errors.add("首尾帧视频至少要选一张图片")
+                if (!hasFirst && !hasLast) errors.add(H3Message(R.string.plan_err_fl_frames))
                 notes.add(
                     when {
-                        hasFirst && hasLast -> "FL2V：首帧与尾帧同时提交"
-                        hasLast -> "尾帧模式：只提交尾帧，画面朝这张收尾"
-                        else -> "FL2V：只提交首帧"
+                        hasFirst && hasLast -> H3Message(R.string.plan_note_fl_both)
+                        hasLast -> H3Message(R.string.plan_note_fl_last)
+                        else -> H3Message(R.string.plan_note_fl_first)
                     }
                 )
             }
             Mode.R2V -> {
-                if (request.references.none { it != null }) errors.add("R2V 至少需要一张参考图")
-                notes.add("R2V：提交 ${request.references.count { it != null }} 张参考图")
+                if (request.references.none { it != null }) errors.add(H3Message(R.string.plan_err_r2v_ref))
+                notes.add(H3Message(R.string.plan_note_r2v, request.references.count { it != null }))
             }
         }
         if (spec.modes.isNotEmpty() && request.mode !in spec.modes)
-            errors.add("该工作流不支持 ${request.mode.label}")
+            errors.add(H3Message(R.string.plan_err_mode_unsupported, H3Res(request.mode.labelRes)))
 
         // ---- reference video is not exposed yet, so it is never submitted.
         // A template that still wires a clip would post whatever filename its author left behind,
@@ -680,9 +733,9 @@ object H3Plan {
                     val last = request.lastFrame
                     if (last != null) attach(n, spec.coreId, "last_frame", last)
                 } else if (hasGuides) {
-                    notes.add("该工作流用引导节点挂首尾帧，不写核心节点输入")
+                    notes.add(H3Message(R.string.plan_note_guides))
                 } else {
-                    errors.add("当前工作流的核心节点不接受首尾帧，请换一个首尾帧工作流")
+                    errors.add(H3Message(R.string.plan_err_core_no_frames))
                 }
             }
             Mode.R2V -> {
@@ -694,8 +747,8 @@ object H3Plan {
                     // 槽位用完就停，不能再回落到 i：那会撞上已经用掉的槽，后一张图把前一张覆盖掉。
                     val slot = slots.getOrNull(i)
                     when {
-                        i >= limit -> errors.add("服务器只接受 $limit 张参考图")
-                        slot == null -> errors.add("该工作流只有 ${slots.size} 个参考图接口，第 ${i + 1} 张放不进去")
+                        i >= limit -> errors.add(H3Message(R.string.plan_err_ref_limit, limit))
+                        slot == null -> errors.add(H3Message(R.string.plan_err_ref_slots, slots.size, i + 1))
                         else -> {
                             activeSlots.add(slot)
                             attach(n, spec.coreId, "$REF_PREFIX$slot", file)
@@ -728,11 +781,11 @@ object H3Plan {
                 val ins = n.optJSONObject(slot.nodeId)?.optJSONObject("inputs")
                 when {
                     file == null -> ci.remove(slot.coreInput)
-                    ins == null -> errors.add("参考音频节点 #${slot.nodeId} 已不存在")
+                    ins == null -> errors.add(H3Message(R.string.plan_err_audio_node_missing, slot.nodeId))
                     else -> {
                         ins.put(slot.fileInput, file)
                         ci.put(slot.coreInput, JSONArray().put(slot.nodeId).put(slot.output))
-                        notes.add("参考音频 ${i + 1} → $file")
+                        notes.add(H3Message(R.string.plan_note_audio, i + 1, file))
                     }
                 }
             }
@@ -742,31 +795,33 @@ object H3Plan {
         val target = spec.resolution
         if (target != null) {
             val ins = n.optJSONObject(target.nodeId)?.optJSONObject("inputs")
-            if (ins == null) errors.add("分辨率节点已不存在")
+            if (ins == null) errors.add(H3Message(R.string.plan_err_res_node_missing))
             else {
                 if (request.customWidth != null || request.customHeight != null) {
-                    val w = request.customWidth ?: return Result(source, notes, errors + "自定义宽高需要同时给出宽和高")
-                    val h = request.customHeight ?: return Result(source, notes, errors + "自定义宽高需要同时给出宽和高")
+                    val w = request.customWidth ?: return Result(source, notes,
+                        errors + H3Message(R.string.plan_err_custom_wh))
+                    val h = request.customHeight ?: return Result(source, notes,
+                        errors + H3Message(R.string.plan_err_custom_wh))
                     val sw = H3Resolution.snap(w.toDouble(), 32, 32, 16384)
                     val sh = H3Resolution.snap(h.toDouble(), 32, 32, 16384)
                     ci.put("width", sw); ci.put("height", sh)
-                    notes.add("自定义宽高直接写入核心节点：$sw × $sh（绕过比例选择器，仅本次提交）")
-                    if (sw != w || sh != h) notes.add("已对齐到 32 的倍数（节点约束）")
+                    notes.add(H3Message(R.string.plan_note_custom_wh, sw, sh))
+                    if (sw != w || sh != h) notes.add(H3Message(R.string.plan_note_aligned32))
                 } else {
                     request.ratio?.let { label ->
                         val option = matchRatio(label, aspectOptions.ifEmpty { defaultAspectOptions })
-                        if (option == null) errors.add("服务器不接受比例 $label")
-                        else { ins.put("aspect_ratio", option); notes.add("比例 → $option") }
+                        if (option == null) errors.add(H3Message(R.string.plan_err_ratio, label))
+                        else { ins.put("aspect_ratio", option); notes.add(H3Message(R.string.plan_note_ratio, option)) }
                     }
                     request.megapixels?.let {
                         val clamped = it.coerceIn(0.1, 16.0)
                         ins.put("megapixels", clamped)
-                        notes.add("像素量 → $clamped MP")
+                        notes.add(H3Message(R.string.plan_note_megapixels, clamped))
                     }
                     if (ins.has("multiple")) request.multiple?.let {
                         val m = it.coerceIn(8, 128)
                         ins.put("multiple", m)
-                        notes.add("对齐倍数 → $m")
+                        notes.add(H3Message(R.string.plan_note_multiple, m))
                     }
                 }
             }
@@ -774,7 +829,7 @@ object H3Plan {
             val sw = H3Resolution.snap(request.customWidth.toDouble(), 32, 32, 16384)
             val sh = H3Resolution.snap(request.customHeight.toDouble(), 32, 32, 16384)
             ci.put("width", sw); ci.put("height", sh)
-            notes.add("宽高 → $sw × $sh")
+            notes.add(H3Message(R.string.plan_note_wh, sw, sh))
         }
 
         // ---- duration (seconds into the workflow's own frames expression)
@@ -782,17 +837,18 @@ object H3Plan {
         if (duration != null && request.seconds != null) {
             val node = n.optJSONObject(duration.nodeId)
             val ins = node?.optJSONObject("inputs")
-            if (ins == null) errors.add("时长节点已不存在")
+            if (ins == null) errors.add(H3Message(R.string.plan_err_duration_node_missing))
             else {
                 if (duration.expression == null) {
                     // No math node: the field is a frame count.
                     val frames = H3Resolution.snap(request.seconds * spec.fps, 17, 5, 3600)
                     ins.put(duration.input, frames)
-                    notes.add("时长 ${request.seconds}s → $frames 帧")
+                    notes.add(H3Message(R.string.plan_note_duration_frames, request.seconds, frames))
                 } else {
                     ins.put(duration.input, request.seconds)
                     val frames = ComfyExpr.frames(duration.expression, request.seconds)
-                    notes.add("时长 ${request.seconds}s → ${frames ?: "?"} 帧（由工作流表达式计算）")
+                    notes.add(H3Message(R.string.plan_note_duration_expression, request.seconds,
+                        frames ?: "?"))
                 }
             }
         }
@@ -800,8 +856,8 @@ object H3Plan {
         // ---- steps
         if (request.steps != null && spec.steps != null) {
             val ins = n.optJSONObject(spec.steps.nodeId)?.optJSONObject("inputs")
-            if (ins == null) errors.add("步数节点已不存在")
-            else { ins.put(spec.steps.input, request.steps.coerceIn(1, 10000)); notes.add("Steps → ${request.steps}") }
+            if (ins == null) errors.add(H3Message(R.string.plan_err_steps_node_missing))
+            else { ins.put(spec.steps.input, request.steps.coerceIn(1, 10000)); notes.add(H3Message(R.string.plan_note_steps, request.steps)) }
         }
 
         // ---- prompt
@@ -819,7 +875,7 @@ object H3Plan {
                 edit.strength?.let { entry.put("strength", it) }
                 edit.enabled?.let { entry.put("on", it) }
             } else {
-                edit.file?.let { ins.put("lora_name", it); notes.add("LoRA → $it") }
+                edit.file?.let { ins.put("lora_name", it); notes.add(H3Message(R.string.plan_note_lora, it)) }
                 edit.strength?.let {
                     if (ins.has("strength_model")) ins.put("strength_model", it)
                 }
@@ -832,8 +888,8 @@ object H3Plan {
         // ---- extra LoRA chain, appended after the workflow's own loaders
         if (request.extraLoras.isNotEmpty()) {
             val added = injectExtraLoras(n, spec, request.extraLoras)
-            if (added == null) errors.add("找不到模型链末端，无法追加 LoRA")
-            else notes.add("追加 ${added} 个 LoRA（仅本次提交）")
+            if (added == null) errors.add(H3Message(R.string.plan_err_lora_tail))
+            else notes.add(H3Message(R.string.plan_note_lora_added, added))
         }
 
         // ---- advanced parameters, written to the cell they were read from
@@ -841,8 +897,8 @@ object H3Plan {
             val id = key.substringBefore(':')
             val input = key.substringAfter(':', "")
             val ins = n.optJSONObject(id)?.optJSONObject("inputs")
-            if (ins == null || input.isEmpty()) { errors.add("高级参数 $key 已不存在"); return@forEach }
-            if (ins.opt(input) is JSONArray) errors.add("高级参数 $key 已变为连接，不能直接写入")
+            if (ins == null || input.isEmpty()) { errors.add(H3Message(R.string.plan_err_extra_missing, key)); return@forEach }
+            if (ins.opt(input) is JSONArray) errors.add(H3Message(R.string.plan_err_extra_linked, key))
             else ins.put(input, value)
         }
 
@@ -987,7 +1043,7 @@ object H3Plan {
      * - FL2V (both): set node 9 and node 190, keep full chain.
      * - Tail only: set node 190, bypass head guide so 192/193 connect to ["151:11", 0].
      */
-    private fun wireTurboGuides(n: JSONObject, coreId: String, first: String?, last: String?, notes: MutableList<String>) {
+    private fun wireTurboGuides(n: JSONObject, coreId: String, first: String?, last: String?, notes: MutableList<H3Message>) {
         val guideIds = n.keys().asSequence().filter { n.optJSONObject(it)?.optString("class_type") == "MiniMaxH3AddGuide" }.toList()
         if (guideIds.isEmpty()) return
 
@@ -1016,7 +1072,7 @@ object H3Plan {
                 }
                 core?.remove("ref_images.ref_image_0")
                 core?.remove("ref_images.ref_image_1")
-                notes.add("Turbo：首尾帧引导全部旁路，直连纯文生链路")
+                notes.add(H3Message(R.string.plan_note_turbo_bypass_all))
             }
             // 2. Head only: first frame provided, no tail frame
             first != null && last == null -> {
@@ -1040,7 +1096,7 @@ object H3Plan {
                     }
                 }
                 core?.remove("ref_images.ref_image_1")
-                notes.add("Turbo：生效首帧引导，尾帧引导旁路")
+                notes.add(H3Message(R.string.plan_note_turbo_first_only))
             }
             // 3. Both frames provided
             first != null && last != null -> {
@@ -1055,7 +1111,7 @@ object H3Plan {
                     imgLoader?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
                 }
                 loaderOf("ref_images.ref_image_1")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
-                notes.add("Turbo：首尾两道引导全部挂载")
+                notes.add(H3Message(R.string.plan_note_turbo_both))
             }
             // 4. Tail only: no first frame, only tail frame
             first == null && last != null -> {
@@ -1067,16 +1123,16 @@ object H3Plan {
                 }
                 loaderOf("ref_images.ref_image_1")?.let { n.optJSONObject(it)?.optJSONObject("inputs")?.put("image", last) }
                 core?.remove("ref_images.ref_image_0")
-                notes.add("Turbo：生效尾帧引导，首帧引导旁路")
+                notes.add(H3Message(R.string.plan_note_turbo_last_only))
             }
         }
     }
 
     /** Status text for one mode, used by the mode selector and the acceptance report. */
-    fun modeHint(spec: Spec, mode: Mode): String = when (mode) {
-        Mode.T2V -> "不提交首帧/尾帧"
-        Mode.I2V -> "只提交首帧"
-        Mode.FL2V -> "首帧 + 尾帧；只给尾帧也能生成"
-        Mode.R2V -> "3 张参考图，可加到 ${spec.maxRefSlots.coerceAtLeast(3)} 张"
+    fun modeHint(spec: Spec, mode: Mode): H3Message = when (mode) {
+        Mode.T2V -> H3Message(R.string.plan_hint_t2v)
+        Mode.I2V -> H3Message(R.string.plan_hint_i2v)
+        Mode.FL2V -> H3Message(R.string.plan_hint_fl2v)
+        Mode.R2V -> H3Message(R.string.plan_hint_r2v, spec.maxRefSlots.coerceAtLeast(3))
     }
 }

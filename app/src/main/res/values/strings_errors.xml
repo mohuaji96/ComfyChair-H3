@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Errors and validation lines that reach the UI from SfwGuard and the library stores -->
+
+    <string name="err_profile_mismatch">Content profile mismatch</string>
+
+    <!-- SfwGuard: tag library and story library validation -->
+    <string name="err_sfw_no_categories">No categories</string>
+    <string name="err_sfw_duplicate_id">Duplicate category id: %1$s</string>
+    <string name="err_sfw_empty_pool">%1$s · %2$s has an empty pool</string>
+    <string name="err_sfw_forbidden_hit">Forbidden word \"%1$s\": %2$s</string>
+    <string name="err_sfw_cross_duplicate">Duplicate across categories \"%1$s\" (%2$s and %3$s)</string>
+    <string name="err_sfw_multi_male">Several men in one tag: %1$s</string>
+    <string name="err_sfw_people_over">More than 3 people: %1$s = %2$d</string>
+    <string name="err_sfw_no_pools">No word pools</string>
+    <string name="err_sfw_no_casts">No cast size structure</string>
+    <string name="err_sfw_hit_in">%1$s contains the forbidden word \"%2$s\": %3$s</string>
+    <string name="err_sfw_violation">\"%1$s\" → %2$s</string>
+
+    <!-- TagLibraryStore -->
+    <string name="err_tl_read_failed">Cannot read the file</string>
+    <string name="err_tl_schema_too_new">Library is newer than this app (schemaVersion %1$d). Please update the app.</string>
+    <string name="err_tl_write_failed">Cannot write the library file. Check free storage.</string>
+    <string name="err_tl_export_failed">Cannot write the file</string>
+    <string name="err_tl_upgrade_kept">Library updated to %1$s; the %2$d words you added were kept</string>
+    <string name="err_tl_upgrade_new">Library updated to %1$s; %2$d new words</string>
+    <string name="err_tl_upgrade_plain">Library updated to %1$s</string>
+
+    <!-- StoryLibraryStore -->
+    <string name="err_st_read_failed">Cannot read this file</string>
+    <string name="err_st_not_story">This file does not look like a story library</string>
+    <string name="err_st_write_failed">Cannot write to this location</string>
+    <string name="err_st_write_file">Cannot write %1$s</string>
+
+    <!-- PromptOptimizer: validation, transport and protocol failures -->
+    <string name="poe_missing_url">API URL is not filled in</string>
+    <string name="poe_missing_model">Model name is not filled in</string>
+    <string name="poe_http_status">HTTP %1$d</string>
+    <string name="poe_http_key">Key rejected or not permitted</string>
+    <string name="poe_http_not_found">Wrong URL or model name</string>
+    <string name="poe_http_rate_limited">Rate limited, try again later</string>
+    <string name="poe_http_server">Server error</string>
+    <string name="poe_truncated">Output was cut off: reasoning used up max_tokens. Raise the token limit and retry</string>
+    <string name="poe_content_filtered">Output was blocked by the content filter</string>
+    <string name="poe_empty_body">The endpoint replied, but the body was empty</string>
+    <string name="poe_stream_unsupported">The response was streamed; only non-streaming replies are supported</string>
+    <string name="poe_unparsable">Cannot parse the response</string>
+    <string name="poe_empty_result">The model returned nothing</string>
+    <string name="poe_timeout">Request timed out (%1$ds); the model or relay is too slow</string>
+    <string name="poe_timeout_hint">Raise it under Advanced → Timeout</string>
+    <string name="poe_dns_failed">Cannot resolve the host, check the API URL</string>
+    <string name="poe_tls_error">HTTPS certificate error: %1$s</string>
+    <string name="poe_request_failed">Request failed: %1$s</string>
+</resources>

@@ -1,5 +1,8 @@
 package sh.hnet.comfychair.workflow
 
+import android.content.Context
+import androidx.annotation.StringRes
+import sh.hnet.comfychair.R
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -70,13 +73,24 @@ object H3Resolution {
         return list.sortedByDescending { it.w.toDouble() / it.h.toDouble() }
     }
 
-    /** Short Chinese gloss for the server's English ratio names; unknown ratios fall back to bare. */
-    private val labels = mapOf(
-        "21:9" to "超宽", "16:9" to "宽屏", "3:2" to "横版", "4:3" to "标准横",
-        "1:1" to "方形", "3:4" to "标准竖", "2:3" to "竖版", "9:16" to "竖屏"
+    /** Short gloss for the server's English ratio names; unknown ratios fall back to bare. */
+    @get:StringRes
+    private val glosses = mapOf(
+        "21:9" to R.string.h3_ratio_ultrawide,
+        "16:9" to R.string.h3_ratio_widescreen,
+        "3:2" to R.string.h3_ratio_landscape,
+        "4:3" to R.string.h3_ratio_classic_wide,
+        "1:1" to R.string.h3_ratio_square,
+        "3:4" to R.string.h3_ratio_classic_tall,
+        "2:3" to R.string.h3_ratio_portrait,
+        "9:16" to R.string.h3_ratio_phone
     )
 
-    fun label(ratio: String): String = labels[ratio]?.let { "$ratio $it" } ?: ratio
+    /** Whether a short gloss exists for this ratio; unknown server ratios stay bare. */
+    fun hasGloss(ratio: String): Boolean = glosses.containsKey(ratio)
+
+    fun label(context: Context, ratio: String): String =
+        glosses[ratio]?.let { "$ratio ${context.getString(it)}" } ?: ratio
 
     val megapixelPresets: List<Double> = listOf(0.4, 0.5, 0.6)
 

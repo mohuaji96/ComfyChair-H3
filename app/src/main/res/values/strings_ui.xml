@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared menus -->
+    <string name="menu_clear_queue">Clear queue</string>
+
+    <!-- Settings root -->
+    <string name="settings_prompt_optimize_title">Prompt optimization</string>
+    <string name="settings_prompt_optimize_sub">API providers, keys and system templates</string>
+
+    <string name="po_no_provider">No provider yet. Add one before optimizing.</string>
+    <string name="po_add_provider">Add provider</string>
+    <string name="po_current">Currently used</string>
+    <string name="po_provider">Provider</string>
+    <string name="po_unnamed_provider">Unnamed provider</string>
+    <string name="po_no_model">No model name</string>
+    <string name="po_template">Template</string>
+    <string name="po_builtin">Built-in</string>
+    <string name="po_custom">Custom</string>
+    <string name="po_lines">%1$d lines</string>
+    <string name="po_this_run">This run</string>
+    <string name="po_output_language">Output language</string>
+    <string name="po_lang_english">English</string>
+    <string name="po_lang_chinese">Chinese</string>
+    <string name="po_footnote">Tokens, timeout and endpoint path are set once under API providers. The optimizer opens from the bottom of the tag composer.</string>
+    <string name="po_temperature">Temperature</string>
+    <string name="po_temp_low">0 stays close to the tags</string>
+    <string name="po_temp_high">1 rewrites freely</string>
+    <string name="po_format_openai_compat">OpenAI compatible</string>
+
+    <string name="po_providers_title">API providers</string>
+    <string name="po_add_short">+ Add</string>
+    <string name="po_new_provider">New provider</string>
+    <string name="po_all">All</string>
+    <string name="po_provider_count">%1$d</string>
+    <string name="po_list_empty">No provider yet. Add one, then fill in the endpoint, key and model name to use it.</string>
+    <string name="po_key_set">Key set</string>
+    <string name="po_key_missing">No key</string>
+    <string name="po_more">More</string>
+    <string name="po_duplicate">Duplicate</string>
+    <string name="po_move_up">Move up</string>
+    <string name="po_move_down">Move down</string>
+    <string name="po_note_section">Notes</string>
+    <string name="po_list_note">Each provider keeps its own endpoint, key and model; switching does not lose them. Deleting the one in use falls back to the first remaining.</string>
+
+    <string name="common_delete">Delete</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_done">Done</string>
+    <string name="po_provider_gone">This provider is gone.</string>
+    <string name="po_status_usable">Ready</string>
+    <string name="po_status_unconfigured">Not configured</string>
+    <string name="po_testing">Testing…</string>
+    <string name="po_test_connection">Test connection</string>
+    <string name="po_section_connection">Connection</string>
+    <string name="po_field_name">Name</string>
+    <string name="po_name_placeholder">e.g. DeepSeek / relay</string>
+    <string name="po_field_base_url">Endpoint</string>
+    <string name="po_key_keep">Leave empty to keep the current key</string>
+    <string name="po_clear">Clear</string>
+    <string name="po_hide">Hide</string>
+    <string name="po_show">Show</string>
+    <string name="po_field_model">Model name</string>
+    <string name="po_model_placeholder">e.g. deepseek-chat / gpt-4o-mini</string>
+    <string name="po_section_request">Request</string>
+    <string name="po_field_format">Format</string>
+    <string name="po_field_max_tokens">Max tokens</string>
+    <string name="po_field_timeout">Timeout (seconds)</string>
+    <string name="po_custom_path">Custom endpoint path</string>
+    <string name="po_custom_path_hint">For Azure, self-hosted gateways and other irregular paths</string>
+    <string name="po_field_path">Endpoint path</string>
+    <string name="po_path_hint">Starts after the base URL and may carry query parameters; once on, the app stops appending the version segment.</string>
+    <string name="po_actual_request">Actual request: </string>
+    <string name="po_raw_response">Raw response: </string>
+    <string name="po_delete_title">Delete this provider?</string>
+    <string name="po_delete_body">The endpoint, key and model name go with it. This cannot be undone.</string>
+    <string name="po_advanced_toggle">Advanced · max tokens · timeout · custom path</string>
+    <string name="po_format_openai_chat_path">OpenAI compatible · /chat/completions</string>
+    <string name="po_format_openai_responses">OpenAI Responses</string>
+    <string name="po_format_openai_responses_path">OpenAI Responses · /responses</string>
+    <string name="po_format_anthropic">Anthropic</string>
+    <string name="po_format_anthropic_path">Anthropic · /messages</string>
+    <string name="po_format_gemini">Gemini</string>
+    <string name="po_format_gemini_path">Gemini · generateContent</string>
+    <string name="po_hint_openai_chat">Relay services, DeepSeek, Kimi, Qwen, Zhipu, OpenRouter</string>
+    <string name="po_hint_openai_responses">OpenAI Responses API</string>
+    <string name="po_hint_anthropic">Official Claude API</string>
+    <string name="po_hint_gemini">Official Google Gemini API</string>
+
+    <string name="common_copy">Copy</string>
+    <string name="opt_title">Optimize prompt</string>
+    <string name="opt_history">History %1$d/%2$d</string>
+    <string name="opt_input">Input</string>
+    <string name="opt_chars">%1$d chars</string>
+    <string name="opt_use_library">Use library result</string>
+    <string name="opt_input_hint">The tag composer result is filled in here; you can also write a description instead.</string>
+    <string name="opt_running">Optimizing</string>
+    <string name="opt_rerun">Optimize again</string>
+    <string name="opt_start">Start optimizing</string>
+    <string name="opt_need_provider">Set up a provider under Settings → Prompt optimization first</string>
+    <string name="opt_provider_incomplete">The provider still needs an API URL or a model name</string>
+    <string name="opt_lang_english">English</string>
+    <string name="opt_lang_chinese">Simplified Chinese</string>
+    <string name="opt_output_lang">Output %1$s</string>
+    <string name="opt_result">Result</string>
+    <string name="opt_notes">Adjusted: </string>
+    <string name="opt_result_hint">Edit it freely, for example drop people or props the model added on its own.</string>
+    <string name="opt_again">Try again</string>
+    <string name="opt_apply">Use as prompt</string>
+
+    <string name="hist_title">Optimization history</string>
+    <string name="hist_clear">Clear</string>
+    <string name="hist_all">All %1$d</string>
+    <string name="hist_favorites">Favorites %1$d</string>
+    <string name="hist_empty">No records yet. One optimization is enough to fill this list.</string>
+    <string name="hist_empty_fav">No favorite records.</string>
+    <string name="hist_clear_title">Clear history</string>
+    <string name="hist_clear_body">All %1$d records go, favorites included. This cannot be undone.</string>
+    <string name="hist_input_tag">In  </string>
+    <string name="hist_output_tag">Out  </string>
+    <string name="hist_chars">%1$d → %2$d chars</string>
+    <string name="tpl_edit_title">Edit template</string>
+    <string name="common_save">Save</string>
+    <string name="tpl_name">Name</string>
+    <string name="tpl_body_stats">%1$d lines · %2$d chars</string>
+
+    <string name="app_notif_permission_denied">Notification permission not granted: keep-alive still works, but relay progress stays hidden</string>
+    <string name="settings_h3_preview_title">H3 sampling preview</string>
+    <string name="settings_h3_preview_sub">Watch the denoising frames as a run proceeds; switching it off saves no GPU time. Inactive while the master switch above is off.</string>
+    <string name="settings_relay_notif_title">Relay notifications</string>
+    <string name="settings_relay_notif_sub">Shows which take is running and offers a pause; also makes the app harder to reclaim while the screen is locked</string>
+    <string name="queue_relay_progress">H3 relay running · %1$d done / %2$d left</string>
+    <string name="queue_stop_relay">Stop relay</string>
+    <string name="queue_last_failed">Last run failed</string>
+    <string name="relay_title_paused">Full relay paused · %1$d takes left</string>
+    <string name="relay_title_running">Full relay running</string>
+    <string name="relay_body_progress">%1$d done, %2$d left</string>
+    <string name="relay_action_resume">Resume</string>
+    <string name="relay_action_pause">Pause</string>
+    <string name="relay_channel_name">Full relay</string>
+    <string name="relay_channel_desc">Relay progress and pause</string>
+
+    <string name="wm_not_h3">Not a recognised H3 workflow</string>
+    <string name="wm_h3_ambiguous">More than one H3 core node: confirm the executing branch in the professional editor</string>
+
+    <string name="tpl_builtin_long_name">Full</string>
+    <string name="tpl_builtin_long_blurb">Most thorough · steadier on hard drafts, fewer retries</string>
+    <string name="tpl_builtin_lite_name">Lite</string>
+    <string name="tpl_builtin_lite_blurb">Default · full judgement, faster drafts</string>
+    <string name="tpl_custom_default">Custom</string>
+    <string name="tpl_custom_first">Custom 1</string>
+    <string name="tpl_copy_suffix">%1$s·copy</string>
+
+    <string name="curtain_hidden">Result hidden</string>
+    <string name="curtain_restore">Tap to restore</string>
+    <string name="curtain_hide">Hide result</string>
+    <string name="vm_copy_suffix">%1$s copy</string>
+    <string name="vm_no_provider">No provider configured yet. Add one in settings.</string>
+    <string name="vm_provider_incomplete">The provider still needs an API URL or a model name. Fill those in under settings.</string>
+    <string name="vm_prompt_empty">The prompt is empty</string>
+    <string name="vm_fill_url_model">Fill in the API URL and model name first</string>
+
+    <string name="queue_offline">Offline</string>
+    <string name="pf_bad_json">Submitted content is not valid JSON: %1$s</string>
+    <string name="pf_unresolved">Template variable %1$s was not resolved, submission refused</string>
+    <string name="pf_not_in_options">%1$s is not one of the %2$d legal options on the server</string>
+
+    <string name="err_unexpected">Unexpected error</string>
+</resources>

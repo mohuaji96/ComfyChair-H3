@@ -189,7 +189,7 @@ fun GenerationButton(
                         }
                         if (onClearQueue != null) {
                             DropdownMenuItem(
-                                text = { Text("清空排队") },
+                                text = { Text(stringResource(R.string.menu_clear_queue)) },
                                 shape = MenuDefaults.itemShape(stopIdx, stopCount).shape,
                                 onClick = {
                                     showMenu = false

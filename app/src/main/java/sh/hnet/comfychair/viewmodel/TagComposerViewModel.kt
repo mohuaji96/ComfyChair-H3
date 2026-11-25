@@ -12,10 +12,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ContentProfile
 import sh.hnet.comfychair.model.TagCategory
 import sh.hnet.comfychair.model.TagLibrary
 import sh.hnet.comfychair.model.TagSlot
+import sh.hnet.comfychair.model.localizedText
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.OptimizeHistoryStore
 import sh.hnet.comfychair.storage.TagComposerState
@@ -168,7 +170,12 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
                     "${lib.category(parts[0])?.label ?: parts[0]}·${slot.label}"
                 }
             }
-            if (names.isNotEmpty()) message = "词库已更新，默认关闭：${names.joinToString("、")}"
+            if (names.isNotEmpty()) {
+                message = app.getString(
+                    R.string.tc_library_updated_defaults,
+                    names.joinToString(app.getString(R.string.tc_list_sep))
+                )
+            }
         }
 
         if (out != picks) picks = out
@@ -232,7 +239,11 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         val dropped = saved.size - picks.size
         if (next.isSfw && !AppSettings.hasSeenSfwIntro(app)) showSfwIntro = true
         message = if (dropped > 0) {
-            "已切换为 ${if (next.isSfw) "SFW" else "成人"}，移除了 $dropped 项不适用的内容"
+            app.getString(
+                R.string.tc_profile_switch_dropped,
+                if (next.isSfw) "SFW" else app.getString(R.string.tc_guard_adult),
+                dropped
+            )
         } else null
         // 两档的「近期抽过」互不相干，带过去只会让 SFW 头几抽莫名其妙地空。
         recent.clear()
@@ -315,7 +326,12 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         }
         if (swapped.isNotEmpty()) {
             val names = swapped.mapNotNull { library.value.category(it.substringBefore('.'))?.label }.distinct()
-            if (names.isNotEmpty()) hint("${names.joinToString("、") { "「$it」" }} 因冲突已换词")
+            if (names.isNotEmpty()) {
+                val listed = names.joinToString(app.getString(R.string.tc_list_sep)) {
+                    app.getString(R.string.tc_word_wrapped, it)
+                }
+                hint(app.getString(R.string.tc_conflict_swapped, listed))
+            }
         }
     }
 
@@ -355,7 +371,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
                 if (countKey != null) {
                     mutable[countKey] = (mutable[countKey] ?: TagPick())
                         .copy(value = target.key, ignored = false)
-                    hint("「$value」需要男性，人数已改为「${target.key}」")
+                    hint(app.getString(R.string.tc_need_male_raised, value, target.key))
                     return true
                 }
             }
@@ -367,7 +383,16 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
             picks = mutable
         )
         if (lockedLabel != null) {
-            hint("「$value」需要「${needs.joinToString(" 或 ") { RequirementFiller.needWord(it) }}」，但「$lockedLabel」锁着，先解锁再点")
+            hint(
+                app.getString(
+                    R.string.tc_need_locked_provider,
+                    value,
+                    needs.joinToString(app.getString(R.string.tc_or_sep)) {
+                        RequirementFiller.needWord(it)
+                    },
+                    lockedLabel
+                )
+            )
             return false
         }
 
@@ -383,10 +408,21 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         if (fill != null) {
             mutable[fill.slotKey] = (mutable[fill.slotKey] ?: TagPick())
                 .copy(value = fill.word, ignored = false)
-            hint("「$value」需要「${fill.need}」，已把${fill.categoryLabel}设为「${fill.word}」")
+            hint(
+                app.getString(
+                    R.string.tc_need_filled,
+                    value, fill.need, fill.categoryLabel, fill.word
+                )
+            )
             return true
         }
-        hint("「$value」需要「${needs.joinToString(" 或 ")}」，词库里没有能补的词，已取消")
+        hint(
+            app.getString(
+                R.string.tc_need_missing,
+                value,
+                needs.joinToString(app.getString(R.string.tc_or_sep))
+            )
+        )
         return false
     }
 
@@ -419,11 +455,11 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
             .map { it.key }
             .firstOrNull() ?: run {
                 // Silence here is what made the dead chip unreportable: say it instead.
-                hint("「$value」需要 $needed 人，这个页签放不下")
+                hint(app.getString(R.string.tc_need_people_overflow, value, needed))
                 return false
             }
         mutable[countKey] = (mutable[countKey] ?: TagPick()).copy(value = target, ignored = false)
-        hint("「$value」需要 $needed 人，人数已改为「$target」")
+        hint(app.getString(R.string.tc_need_people_raised, value, needed, target))
         return true
     }
 
@@ -440,7 +476,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         if (current.value.isEmpty()) engine().randomize(mutable, categoryId)
         val after = mutable[key] ?: TagPick()
         if (after.value.isEmpty()) {
-            hint("这一格现在没有可选的词，先处理冲突再锁")
+            hint(app.getString(R.string.tc_lock_no_words))
             mutable[key] = after
         } else {
             mutable[key] = after.copy(locked = true, ignored = false)
@@ -536,7 +572,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         val text = tag.trim()
         if (text.isEmpty()) return
         if (text in slot.pool) {
-            message = "「$text」已经在词库里"
+            message = app.getString(R.string.tc_word_exists, text)
             return
         }
         libraryStore.updateSlot(categoryId, slot.copy(pool = slot.pool + text))
@@ -545,7 +581,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
     fun removeTag(categoryId: String, slot: TagSlot, tag: String) {
         val pool = slot.pool - tag
         if (pool.isEmpty()) {
-            message = "这一组至少要留一个词"
+            message = app.getString(R.string.tc_keep_one_word)
             return
         }
         libraryStore.updateSlot(categoryId, slot.copy(pool = pool, excluded = slot.excluded - tag))
@@ -591,22 +627,38 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
                     stateStore.saveMode(mode)
                     pruneOrRoll()
                 }
-                val verb = if (merge) "已合并" else "已导入"
-                message = "$verb「${imported.name.ifBlank { "词库" }}」：${imported.categories.size} 个分类、${imported.tagCount} 条词"
+                val verb = app.getString(
+                    if (merge) R.string.tc_import_merged else R.string.tc_import_imported
+                )
+                message = app.getString(
+                    R.string.tc_import_done,
+                    verb,
+                    imported.name.ifBlank { app.getString(R.string.tc_library_word) },
+                    imported.categories.size,
+                    imported.tagCount
+                )
             }
             .onFailure { error ->
                 if (error is TagLibraryStore.ProfileMismatch) {
                     pendingImport = PendingImport(uri, merge, error.found)
                 } else {
-                    message = "导入失败：${error.message ?: "文件格式不对"}"
+                    message = app.getString(
+                        R.string.tc_import_failed,
+                        error.localizedText(app, R.string.tc_bad_file)
+                    )
                 }
             }
     }
 
     fun exportLibrary(uri: Uri) {
         libraryStore.exportTo(uri)
-            .onSuccess { message = "已导出到所选文件" }
-            .onFailure { message = "导出失败：${it.message ?: "无法写入"}" }
+            .onSuccess { message = app.getString(R.string.tc_export_done) }
+            .onFailure {
+                message = app.getString(
+                    R.string.tc_export_failed,
+                    it.message ?: app.getString(R.string.tc_write_failed)
+                )
+            }
     }
 
     fun resetLibrary() {
@@ -616,7 +668,11 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         // 于是「忽略」过的分类在还原之后又活了回来。
         TagComposerState.MODES.forEach { stateStore.saveDefaultsVersion(it, lib.version) }
         pruneOrRoll()
-        message = "已还原为内置词库：${lib.categories.size} 个分类、${lib.tagCount} 条词"
+        message = app.getString(
+            R.string.tc_reset_done,
+            lib.categories.size,
+            lib.tagCount
+        )
     }
 
     // ---- 内部 ----

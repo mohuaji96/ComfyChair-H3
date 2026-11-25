@@ -99,7 +99,7 @@ fun GenerationSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () -> U
         } else {
             relayNotify = false
             AppSettings.setRelayNotifyEnabled(context, false)
-            Toast.makeText(context, "未授予通知权限：锁屏保活仍然有效，但看不到连拍进度", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.app_notif_permission_denied), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -119,8 +119,8 @@ fun GenerationSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () -> U
             row { shapes ->
                 SettingsSwitchRow(
                     shapes = shapes,
-                    title = "H3 采样预览",
-                    supporting = "边跑边看当前去噪画面；关掉后不额外占用显卡算力。上面总开关关掉时这里也不生效",
+                    title = stringResource(R.string.settings_h3_preview_title),
+                    supporting = stringResource(R.string.settings_h3_preview_sub),
                     checked = h3Preview && livePreview,
                     onCheckedChange = { viewModel.setH3PreviewEnabled(context, it) }
                 )
@@ -140,8 +140,8 @@ fun GenerationSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () -> U
             row { shapes ->
                 SettingsSwitchRow(
                     shapes = shapes,
-                    title = "连拍通知",
-                    supporting = "连拍时在通知栏显示第几段，并可暂停；锁屏时也不容易被系统回收",
+                    title = stringResource(R.string.settings_relay_notif_title),
+                    supporting = stringResource(R.string.settings_relay_notif_sub),
                     checked = relayNotify,
                     onCheckedChange = { on ->
                         when {

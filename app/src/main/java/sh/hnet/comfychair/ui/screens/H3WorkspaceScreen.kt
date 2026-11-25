@@ -245,7 +245,7 @@ fun H3WorkspaceScreen(
                             TextButton(onClick = {
                                 ModeOverrideStore.save(context, wf.id, m)
                                 overrides = overrides + (wf.id to m)
-                            }) { Text(m.label, style = MaterialTheme.typography.labelSmall) }
+                            }) { Text(stringResource(m.labelRes), style = MaterialTheme.typography.labelSmall) }
                         }
                     }
                 }
@@ -258,7 +258,7 @@ fun H3WorkspaceScreen(
                     selected = index == tabIndex,
                     onClick = { tabIndex = index },
                     modifier = Modifier.heightIn(min = 40.dp),
-                    text = { Text(item.label, style = MaterialTheme.typography.labelLarge) }
+                    text = { Text(stringResource(item.labelRes), style = MaterialTheme.typography.labelLarge) }
                 )
             }
         }

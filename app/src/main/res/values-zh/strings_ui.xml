@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared menus -->
+    <string name="menu_clear_queue">清空排队</string>
+
+    <!-- Settings root -->
+    <string name="settings_prompt_optimize_title">提示词优化</string>
+    <string name="settings_prompt_optimize_sub">API 供应商、密钥与系统提示词模板</string>
+
+    <string name="po_no_provider">还没有供应商。先加一个，优化才能用。</string>
+    <string name="po_add_provider">添加供应商</string>
+    <string name="po_current">当前使用</string>
+    <string name="po_provider">供应商</string>
+    <string name="po_unnamed_provider">未命名供应商</string>
+    <string name="po_no_model">未填模型名</string>
+    <string name="po_template">模板</string>
+    <string name="po_builtin">内置</string>
+    <string name="po_custom">自定义</string>
+    <string name="po_lines">%1$d 行</string>
+    <string name="po_this_run">本次优化</string>
+    <string name="po_output_language">输出语言</string>
+    <string name="po_lang_english">English</string>
+    <string name="po_lang_chinese">中文</string>
+    <string name="po_footnote">token、超时、接口路径在「API 供应商」里配一次即可。优化入口在「词库组合」窗口底部。</string>
+    <string name="po_temperature">温度</string>
+    <string name="po_temp_low">0 忠于原标签</string>
+    <string name="po_temp_high">1 自由改写</string>
+    <string name="po_format_openai_compat">OpenAI 兼容</string>
+
+    <string name="po_providers_title">API 供应商</string>
+    <string name="po_add_short">＋ 添加</string>
+    <string name="po_new_provider">新建供应商</string>
+    <string name="po_all">全部</string>
+    <string name="po_provider_count">%1$d 个</string>
+    <string name="po_list_empty">还没有供应商。加一个之后，把接口地址、Key 和模型名填上就能用。</string>
+    <string name="po_key_set">已配置 Key</string>
+    <string name="po_key_missing">未配置 Key</string>
+    <string name="po_more">更多</string>
+    <string name="po_duplicate">复制一份</string>
+    <string name="po_move_up">上移</string>
+    <string name="po_move_down">下移</string>
+    <string name="po_note_section">说明</string>
+    <string name="po_list_note">每个供应商的地址、Key、模型各自保存，切换不会丢。删掉正在用的一个时，会自动换到剩下的第一个。</string>
+
+    <string name="common_delete">删除</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_done">完成</string>
+    <string name="po_provider_gone">这个供应商已经不在了。</string>
+    <string name="po_status_usable">可用</string>
+    <string name="po_status_unconfigured">待配置</string>
+    <string name="po_testing">测试中…</string>
+    <string name="po_test_connection">测试连接</string>
+    <string name="po_section_connection">连接</string>
+    <string name="po_field_name">名称</string>
+    <string name="po_name_placeholder">例如：DeepSeek / 中转站</string>
+    <string name="po_field_base_url">接口地址</string>
+    <string name="po_key_keep">留空则保留当前 Key</string>
+    <string name="po_clear">清除</string>
+    <string name="po_hide">隐藏</string>
+    <string name="po_show">显示</string>
+    <string name="po_field_model">模型名</string>
+    <string name="po_model_placeholder">例如：deepseek-chat / gpt-4o-mini</string>
+    <string name="po_section_request">请求</string>
+    <string name="po_field_format">格式</string>
+    <string name="po_field_max_tokens">最大 token</string>
+    <string name="po_field_timeout">超时（秒）</string>
+    <string name="po_custom_path">自定义接口路径</string>
+    <string name="po_custom_path_hint">Azure、自建网关等路径不规则时使用</string>
+    <string name="po_field_path">接口路径</string>
+    <string name="po_path_hint">从根地址之后写起，可带查询参数；打开后程序不再自动补版本段。</string>
+    <string name="po_actual_request">实际请求：</string>
+    <string name="po_raw_response">原始返回：</string>
+    <string name="po_delete_title">删除这个供应商？</string>
+    <string name="po_delete_body">地址、Key 和模型名会一起删掉，不能恢复。</string>
+    <string name="po_advanced_toggle">高级 · 最大 token · 超时 · 自定义路径</string>
+    <string name="po_format_openai_chat_path">OpenAI 兼容 · /chat/completions</string>
+    <string name="po_format_openai_responses">OpenAI Responses</string>
+    <string name="po_format_openai_responses_path">OpenAI Responses · /responses</string>
+    <string name="po_format_anthropic">Anthropic</string>
+    <string name="po_format_anthropic_path">Anthropic · /messages</string>
+    <string name="po_format_gemini">Gemini</string>
+    <string name="po_format_gemini_path">Gemini · generateContent</string>
+    <string name="po_hint_openai_chat">中转站、DeepSeek、Kimi、通义、智谱、OpenRouter</string>
+    <string name="po_hint_openai_responses">OpenAI 新一代 Responses 接口</string>
+    <string name="po_hint_anthropic">Claude 官方接口</string>
+    <string name="po_hint_gemini">Google Gemini 官方接口</string>
+
+    <string name="common_copy">复制</string>
+    <string name="opt_title">优化提示词</string>
+    <string name="opt_history">历史 %1$d/%2$d</string>
+    <string name="opt_input">输入</string>
+    <string name="opt_chars">%1$d 字</string>
+    <string name="opt_use_library">用词库结果</string>
+    <string name="opt_input_hint">词库组合的结果会填在这里，也可以直接写一段描述。</string>
+    <string name="opt_running">优化中</string>
+    <string name="opt_rerun">重新优化</string>
+    <string name="opt_start">开始优化</string>
+    <string name="opt_need_provider">先去设置 → 提示词优化 里配一个供应商</string>
+    <string name="opt_provider_incomplete">供应商还缺 API URL 或模型名</string>
+    <string name="opt_lang_english">English</string>
+    <string name="opt_lang_chinese">简体中文</string>
+    <string name="opt_output_lang">输出 %1$s</string>
+    <string name="opt_result">优化后</string>
+    <string name="opt_notes">已调整：</string>
+    <string name="opt_result_hint">可以直接改，比如删掉模型自己加的人或道具。</string>
+    <string name="opt_again">再来一次</string>
+    <string name="opt_apply">填入提示词</string>
+
+    <string name="hist_title">优化历史</string>
+    <string name="hist_clear">清空</string>
+    <string name="hist_all">全部 %1$d</string>
+    <string name="hist_favorites">收藏 %1$d</string>
+    <string name="hist_empty">还没有记录，优化一次之后会出现在这里。</string>
+    <string name="hist_empty_fav">没有收藏的记录。</string>
+    <string name="hist_clear_title">清空历史</string>
+    <string name="hist_clear_body">会删掉全部 %1$d 条记录，收藏的也一起删。删了不能恢复。</string>
+    <string name="hist_input_tag">入 </string>
+    <string name="hist_output_tag">出 </string>
+    <string name="hist_chars">%1$d → %2$d 字</string>
+    <string name="tpl_edit_title">编辑模板</string>
+    <string name="common_save">保存</string>
+    <string name="tpl_name">名称</string>
+    <string name="tpl_body_stats">%1$d 行 · %2$d 字</string>
+
+    <string name="app_notif_permission_denied">未授予通知权限：锁屏保活仍然有效，但看不到连拍进度</string>
+    <string name="settings_h3_preview_title">H3 采样预览</string>
+    <string name="settings_h3_preview_sub">边跑边看当前去噪画面；关掉后不额外占用显卡算力。上面总开关关掉时这里也不生效</string>
+    <string name="settings_relay_notif_title">连拍通知</string>
+    <string name="settings_relay_notif_sub">连拍时在通知栏显示第几段，并可暂停；锁屏时也不容易被系统回收</string>
+    <string name="queue_relay_progress">H3 连拍进行中 · 已完成 %1$d / 剩 %2$d 段</string>
+    <string name="queue_stop_relay">停止连拍</string>
+    <string name="queue_last_failed">最近一次执行失败</string>
+    <string name="relay_title_paused">完整连拍已暂停 · 还剩 %1$d 段</string>
+    <string name="relay_title_running">完整连拍进行中</string>
+    <string name="relay_body_progress">已跑完 %1$d 段，还剩 %2$d 段</string>
+    <string name="relay_action_resume">继续</string>
+    <string name="relay_action_pause">暂停</string>
+    <string name="relay_channel_name">完整连拍</string>
+    <string name="relay_channel_desc">连拍进度与暂停</string>
+
+    <string name="wm_not_h3">不是已识别的 H3 工作流</string>
+    <string name="wm_h3_ambiguous">存在多个 H3 核心节点，请在专业编辑器中确认执行分支</string>
+
+    <string name="tpl_builtin_long_name">完整版</string>
+    <string name="tpl_builtin_long_blurb">最细 · 难稿稳，少返工</string>
+    <string name="tpl_builtin_lite_name">精简版</string>
+    <string name="tpl_builtin_lite_blurb">默认 · 判断全，出图快</string>
+    <string name="tpl_custom_default">自定义</string>
+    <string name="tpl_custom_first">自定义 1</string>
+    <string name="tpl_copy_suffix">%1$s·副本</string>
+
+    <string name="curtain_hidden">结果已隐藏</string>
+    <string name="curtain_restore">点此恢复</string>
+    <string name="curtain_hide">隐藏结果</string>
+    <string name="vm_copy_suffix">%1$s 副本</string>
+    <string name="vm_no_provider">还没有配置供应商，先去设置里加一个</string>
+    <string name="vm_provider_incomplete">供应商还缺 API URL 或模型名，去设置里补一下</string>
+    <string name="vm_prompt_empty">提示词是空的</string>
+    <string name="vm_fill_url_model">先填 API URL 和模型名</string>
+
+    <string name="queue_offline">离线</string>
+    <string name="pf_bad_json">提交内容不是合法 JSON：%1$s</string>
+    <string name="pf_unresolved">模板变量 %1$s 未解析，拒绝提交</string>
+    <string name="pf_not_in_options">“%1$s” 不在服务器合法选项中（共 %2$d 项）</string>
+
+    <string name="err_unexpected">出了点问题</string>
+</resources>

@@ -28,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.queue.JobRegistry
@@ -79,7 +81,7 @@ fun QueueIndicatorPill(
                         modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text("离线", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.queue_offline), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 connecting -> {
                     CircularProgressIndicator(

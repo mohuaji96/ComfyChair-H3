@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- H3 工作流适配器：识别告警、字段名称与编辑错误 -->
+    <string name="ad_ambiguous_cores">检测到 %1$d 个 H3 核心节点（%2$s）；无法确定执行分支，请在专业编辑器中确认</string>
+    <string name="ad_mapping_failed">%1$s 无法安全映射（%2$s.%3$s）</string>
+    <string name="ad_prompt_unsupported">提示词不是已支持的文字节点，请使用专业编辑器</string>
+    <string name="ad_prompt_ambiguous">提示词有 %1$d 个候选来源（%2$s），无法唯一确定，未自动选择</string>
+    <string name="ad_lora_stack">检测到 LoRA 堆栈 #%1$s %2$s；动态堆栈暂不提供快捷修改，请在专业编辑器编辑</string>
+    <string name="ad_lora_unsupported">检测到未支持的 LoRA 节点 #%1$s %2$s，请在专业编辑器中确认文件与强度</string>
+    <string name="ad_first_frame_missing">首帧未找到可安全编辑的 LoadImage</string>
+    <string name="ad_last_frame_missing">尾帧未找到可安全编辑的 LoadImage</string>
+    <string name="ad_ref_not_loadimage">参考图 %1$d 不是已支持的 LoadImage 来源</string>
+    <string name="ad_ref_slots_limited">原始工作流只有 %1$d 个参考接口；第 3 张上传后才添加 ref_image_2，不修改已有顺序。</string>
+    <string name="ad_missing_mapping">%1$s 未找到唯一安全映射，请在专业编辑器调整</string>
+    <string name="ad_ref_out_of_range">参考接口 %1$s 超出当前快捷面板范围，原样保留</string>
+    <string name="ad_note_bypassed">已绕过/静音，仅显示诊断，不提供快捷修改</string>
+
+    <string name="ad_label_prompt">提示词</string>
+    <string name="ad_label_video_vae">视频 VAE</string>
+    <string name="ad_label_audio_vae">音频 VAE</string>
+    <string name="ad_label_clip">CLIP 模型</string>
+    <string name="ad_label_aspect_ratio">宽高比</string>
+    <string name="ad_label_megapixels">分辨率（百万像素）</string>
+    <string name="ad_label_duration">视频时长（秒）</string>
+    <string name="ad_label_unet">UNet 模型</string>
+    <string name="ad_label_lora_file">LoRA 文件</string>
+    <string name="ad_label_lora_model_strength">LoRA 强度(Model)</string>
+    <string name="ad_label_lora_clip_strength">LoRA 强度(CLIP)</string>
+    <string name="ad_label_seed">Seed</string>
+    <string name="ad_label_generation_switch">生成模式开关</string>
+    <string name="ad_label_steps">Steps</string>
+    <string name="ad_label_steps_branch_true">Steps 分支（on_true）</string>
+    <string name="ad_label_steps_branch_false">Steps 分支（on_false）</string>
+    <string name="ad_label_steps_branch_node">Steps（分支节点 #%1$s）</string>
+    <string name="ad_label_frame_first">首帧图片</string>
+    <string name="ad_label_frame_last">尾帧图片</string>
+    <string name="ad_label_reference">参考图 %1$s</string>
+
+    <string name="ad_err_read_only">%1$s 当前只读（节点被绕过或路径未确认）</string>
+    <string name="ad_err_now_linked">参数已变为连接，请重新打开面板</string>
+    <string name="ad_err_type_mismatch">参数类型不匹配</string>
+    <string name="ad_err_not_h3">不是 H3 工作流</string>
+    <string name="ad_err_unknown_frame">未知的首尾帧输入：%1$s</string>
+    <string name="ad_err_r2v_no_frames">参考生视频没有首尾帧输入</string>
+
+    <!-- 快速参数目录：字段名称与原因 -->
+    <string name="qp_image">图片</string>
+    <string name="qp_video">视频</string>
+    <string name="qp_audio">音频</string>
+    <string name="qp_prompt">提示词</string>
+    <string name="qp_model">模型</string>
+    <string name="qp_lora">LoRA</string>
+    <string name="qp_lora_strength">LoRA 强度</string>
+    <string name="qp_clip">文本编码器</string>
+    <string name="qp_vae">VAE</string>
+    <string name="qp_aspect_ratio">宽高比</string>
+    <string name="qp_megapixels">像素量 (MP)</string>
+    <string name="qp_width">宽度</string>
+    <string name="qp_height">高度</string>
+    <string name="qp_steps">采样步数</string>
+    <string name="qp_scheduler">调度器</string>
+    <string name="qp_sampler">采样器</string>
+    <string name="qp_denoise">去噪强度</string>
+    <string name="qp_duration">时长（秒）</string>
+    <string name="qp_value">值</string>
+    <string name="qp_reason_linked">由上游连线提供，请修改源节点</string>
+    <string name="qp_reason_unindexed">控件位置无法安全定位</string>
+
+    <!-- 计划：识别告警、提交错误、说明与模式提示 -->
+    <string name="plan_prompt_ambiguous">提示词来源不唯一（%1$d 个候选），请在专业编辑器中修改</string>
+    <string name="plan_resolution_incomplete">分辨率节点 #%1$s 缺少宽高比或像素量，比例选择器不可用</string>
+    <string name="plan_size_fixed">宽高由工作流直接给定：比例与像素量不可编辑，可在高级设置改宽高</string>
+    <string name="plan_duration_not_numeric">视频时长来源不是可编辑的数值节点，时长不可修改</string>
+    <string name="plan_steps_missing">未找到可编辑的采样步数节点，Steps 不可编辑</string>
+    <string name="plan_unet_missing">未找到基础模型（UNETLoader）</string>
+    <string name="plan_output_missing">未找到视频输出节点，结果可能不会出现在视频列表</string>
+    <string name="plan_refcore_mismatch">该工作流带有参考图接口但与核心节点不匹配</string>
+
+    <string name="plan_err_invalid_json">工作流不是合法 JSON 或无法解析</string>
+    <string name="plan_err_no_core">核心节点已不存在</string>
+    <string name="plan_err_i2v_first">I2V 需要首帧图片，请先上传</string>
+    <string name="plan_err_fl_frames">首尾帧视频至少要选一张图片</string>
+    <string name="plan_err_r2v_ref">R2V 至少需要一张参考图</string>
+    <string name="plan_err_mode_unsupported">该工作流不支持 %1$s</string>
+    <string name="plan_err_core_no_frames">当前工作流的核心节点不接受首尾帧，请换一个首尾帧工作流</string>
+    <string name="plan_err_ref_limit">服务器只接受 %1$d 张参考图</string>
+    <string name="plan_err_ref_slots">该工作流只有 %1$d 个参考图接口，第 %2$d 张放不进去</string>
+    <string name="plan_err_audio_node_missing">参考音频节点 #%1$s 已不存在</string>
+    <string name="plan_err_res_node_missing">分辨率节点已不存在</string>
+    <string name="plan_err_custom_wh">自定义宽高需要同时给出宽和高</string>
+    <string name="plan_err_ratio">服务器不接受比例 %1$s</string>
+    <string name="plan_err_duration_node_missing">时长节点已不存在</string>
+    <string name="plan_err_steps_node_missing">步数节点已不存在</string>
+    <string name="plan_err_lora_tail">找不到模型链末端，无法追加 LoRA</string>
+    <string name="plan_err_extra_missing">高级参数 %1$s 已不存在</string>
+    <string name="plan_err_extra_linked">高级参数 %1$s 已变为连接，不能直接写入</string>
+
+    <string name="plan_note_t2v">T2V：首帧与尾帧都不提交（仅修改本次提交副本）</string>
+    <string name="plan_note_i2v">I2V：只提交首帧</string>
+    <string name="plan_note_fl_both">FL2V：首帧与尾帧同时提交</string>
+    <string name="plan_note_fl_last">尾帧模式：只提交尾帧，画面朝这张收尾</string>
+    <string name="plan_note_fl_first">FL2V：只提交首帧</string>
+    <string name="plan_note_r2v">R2V：提交 %1$d 张参考图</string>
+    <string name="plan_note_guides">该工作流用引导节点挂首尾帧，不写核心节点输入</string>
+    <string name="plan_note_audio">参考音频 %1$d → %2$s</string>
+    <string name="plan_note_custom_wh">自定义宽高直接写入核心节点：%1$s × %2$s（绕过比例选择器，仅本次提交）</string>
+    <string name="plan_note_aligned32">已对齐到 32 的倍数（节点约束）</string>
+    <string name="plan_note_ratio">比例 → %1$s</string>
+    <string name="plan_note_megapixels">像素量 → %1$s MP</string>
+    <string name="plan_note_multiple">对齐倍数 → %1$d</string>
+    <string name="plan_note_wh">宽高 → %1$s × %2$s</string>
+    <string name="plan_note_duration_frames">时长 %1$ss → %2$d 帧</string>
+    <string name="plan_note_duration_expression">时长 %1$ss → %2$s 帧（由工作流表达式计算）</string>
+    <string name="plan_note_steps">Steps → %1$d</string>
+    <string name="plan_note_lora">LoRA → %1$s</string>
+    <string name="plan_note_lora_added">追加 %1$d 个 LoRA（仅本次提交）</string>
+    <string name="plan_note_turbo_bypass_all">Turbo：首尾帧引导全部旁路，直连纯文生链路</string>
+    <string name="plan_note_turbo_first_only">Turbo：生效首帧引导，尾帧引导旁路</string>
+    <string name="plan_note_turbo_both">Turbo：首尾两道引导全部挂载</string>
+    <string name="plan_note_turbo_last_only">Turbo：生效尾帧引导，首帧引导旁路</string>
+
+    <string name="plan_hint_t2v">不提交首帧/尾帧</string>
+    <string name="plan_hint_i2v">只提交首帧</string>
+    <string name="plan_hint_fl2v">首帧 + 尾帧；只给尾帧也能生成</string>
+    <string name="plan_hint_r2v">3 张参考图，可加到 %1$d 张</string>
+</resources>

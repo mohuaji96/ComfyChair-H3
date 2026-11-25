@@ -1,6 +1,9 @@
 package sh.hnet.comfychair.workflow
 
+import android.content.Context
 import org.json.JSONObject
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.model.LocalizedText
 
 /**
  * Reads a `/history/{prompt_id}` entry.
@@ -13,13 +16,23 @@ object JobRecovery {
 
     enum class State { QUEUED, RUNNING, COMPLETED, FAILED, UNKNOWN }
 
-    data class Snapshot(val state: State, val outputs: List<String>, val message: String?)
+    data class Snapshot(
+        val state: State,
+        val outputs: List<String>,
+        /** Detail reported by ComfyUI itself, already a finished sentence. */
+        val message: String?,
+        /** Our own sentence, finished only when a screen shows it in the active language. */
+        val reason: LocalizedText? = null
+    ) {
+        /** What to show for this snapshot: our sentence when there is one, else the server detail. */
+        fun describe(context: Context): String? = reason?.format(context) ?: message
+    }
 
     fun parse(historyJson: String, promptId: String): Snapshot {
         val root = runCatching { JSONObject(historyJson) }.getOrNull()
-            ?: return Snapshot(State.UNKNOWN, emptyList(), "无法解析 /history 响应")
+            ?: return Snapshot(State.UNKNOWN, emptyList(), null, LocalizedText(R.string.hist_bad_history))
         val entry = root.optJSONObject(promptId)
-            ?: return Snapshot(State.UNKNOWN, emptyList(), "服务器历史中没有该 prompt_id")
+            ?: return Snapshot(State.UNKNOWN, emptyList(), null, LocalizedText(R.string.hist_missing_prompt))
         val status = entry.optJSONObject("status")
         val completed = status?.optBoolean("completed") == true
         val statusStr = status?.optString("status_str").orEmpty()

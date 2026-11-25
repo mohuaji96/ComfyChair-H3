@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Story composer -->
+    <string name="st_title">Story Composer</string>
+    <string name="st_back">Back</string>
+    <string name="st_settings">Settings</string>
+    <string name="st_library_actions">Story library actions</string>
+    <string name="st_import_library">Import library</string>
+    <string name="st_export_library">Export library</string>
+    <string name="st_reset_menu">Restore built-in library</string>
+    <string name="st_header_counts">%1$d items · %2$d words</string>
+    <string name="st_header_hint">Tap an item to lock or ignore</string>
+    <string name="st_toggle_dialogue">Dialogue</string>
+
+    <!-- Section head and field rows -->
+    <string name="st_lock">Lock</string>
+    <string name="st_locked">Locked</string>
+    <string name="st_locked_state">Locked</string>
+    <string name="st_reroll_section">Reroll section</string>
+    <string name="st_pose_act">Pose/action</string>
+    <string name="st_rerolled_section">Rerolled “%1$s”</string>
+    <string name="st_ignored">Ignored</string>
+    <string name="st_ignore">Ignore</string>
+    <string name="st_not_picked">Not set</string>
+    <string name="st_no_pose">(no pose)</string>
+    <string name="st_pairs_more">%1$s  +%2$d more</string>
+    <string name="st_duplicate_word">“%1$s” is already in this group</string>
+
+    <!-- Import / export feedback -->
+    <string name="st_import_done">Imported story library · %1$d words</string>
+    <string name="st_import_failed">Import failed</string>
+    <string name="st_export_done">Exported</string>
+    <string name="st_export_failed">Export failed</string>
+    <string name="st_copied_clipboard">Copied to clipboard</string>
+    <string name="st_import_mismatch_title">This is a %1$s story library</string>
+    <string name="st_import_mismatch_body">You are on the %1$s profile. Importing replaces this whole story library with the %2$s content. Continue?</string>
+    <string name="st_import_anyway">Import anyway</string>
+    <string name="st_cancel">Cancel</string>
+
+    <!-- Full story dialog -->
+    <string name="st_full_story">Full story</string>
+    <string name="st_copied">Copied</string>
+    <string name="st_copy">Copy</string>
+    <string name="st_close">Close</string>
+
+    <!-- Reset library -->
+    <string name="st_reset_title">Restore the built-in library?</string>
+    <string name="st_reset_body">Replaces the story library with the bundled version (%1$d words). Story words you imported or edited will be lost.\n\nYour current picks, locks and ignores are kept.</string>
+    <string name="st_reset">Restore</string>
+    <string name="st_reset_done">Restored the built-in story library · %1$d words</string>
+
+    <!-- Word editor sheet -->
+    <string name="st_done">Done</string>
+    <string name="st_manage">Manage</string>
+    <string name="st_clear">Clear</string>
+    <string name="st_hint_multi">Tap to add, tap again to remove. Order matters.</string>
+    <string name="st_hint_single">Tap a word to use it</string>
+    <string name="st_more">More</string>
+    <string name="st_add_placeholder">Add to this group</string>
+    <string name="st_add">Add</string>
+    <string name="st_group_badge">×%1$d</string>
+
+    <!-- Bottom bar -->
+    <string name="st_empty_story">Nothing composed yet</string>
+    <string name="st_reroll">Reroll</string>
+
+    <!-- Pose and action pairs -->
+    <string name="st_pairs_title">Pose and action</string>
+    <string name="st_pairs_hint">Tap a group card to change the edit focus. Tap a word below to replace it in the current group; tap 🎲 to reroll that group alone.</string>
+    <string name="st_selected_groups">%1$d groups selected</string>
+    <string name="st_add_pair">+ Add a group</string>
+    <string name="st_pose">Pose</string>
+    <string name="st_editing_group">(editing group %1$d)</string>
+    <string name="st_add_pose">Add pose</string>
+    <string name="st_act_label">Action</string>
+    <string name="st_add_act">Add action</string>
+</resources>

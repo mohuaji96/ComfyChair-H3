@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Template library / template detail -->
+    <string name="tpl_title">模板库</string>
+    <string name="tpl_detail_title">模板</string>
+    <string name="tpl_detail_missing">这个模板已经不在了。</string>
+    <string name="tpl_custom_count">%1$d 份自定义</string>
+    <string name="tpl_note_count">%1$d 份</string>
+    <string name="tpl_note_none_yet">还没有</string>
+    <string name="tpl_import_from_file">从文件导入</string>
+    <string name="tpl_new_blank">新建空白</string>
+    <string name="tpl_default_imported_name">导入模板</string>
+    <string name="tpl_default_new_name">新模板</string>
+    <string name="tpl_notice_import_failed">文件读不出来，或内容太短不像是模板</string>
+    <string name="tpl_notice_imported">已导入「%1$s」并启用</string>
+    <string name="tpl_notice_copied">已复制为「%1$s」并启用</string>
+    <string name="tpl_notice_activated">已启用「%1$s」</string>
+    <string name="tpl_notice_saved">已保存「%1$s」</string>
+    <string name="tpl_notice_saved_short">已保存</string>
+    <string name="tpl_notice_renamed">已改名为「%1$s」</string>
+    <string name="tpl_notice_exported">已导出 %1$s.md</string>
+    <string name="tpl_notice_export_failed">导出失败，换个目录再试</string>
+    <string name="tpl_section_builtin">内置</string>
+    <string name="tpl_section_custom">自定义</string>
+    <string name="tpl_section_name">名称</string>
+    <string name="tpl_section_body">正文</string>
+    <string name="tpl_note_readonly">只读</string>
+    <string name="tpl_note_readonly_preview">只读预览</string>
+    <string name="tpl_action_copy">复制</string>
+    <string name="tpl_action_copy_as_custom">复制为自定义</string>
+    <string name="tpl_action_activate">启动</string>
+    <string name="tpl_action_enabled">已启用</string>
+    <string name="tpl_action_delete">删除</string>
+    <string name="tpl_action_export_md">导出 .md</string>
+    <string name="tpl_action_edit">编辑</string>
+    <string name="tpl_status_builtin">内置 · 只读</string>
+    <string name="tpl_status_custom">自定义</string>
+    <string name="tpl_meta_chars">%1$d 字</string>
+    <string name="tpl_meta_chars_with_blurb">%1$s · %2$d 字</string>
+    <string name="tpl_meta_lines">%1$d 行</string>
+    <string name="tpl_meta_modified_at">修改于 %1$s</string>
+    <string name="tpl_meta_copied_from">复制自「%1$s」</string>
+    <string name="tpl_meta_manual_import">手动导入</string>
+    <string name="tpl_empty_custom">还没有自定义模板。复制内置的一份，或者从文件导入。</string>
+    <string name="tpl_field_name">模板名称</string>
+    <string name="tpl_rename_title">改名</string>
+    <string name="tpl_save">保存</string>
+    <string name="tpl_cancel">取消</string>
+    <string name="tpl_delete_title">删除「%1$s」？</string>
+    <string name="tpl_delete_body">删除后不能恢复。如果它正在使用，会自动切回精简版内置模板。</string>
+    <string name="tpl_footnote_builtin">内置模板不能改名、不能删除。要改就先「复制为自定义」，改动只落在副本上。</string>
+    <string name="tpl_footnote_custom">预览只显示前 %1$d 行，点「编辑」看全文并修改。</string>
+    <string name="tpl_blurb_lite">条款式写法的默认模板。取景、接触、肢体、穿脱、去重这五类判断都在，字数最少，同一张图出得更快、更省，日常批量用它。</string>
+    <string name="tpl_blurb_long">带反例和推演的完整手册。多一层「为什么不能这样」的讲透，角色多、体位复杂、场地刁钻的稿子更不容易翻车、返工少。代价是每次调用约 4 倍上下文，慢一些，也贵一些。</string>
+
+    <!-- Gallery cache dialog -->
+    <string name="gal_cache_clear_title">清空缓存</string>
+    <string name="gal_cache_clear_body">只删除手机里的缓存图片和记录，已保存到相册的不受影响。</string>
+    <string name="gal_cache_clear_detail">将删除 %1$d 张（约 %2$s MB），已收藏 %3$d 张会保留。</string>
+    <string name="gal_cache_clear_note">日期和提示词会一起清掉，清空后点开时才重新下载，离线时打不开。</string>
+    <string name="gal_cache_cleared">已清空 %1$d 张 · 释放 %2$s MB</string>
+    <string name="gal_cache_clear_action">清空</string>
+    <string name="gal_cancel">取消</string>
+
+    <!-- Media viewer actions -->
+    <string name="viewer_extract_frame">保存当前帧到图库（抽帧）</string>
+    <string name="viewer_h3_first_frame">送入 H3 首帧</string>
+    <string name="viewer_h3_first_frame_current">当前帧送入 H3 首帧</string>
+    <string name="viewer_h3_last_frame">送入 H3 尾帧</string>
+    <string name="viewer_h3_last_frame_current">当前帧送入 H3 尾帧</string>
+    <string name="viewer_h3_ref">送入 H3 参考图</string>
+    <string name="viewer_h3_ref_current">当前帧送入 H3 参考图</string>
+
+    <!-- Sampling preview strip -->
+    <string name="smp_title">采样预览</string>
+    <string name="smp_step_sampling">正在采样 · 第 %1$d/%2$d 步</string>
+    <string name="smp_step_of">第 %1$d/%2$d 步</string>
+    <string name="smp_step_only">第 %1$d 步</string>
+    <string name="smp_initial_noise">初始噪声 · 共 %1$d 步</string>
+    <string name="smp_current_frame">当前画面</string>
+    <string name="smp_waiting_first">等待第一步画面…</string>
+    <string name="smp_waiting_short">等待中</string>
+    <string name="smp_fold_visible">采样预览 · %1$s</string>
+    <string name="smp_fold_hidden">采样预览已关 · 点开恢复</string>
+    <string name="smp_seconds_per_step">每步约 %1$s 秒</string>
+    <string name="smp_cd_zoom">放大</string>
+    <string name="smp_cd_collapse">收起</string>
+    <string name="smp_cd_close">关闭</string>
+    <string name="smp_cancel_run">中止当前生成</string>
+
+    <!-- Seed field -->
+    <string name="seed_title">随机种子</string>
+    <string name="seed_mode_random">每次随机</string>
+    <string name="seed_mode_fixed">固定</string>
+    <string name="seed_cd_roll">摇一个</string>
+    <string name="seed_restore_random">恢复随机</string>
+
+    <!-- Prompt editor -->
+    <string name="pe_cd_fullscreen">全屏编辑</string>
+    <string name="pe_optimize">AI 优化</string>
+    <string name="pe_copied">已复制到剪贴板</string>
+
+    <!-- Prompt preset menu -->
+    <string name="preset_optimize_prompt">AI 优化提示词</string>
+</resources>

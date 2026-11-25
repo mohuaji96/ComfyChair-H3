@@ -15,7 +15,11 @@ import java.io.File
  */
 class PromptTemplateDefaultTest {
 
-    private val builtIns = PromptTemplates.builtIns("LONG BODY", "LITE BODY")
+    private val builtIns = PromptTemplates.builtIns(
+        "LONG BODY", "LITE BODY",
+        "完整版", "精简版",
+        "最细 · 难稿稳，少返工", "默认 · 判断全，出图快"
+    )
 
     @Test
     fun theDefaultIsTheLiteTemplate() {

@@ -1,5 +1,6 @@
 package sh.hnet.comfychair
 
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.CustomFields
 import sh.hnet.comfychair.model.CustomField
 import android.content.Context
@@ -1403,9 +1404,9 @@ object WorkflowManager {
     fun getAllWorkflows(space: WorkflowSpace): List<Workflow> = workflows.filter { it.space == space }
 
     fun importH3Workflow(source: String, name: String, description: String): Result<Workflow> = runCatching {
-        val analysis = sh.hnet.comfychair.workflow.H3WorkflowAdapter.inspectAny(source) ?: error("不是已识别的 H3 工作流")
+        val analysis = sh.hnet.comfychair.workflow.H3WorkflowAdapter.inspectAny(source) ?: error(applicationContext.getString(R.string.wm_not_h3))
         require(analysis.mode != sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.AMBIGUOUS) {
-            analysis.warnings.firstOrNull() ?: "存在多个 H3 核心节点，请在专业编辑器中确认执行分支"
+            analysis.warnings.firstOrNull()?.format(applicationContext) ?: applicationContext.getString(R.string.wm_h3_ambiguous)
         }
         val type = if (analysis.mode == sh.hnet.comfychair.workflow.H3WorkflowAdapter.Mode.T2V) WorkflowType.TTV else WorkflowType.ITV
         val stored = if (analysis.format == "litegraph")

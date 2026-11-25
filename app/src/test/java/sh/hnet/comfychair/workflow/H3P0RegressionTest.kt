@@ -1,5 +1,7 @@
 package sh.hnet.comfychair.workflow
 
+import sh.hnet.comfychair.R
+import sh.hnet.comfychair.model.LocalizedException
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -50,10 +52,10 @@ class H3P0RegressionTest {
         assertEquals(H3WorkflowAdapter.Mode.R2V, analysis.mode)
         // P0 keeps the 0..5 window; 6/7 must stay untouched and explicitly reported.
         assertEquals(setOf(0, 1, 2, 3, 4, 5), analysis.referenceInputs.keys)
-        assertTrue(analysis.warnings.any { it.contains("ref_image_6") })
-        assertTrue(analysis.warnings.any { it.contains("ref_image_7") })
+        assertTrue(analysis.warnings.any { it.resId == R.string.ad_ref_out_of_range && it.args.any { a -> a.toString().endsWith("ref_image_6") } })
+        assertTrue(analysis.warnings.any { it.resId == R.string.ad_ref_out_of_range && it.args.any { a -> a.toString().endsWith("ref_image_7") } })
         assertTrue("LoRA stack must surface as a diagnostic",
-            analysis.warnings.any { it.contains("H3PowerLoraStack") })
+            analysis.warnings.any { it.resId == R.string.ad_lora_stack && it.args.contains("H3PowerLoraStack") })
     }
 
     @Test fun liteGraphConversionIsStable() {
@@ -89,12 +91,12 @@ class H3P0RegressionTest {
         assertEquals(2, frames.size)
         assertEquals("114", frames.first { it.slot == 0 }.nodeId)
         assertEquals("127", frames.first { it.slot == 1 }.nodeId)
-        assertEquals("首帧图片", frames.first { it.slot == 0 }.label)
-        assertEquals("尾帧图片", frames.first { it.slot == 1 }.label)
+        assertEquals(R.string.ad_label_frame_first, frames.first { it.slot == 0 }.labelRes)
+        assertEquals(R.string.ad_label_frame_last, frames.first { it.slot == 1 }.labelRes)
         // Shared model/prompt mapping must still hold on FL2V.
         assertEquals(1, fl2v.bindings.count { it.kind == "prompt" })
         assertTrue(fl2v.bindings.any { it.input == "megapixels" })
-        assertTrue(fl2v.bindings.any { it.label.contains("时长") })
+        assertTrue(fl2v.bindings.any { it.labelRes == R.string.ad_label_duration })
         assertTrue(fl2v.bindings.any { it.input == "lora_name" })
     }
 
@@ -153,8 +155,10 @@ class H3P0RegressionTest {
         assertNotNull(analysis)
         assertEquals(H3WorkflowAdapter.Mode.AMBIGUOUS, analysis!!.mode)
         assertTrue(analysis.bindings.isEmpty())
-        assertTrue(analysis.warnings.single().contains("#1"))
-        assertTrue(analysis.warnings.single().contains("#2"))
+        val ambiguity = analysis.warnings.single()
+        assertEquals(R.string.ad_ambiguous_cores, ambiguity.resId)
+        assertTrue(ambiguity.args.joinToString().contains("#1"))
+        assertTrue(ambiguity.args.joinToString().contains("#2"))
     }
 
     @Test fun malformedJsonIsNotH3AndDoesNotThrow() {
@@ -208,9 +212,9 @@ class H3P0RegressionTest {
         )
         val analysis = H3WorkflowAdapter.inspect(source)!!
         assertTrue(analysis.bindings.none { it.kind == "prompt" })
-        val warning = analysis.warnings.first { it.contains("提示词") }
-        assertTrue(warning.contains("#2"))
-        assertTrue(warning.contains("#3"))
+        val warning = analysis.warnings.first { it.resId == R.string.ad_prompt_ambiguous }
+        assertTrue(warning.args.joinToString().contains("#2"))
+        assertTrue(warning.args.joinToString().contains("#3"))
     }
 
     @Test fun promptTextIsNeverRewritten() {
@@ -237,7 +241,7 @@ class H3P0RegressionTest {
         val bindings = H3WorkflowAdapter.inspect(source)!!.bindings
         val names = bindings.filter { it.input == "lora_name" }.map { it.value.toString() }
         assertEquals(setOf("my_lora.safetensors", "dual.safetensors"), names.toSet())
-        assertTrue(bindings.none { it.label.contains("加速") || it.label.contains("Turbo", true) })
+        assertTrue(bindings.filter { it.input == "lora_name" }.all { it.labelRes == R.string.ad_label_lora_file })
         assertNotNull(bindings.firstOrNull { it.nodeId == "6" && it.input == "strength_clip" })
     }
 
@@ -249,7 +253,7 @@ class H3P0RegressionTest {
         )
         val binding = H3WorkflowAdapter.inspect(source)!!.bindings.first { it.nodeId == "5" }
         assertTrue(binding.readOnly)
-        assertTrue(binding.note!!.contains("绕过"))
+        assertEquals(R.string.ad_note_bypassed, binding.noteRes)
         val failed = runCatching { H3WorkflowAdapter.change(source, binding, "other.safetensors") }.isFailure
         assertTrue("read-only bindings must refuse edits", failed)
     }
@@ -262,7 +266,11 @@ class H3P0RegressionTest {
         val prepared = original
         val error = runCatching { H3ApiPatch.apply(original, edited, prepared) }.exceptionOrNull()
         assertNotNull("structural change must not be merged silently", error)
-        assertTrue(error!!.message!!.contains("连线冲突"))
+        assertTrue(error is LocalizedException)
+        assertTrue(
+            "structural change must report a link conflict",
+            (error as LocalizedException).text.resId == R.string.patch_link_conflict
+        )
     }
 
     @Test fun removingAReferenceSlotIsApplied() {

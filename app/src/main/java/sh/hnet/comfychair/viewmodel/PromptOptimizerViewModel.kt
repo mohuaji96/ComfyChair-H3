@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.ApiProvider
 import sh.hnet.comfychair.net.PromptOptimizer
 import sh.hnet.comfychair.storage.ApiProviderStore
@@ -119,7 +120,7 @@ class PromptOptimizerViewModel : ViewModel() {
     fun duplicate(id: String): ApiProvider? {
         val ctx = appContext ?: return null
         val source = providers.value.firstOrNull { it.id == id } ?: return null
-        val base = source.name.ifBlank { "供应商" } + " 副本"
+        val base = ctx.getString(R.string.vm_copy_suffix, source.name.ifBlank { ctx.getString(R.string.po_provider) })
         val taken = providers.value.map { it.name }.toSet()
         var name = base
         var index = 2
@@ -226,24 +227,34 @@ class PromptOptimizerViewModel : ViewModel() {
     }
 
     /**
+     * Resolves the sentence the screen shows. The network layer only hands over resource ids, so
+     * the wording follows the active language; a hint, when present, rides on the same line.
+     */
+    private fun errorLine(context: Context, error: PromptOptimizer.Outcome.Error): String {
+        val message = error.message.format(context)
+        val hint = error.hint?.format(context)
+        return if (hint.isNullOrBlank()) message else "$message · $hint"
+    }
+
+    /**
      * Rewrites [input]. Returns the previous result untouched when [input] matches what is
      * already on screen and no explicit retry was asked for.
      */
     fun runOptimize(input: String, force: Boolean = false) {
         val ctx = appContext ?: return
         val provider = activeProvider() ?: run {
-            optimize.value = OptimizeUiState(error = "还没有配置供应商，先去设置里加一个")
+            optimize.value = OptimizeUiState(error = ctx.getString(R.string.vm_no_provider))
             return
         }
         if (!provider.isUsable) {
             optimize.value = OptimizeUiState(
-                error = "供应商还缺 API URL 或模型名，去设置里补一下",
+                error = ctx.getString(R.string.vm_provider_incomplete),
                 english = provider.english
             )
             return
         }
         if (input.isBlank()) {
-            optimize.value = OptimizeUiState(error = "提示词是空的", english = provider.english)
+            optimize.value = OptimizeUiState(error = ctx.getString(R.string.vm_prompt_empty), english = provider.english)
             return
         }
         val state = optimize.value
@@ -288,7 +299,7 @@ class PromptOptimizerViewModel : ViewModel() {
                 is PromptOptimizer.Outcome.Error -> {
                     optimize.value = OptimizeUiState(
                         running = false,
-                        error = outcome.message,
+                        error = errorLine(ctx, outcome),
                         errorDetail = outcome.detail,
                         english = provider.english
                     )
@@ -301,7 +312,7 @@ class PromptOptimizerViewModel : ViewModel() {
     fun runTest(provider: ApiProvider, draftKey: String?) {
         val ctx = appContext ?: return
         if (!provider.isUsable) {
-            test.value = TestUiState(ok = false, message = "先填 API URL 和模型名")
+            test.value = TestUiState(ok = false, message = ctx.getString(R.string.vm_fill_url_model))
             return
         }
         val key = draftKey?.takeIf { it.isNotBlank() }
@@ -323,7 +334,7 @@ class PromptOptimizerViewModel : ViewModel() {
                 is PromptOptimizer.Outcome.Error -> {
                     test.value = TestUiState(
                         ok = false,
-                        message = outcome.message,
+                        message = errorLine(ctx, outcome),
                         detail = outcome.detail
                     )
                 }
