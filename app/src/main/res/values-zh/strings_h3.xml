@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Status lamp -->
+    <string name="h3_lamp_reading">读取中</string>
+    <string name="h3_lamp_connecting">连接中</string>
+    <string name="h3_lamp_offline">离线</string>
+    <string name="h3_lamp_problem">读取失败</string>
+    <string name="h3_server_status">服务器状态</string>
+    <string name="h3_address">地址</string>
+    <string name="h3_not_set">未设置</string>
+    <string name="h3_connection">连接</string>
+    <string name="h3_offline_mode">离线模式</string>
+    <string name="h3_connected">已连接</string>
+    <string name="h3_not_connected">未连接</string>
+    <string name="h3_node_params">节点参数</string>
+    <string name="h3_failed">失败</string>
+    <string name="h3_ready">已就绪</string>
+    <string name="h3_not_read">未读取</string>
+    <string name="h3_model_inventory">模型清单</string>
+    <string name="h3_model_count">模型 %1$d</string>
+    <string name="h3_text_encoder_count">文本编码 %1$d</string>
+    <string name="h3_checkpoint_count">检查点 %1$d</string>
+    <string name="h3_no_models">没有找到模型文件</string>
+    <string name="h3_retry">重试</string>
+    <string name="h3_refresh">刷新</string>
+    <string name="h3_close">关闭</string>
+
+    <!-- Source picker -->
+    <string name="h3_source_image">源图像</string>
+    <string name="h3_offline_pick_hint">离线：无法读取服务器素材，仍可从设备选择</string>
+    <string name="h3_images_reading_server">共 %1$d 张图像 · 正在读取服务器素材…</string>
+    <string name="h3_images_with_server">共 %1$d 张图像（服务器 %2$d）</string>
+    <string name="h3_tab_all">全部素材</string>
+    <string name="h3_tab_server">服务器素材</string>
+    <string name="h3_tab_frames">提取帧</string>
+    <string name="h3_tab_history">历史生成</string>
+    <string name="h3_from_device">从设备</string>
+    <string name="h3_offline_server_unavailable">离线时无法使用服务器上的文件，仍可从设备选择。</string>
+    <string name="h3_no_assets">这里还没有素材</string>
+    <string name="h3_selected">已选</string>
+    <string name="h3_badge_server">服务器</string>
+
+    <!-- H3 workspace -->
+    <string name="h3_workspace_title">H3 视频工作区</string>
+    <string name="h3_settings">设置</string>
+    <string name="h3_pick_core">以下工作流包含多个 H3 核心，无法自动判定，请指定一次：</string>
+    <string name="h3_choose_workflow">选择%1$s工作流</string>
+    <string name="h3_builtin_turbo">内置 · 二采Turbo加速模板</string>
+    <string name="h3_builtin">内置 · 经典加速模板</string>
+    <string name="h3_user_imported">用户导入</string>
+    <string name="h3_active_workflow">当前激活工作流</string>
+    <string name="h3_switch">切换</string>
+    <string name="h3_no_workflow_for">未找到%1$s的 H3 工作流</string>
+    <string name="h3_hint_frames">同一个模板就能跑文生、图生和首尾帧：导入含 MiniMaxH3ImageToVideo 的工作流即可。仓库 workflows/ 目录有示例 JSON，导入后记得按自己服务器上的模型重选 UNET 和 LoRA。</string>
+    <string name="h3_hint_r2v">参考生视频需要含 MiniMaxH3ReferenceToVideo 的模板，示例见仓库 workflows/itv_h3_mobile_r2v.json。</string>
+    <string name="h3_go_import">去导入工作流</string>
+
+    <!-- Mode and window names -->
+    <string name="h3_area_frames">文生 · 图生 · 首尾帧</string>
+    <string name="h3_area_r2v">参考生视频</string>
+    <string name="h3_mode_t2v">文生视频</string>
+    <string name="h3_mode_i2v">图生视频</string>
+    <string name="h3_mode_fl2v">首尾帧视频</string>
+    <string name="h3_mode_r2v">参考生视频</string>
+</resources>

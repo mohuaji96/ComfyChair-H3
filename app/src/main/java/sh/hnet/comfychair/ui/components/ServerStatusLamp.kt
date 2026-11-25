@@ -26,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.storage.AppSettings
@@ -73,9 +75,9 @@ fun ServerStatusLamp(modifier: Modifier = Modifier) {
     }
     val label = when (state) {
         LampState.READY -> null
-        LampState.LOADING -> if (connection is ConnectionState.Connected) "读取中" else "连接中"
-        LampState.OFFLINE -> "离线"
-        LampState.PROBLEM -> "读取失败"
+        LampState.LOADING -> if (connection is ConnectionState.Connected) stringResource(R.string.h3_lamp_reading) else stringResource(R.string.h3_lamp_connecting)
+        LampState.OFFLINE -> stringResource(R.string.h3_lamp_offline)
+        LampState.PROBLEM -> stringResource(R.string.h3_lamp_problem)
     }
 
     Box(modifier = modifier) {
@@ -102,41 +104,41 @@ fun ServerStatusLamp(modifier: Modifier = Modifier) {
 
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(260.dp)) {
-                Text("服务器状态", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.h3_server_status), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.padding(top = 6.dp))
-                lampRow("地址", ConnectionManager.hostname.ifBlank { "未设置" })
+                lampRow(stringResource(R.string.h3_address), ConnectionManager.hostname.ifBlank { stringResource(R.string.h3_not_set) })
                 lampRow(
-                    "连接",
+                    stringResource(R.string.h3_connection),
                     when {
-                        offlineMode -> "离线模式"
-                        connection is ConnectionState.Connected -> "已连接"
-                        connecting -> "连接中"
-                        else -> "未连接"
+                        offlineMode -> stringResource(R.string.h3_offline_mode)
+                        connection is ConnectionState.Connected -> stringResource(R.string.h3_connected)
+                        connecting -> stringResource(R.string.h3_lamp_connecting)
+                        else -> stringResource(R.string.h3_not_connected)
                     }
                 )
                 lampRow(
-                    "节点参数",
+                    stringResource(R.string.h3_node_params),
                     when {
-                        models.nodeDefinitionsLoading -> "读取中"
-                        models.nodeDefinitionsError != null -> "失败"
-                        models.nodeDefinitionsRevision > 0L -> "已就绪"
-                        else -> "未读取"
+                        models.nodeDefinitionsLoading -> stringResource(R.string.h3_lamp_reading)
+                        models.nodeDefinitionsError != null -> stringResource(R.string.h3_failed)
+                        models.nodeDefinitionsRevision > 0L -> stringResource(R.string.h3_ready)
+                        else -> stringResource(R.string.h3_not_read)
                     }
                 )
                 lampRow(
-                    "模型清单",
+                    stringResource(R.string.h3_model_inventory),
                     when {
-                        models.isLoading -> "读取中"
+                        models.isLoading -> stringResource(R.string.h3_lamp_reading)
                         models.lastError != null -> models.lastError!!
                         models.isLoaded -> listOfNotNull(
-                            models.unets.size.takeIf { it > 0 }?.let { "模型 $it" },
+                            models.unets.size.takeIf { it > 0 }?.let { stringResource(R.string.h3_model_count, it) },
                             models.loras.size.takeIf { it > 0 }?.let { "LoRA $it" },
-                            models.clips.size.takeIf { it > 0 }?.let { "文本编码 $it" },
+                            models.clips.size.takeIf { it > 0 }?.let { stringResource(R.string.h3_text_encoder_count, it) },
                             models.vaes.size.takeIf { it > 0 }?.let { "VAE $it" },
-                            models.checkpoints.size.takeIf { it > 0 }?.let { "检查点 $it" }
+                            models.checkpoints.size.takeIf { it > 0 }?.let { stringResource(R.string.h3_checkpoint_count, it) }
                         ).chunked(2).joinToString("\n") { it.joinToString(" · ") }
-                            .ifEmpty { "没有找到模型文件" }
-                        else -> "未读取"
+                            .ifEmpty { stringResource(R.string.h3_no_models) }
+                        else -> stringResource(R.string.h3_not_read)
                     }
                 )
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
@@ -151,9 +153,9 @@ fun ServerStatusLamp(modifier: Modifier = Modifier) {
                         },
                         enabled = !offlineMode && connection is ConnectionState.Connected
                     ) {
-                        Text(if (state == LampState.PROBLEM) "重试" else "刷新")
+                        Text(if (state == LampState.PROBLEM) stringResource(R.string.h3_retry) else stringResource(R.string.h3_refresh))
                     }
-                    TextButton(onClick = { open = false }) { Text("关闭") }
+                    TextButton(onClick = { open = false }) { Text(stringResource(R.string.h3_close)) }
                 }
             }
         }

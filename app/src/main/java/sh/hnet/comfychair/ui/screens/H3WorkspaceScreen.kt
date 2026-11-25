@@ -22,10 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.WorkflowManager
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.viewmodel.GenerationViewModel
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.workflow.H3Plan
 import sh.hnet.comfychair.ui.components.GenerationProgressBar
 import sh.hnet.comfychair.ui.components.ServerStatusLamp
@@ -170,7 +172,7 @@ fun H3WorkspaceScreen(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("H3 视频工作区", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.h3_workspace_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             sh.hnet.comfychair.ui.components.QueueIndicatorPill()
             Spacer(Modifier.width(8.dp))
             ServerStatusLamp()
@@ -180,7 +182,7 @@ fun H3WorkspaceScreen(
             androidx.compose.material3.IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
                 androidx.compose.material3.Icon(
                     androidx.compose.material.icons.Icons.Outlined.Settings,
-                    contentDescription = "设置"
+                    contentDescription = stringResource(R.string.h3_settings)
                 )
             }
         }
@@ -222,7 +224,7 @@ fun H3WorkspaceScreen(
 
         if (undecided.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                Text("以下工作流包含多个 H3 核心，无法自动判定，请指定一次：",
+                Text(stringResource(R.string.h3_pick_core),
                     style = MaterialTheme.typography.labelMedium)
                 undecided.forEach { wf ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -274,7 +276,7 @@ fun H3WorkspaceScreen(
         val list = inventory.filter { entry -> entry.modes.any { it.area == picking } }
         AlertDialog(
             onDismissRequest = { pickerFor = null },
-            title = { Text("选择${picking.label}工作流") },
+            title = { Text(stringResource(R.string.h3_choose_workflow, stringResource(picking.labelRes))) },
             text = {
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(list, key = { it.id }) { entry ->
@@ -300,8 +302,8 @@ fun H3WorkspaceScreen(
                                     }
                                 }
                                 val subtitle = when {
-                                    entry.builtIn -> if (entry.name.contains("Turbo", ignoreCase = true)) "内置 · 二采Turbo加速模板" else "内置 · 经典加速模板"
-                                    else -> "用户导入"
+                                    entry.builtIn -> if (entry.name.contains("Turbo", ignoreCase = true)) stringResource(R.string.h3_builtin_turbo) else stringResource(R.string.h3_builtin)
+                                    else -> stringResource(R.string.h3_user_imported)
                                 }
                                 Text(
                                     subtitle,
@@ -313,7 +315,7 @@ fun H3WorkspaceScreen(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { pickerFor = null }) { Text("关闭") } }
+            confirmButton = { TextButton(onClick = { pickerFor = null }) { Text(stringResource(R.string.h3_close)) } }
         )
     }
 
@@ -350,7 +352,7 @@ private fun BoundWorkflowRow(
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
-                        "当前激活工作流",
+                        stringResource(R.string.h3_active_workflow),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -375,7 +377,7 @@ private fun BoundWorkflowRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "切换",
+                        stringResource(R.string.h3_switch),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -399,19 +401,15 @@ private fun MissingArea(tab: H3Plan.Area, onOpenWorkflowSettings: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("未找到${tab.label}的 H3 工作流", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.h3_no_workflow_for, stringResource(tab.labelRes)), style = MaterialTheme.typography.titleMedium)
         Text(
             when (tab) {
-                H3Plan.Area.FRAMES ->
-                    "同一个模板就能跑文生、图生和首尾帧：导入含 MiniMaxH3ImageToVideo 的工作流即可。" +
-                        "仓库 workflows/ 目录有示例 JSON，导入后记得按自己服务器上的模型重选 UNET 和 LoRA。"
-                H3Plan.Area.R2V ->
-                    "参考生视频需要含 MiniMaxH3ReferenceToVideo 的模板，" +
-                        "示例见仓库 workflows/itv_h3_mobile_r2v.json。"
+                H3Plan.Area.FRAMES -> stringResource(R.string.h3_hint_frames)
+                H3Plan.Area.R2V -> stringResource(R.string.h3_hint_r2v)
             },
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp)
         )
-        Button(onClick = onOpenWorkflowSettings) { Text("去导入工作流") }
+        Button(onClick = onOpenWorkflowSettings) { Text(stringResource(R.string.h3_go_import)) }
     }
 }
 

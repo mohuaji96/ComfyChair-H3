@@ -36,6 +36,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // 德/西/法/波四个翻译包保留在源码里当底稿，但不打进包：语言选择只提供中英。
+    // 将来要恢复某种语言，把它从这份名单里去掉，再在语言列表和 locales_config 里加回即可。
+    androidResources {
+        localeFilters += listOf("en", "zh")
+    }
+
     val releaseKey = Properties().apply {
         val candidates = listOfNotNull(
             System.getenv("COMFYCHAIR_KEYSTORE_PROPERTIES")?.let { File(it) },

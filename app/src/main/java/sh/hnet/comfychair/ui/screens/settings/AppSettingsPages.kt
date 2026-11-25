@@ -158,11 +158,7 @@ class LanguageOption(val localeTag: String, @StringRes val nameRes: Int)
 /** System default first, then by native name. */
 val appLanguages = listOf(
     LanguageOption("", R.string.language_system_default),
-    LanguageOption("de", R.string.language_name_de),
     LanguageOption("en", R.string.language_name_en),
-    LanguageOption("es", R.string.language_name_es),
-    LanguageOption("fr", R.string.language_name_fr),
-    LanguageOption("pl", R.string.language_name_pl),
     LanguageOption("zh", R.string.language_name_zh)
 )
 

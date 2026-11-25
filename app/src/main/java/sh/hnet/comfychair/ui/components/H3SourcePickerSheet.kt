@@ -53,7 +53,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import sh.hnet.comfychair.R
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.repository.GalleryRepository
@@ -85,7 +87,7 @@ private sealed interface PickerEntry {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun H3SourcePickerSheet(
-    title: String = "源图像",
+    title: String? = null,
     currentSelectedFile: String? = null,
     onDismiss: () -> Unit,
     onPickFromAlbum: () -> Unit,
@@ -95,6 +97,13 @@ fun H3SourcePickerSheet(
     // skipPartiallyExpanded = false allows smooth dragging between half-expanded and fully-expanded states
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val galleryItems by GalleryRepository.getInstance().galleryItems.collectAsState()
+    val titleText = title ?: stringResource(R.string.h3_source_image)
+    val tabLabels = listOf(
+        R.string.h3_tab_all,
+        R.string.h3_tab_server,
+        R.string.h3_tab_frames,
+        R.string.h3_tab_history
+    )
 
     // Server's input folder: images only, newest first where the server tells the order
     var serverFiles by remember { mutableStateOf<List<ServerInputs.File>>(emptyList()) }
@@ -146,15 +155,15 @@ fun H3SourcePickerSheet(
         ) {
             // Header
             Text(
-                text = title,
+                text = titleText,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = when {
-                    serverOffline -> "离线：无法读取服务器素材，仍可从设备选择"
-                    serverLoading -> "共 $totalImages 张图像 · 正在读取服务器素材…"
-                    else -> "共 $totalImages 张图像（服务器 ${serverFiles.size}）"
+                    serverOffline -> stringResource(R.string.h3_offline_pick_hint)
+                    serverLoading -> stringResource(R.string.h3_images_reading_server, totalImages)
+                    else -> stringResource(R.string.h3_images_with_server, totalImages, serverFiles.size)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -175,7 +184,7 @@ fun H3SourcePickerSheet(
                         onClick = { selectedFilter = index },
                         label = {
                             Text(
-                                listOf("全部素材", "服务器素材", "提取帧", "历史生成")[index],
+                                stringResource(tabLabels[index]),
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -218,7 +227,7 @@ fun H3SourcePickerSheet(
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "从设备",
+                                text = stringResource(R.string.h3_from_device),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -251,7 +260,7 @@ fun H3SourcePickerSheet(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "离线时无法使用服务器上的文件，仍可从设备选择。",
+                                stringResource(R.string.h3_offline_server_unavailable),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -262,7 +271,7 @@ fun H3SourcePickerSheet(
                 if (entries.isEmpty() && !serverLoading && !serverOffline) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            "这里还没有素材",
+                            stringResource(R.string.h3_no_assets),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 16.dp)
@@ -332,7 +341,7 @@ fun H3SourcePickerSheet(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = "已选",
+                                    contentDescription = stringResource(R.string.h3_selected),
                                     tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -341,8 +350,8 @@ fun H3SourcePickerSheet(
 
                         // Source badge in top-left: where the tile comes from
                         val badge = when (entry) {
-                            is PickerEntry.Server -> "服务器"
-                            is PickerEntry.Local -> if (isFrameName(entry.item)) "提取帧" else null
+                            is PickerEntry.Server -> stringResource(R.string.h3_badge_server)
+                            is PickerEntry.Local -> if (isFrameName(entry.item)) stringResource(R.string.h3_tab_frames) else null
                         }
                         if (badge != null) {
                             Surface(

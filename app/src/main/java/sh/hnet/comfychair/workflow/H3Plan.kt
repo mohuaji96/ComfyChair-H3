@@ -1,7 +1,9 @@
 package sh.hnet.comfychair.workflow
 
+import androidx.annotation.StringRes
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.hnet.comfychair.R
 
 /**
  * Mode-driven binding plan for one H3 workflow.
@@ -22,12 +24,16 @@ object H3Plan {
      * node with two optional keyframes (`MiniMaxH3ImageToVideo`), so the concrete mode is a
      * submission-time decision, never a separate file or a separate tab.
      */
-    enum class Area(val label: String) {
-        FRAMES("文生 · 图生 · 首尾帧"), R2V("参考生视频")
+    enum class Area(val label: String, @StringRes val labelRes: Int) {
+        FRAMES("文生 · 图生 · 首尾帧", R.string.h3_area_frames),
+        R2V("参考生视频", R.string.h3_area_r2v)
     }
 
-    enum class Mode(val label: String) {
-        T2V("文生视频"), I2V("图生视频"), FL2V("首尾帧视频"), R2V("参考生视频");
+    enum class Mode(val label: String, @StringRes val labelRes: Int) {
+        T2V("文生视频", R.string.h3_mode_t2v),
+        I2V("图生视频", R.string.h3_mode_i2v),
+        FL2V("首尾帧视频", R.string.h3_mode_fl2v),
+        R2V("参考生视频", R.string.h3_mode_r2v);
 
         val area: Area get() = if (this == R2V) Area.R2V else Area.FRAMES
 
