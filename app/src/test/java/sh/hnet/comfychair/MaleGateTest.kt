@@ -94,26 +94,15 @@ class MaleGateTest {
         assumeTrue(text != null)
         val library = TagLibraryJson.parse(text!!)
         val engine = TagComposerEngine(library)
-        val tight = setOf("只露出肩部", "只露出少量肌肤", "腰部以上特写", "膝盖以上", "只露出背影")
-        val wideShot = setOf(
-            "全身照", "半身照", "膝上照", "下半身特写", "私处特写", "胸部特写",
-            "臀部特写", "脚部特写", "腰部特写", "贴得很近的半身", "只拍到腰腹以下"
+        // 裁切并进景别之后，「从上往下裁到肩」和「全身都在画里」住同一个槽，一轮只出一个值，
+        // 两种画幅尺度不可能同时成立。这里守的是这个结构前提，而不再是抽样比对。
+        val shotSlot = library.category("camera")!!.slots.first { it.id == "shot" }.pool.toSet()
+        val tight = listOf("胸部在画外", "下半身在画外", "脚部在画外")
+        val wide = listOf("全身照", "半身照", "膝上照", "下半身特写", "私处特写", "胸部特写")
+        assertTrue(
+            "裁切词和景别词该住同一个槽：$shotSlot",
+            tight.all { it in shotSlot } && wide.all { it in shotSlot }
         )
-
-        val clashes = mutableSetOf<String>()
-        repeat(1000) {
-            val picks = mutableMapOf<String, TagPick>("people.count" to TagPick("两个女孩", locked = true))
-            engine.randomize(picks)
-            val shot = picks["camera.shot"]?.value.orEmpty()
-            val frame = picks["camera.crop"]?.value.orEmpty()
-            if (frame in tight && shot in wideShot) clashes += "$frame + $shot"
-            if (frame == "胸部在画外" && shot == "胸部特写") clashes += "胸部在画外 + 胸部特写"
-            if (frame == "下半身在画外" && shot in setOf("下半身特写", "私处特写", "臀部特写")) {
-                clashes += "下半身在画外 + $shot"
-            }
-            if (frame == "脚部在画外" && shot == "脚部特写") clashes += "脚部在画外 + 脚部特写"
-        }
-        assertTrue("crop and shot disagree: ${clashes.take(8)}", clashes.isEmpty())
     }
 
     // ---- phrase de-duplication ----
@@ -143,32 +132,32 @@ class MaleGateTest {
 
     @Test
     fun aLeadingSkinInTheToneIsNotSaidTwice() {
-        assertEquals("油亮的皮肤上挂着水珠", skin("皮肤油亮", "皮肤上挂着水珠"))
+        assertEquals("油亮的皮肤上挂着水珠。", skin("皮肤油亮", "皮肤上挂着水珠"))
     }
 
     @Test
     fun aTrailingSkinInTheToneIsNotSaidTwice() {
-        assertEquals("透粉的皮肤上挂着水珠", skin("透粉的皮肤", "皮肤上挂着水珠"))
+        assertEquals("透粉的皮肤上挂着水珠。", skin("透粉的皮肤", "皮肤上挂着水珠"))
     }
 
     @Test
     fun aStateWithoutSkinIsUntouched() {
-        assertEquals("冷白皮的皮肤上挂着水珠", skin("冷白皮", "皮肤上挂着水珠"))
+        assertEquals("冷白皮的皮肤上挂着水珠。", skin("冷白皮", "皮肤上挂着水珠"))
     }
 
     @Test
     fun aLookThatTheStateAlreadyMentionsIsDropped() {
-        assertEquals("耳根发红的皮肤带着油光", skin("耳根发红", "皮肤带着油光", "油光"))
+        assertEquals("耳根发红的皮肤带着油光。", skin("耳根发红", "皮肤带着油光", "油光"))
     }
 
     @Test
     fun aDistinctLookSurvives() {
-        assertEquals("耳根发红的皮肤带着油光，次表面透光", skin("耳根发红", "皮肤带着油光", "次表面透光"))
+        assertEquals("耳根发红的皮肤带着油光，次表面透光。", skin("耳根发红", "皮肤带着油光", "次表面透光"))
     }
 
     @Test
     fun anEmptyStateKeepsTheToneAlone() {
-        assertEquals("皮肤油亮", skin("皮肤油亮", ""))
+        assertEquals("皮肤油亮。", skin("皮肤油亮", ""))
         assertFalse(skin("", "皮肤上挂着水珠").contains("的"))
     }
 }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -61,6 +62,7 @@ import kotlinx.coroutines.withContext
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.MainRoute
 import sh.hnet.comfychair.navigation.SettingsRoute
+import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.queue.JobStatus
 import sh.hnet.comfychair.ui.components.ErrorSnackbars
@@ -302,6 +304,15 @@ fun MainNavHost(
     val h3JobCount = queueState.ownJobs.values.count {
         (it.status == JobStatus.PENDING || it.status == JobStatus.EXECUTING) && it.ownerId == "H3_WORKSPACE"
     }
+    // 连拍的交接棒（跑完一段 → 截尾帧 → 交下一段）住在 H3 页面里。页签一换页面就被销毁，当前段
+    // 跑完便没人接手，链条断在半路。所以只要 H3 还有任务在跑/排队，或连拍链没走完，就把这页留在
+    // 组合里——只是缩成 0 尺寸藏起来，逻辑照跑；回到 H3 时状态还在原处。
+    val relayDoneNow by H3RelayStatus.done.collectAsState()
+    val relayLeftNow by H3RelayStatus.remaining.collectAsState()
+    val h3HasWork = h3JobCount > 0 || relayDoneNow + relayLeftNow > 0
+    var h3EverShown by rememberSaveable { mutableStateOf(false) }
+    val h3OnScreen = currentScreen == MainRoute.H3Workspace
+    LaunchedEffect(h3OnScreen) { if (h3OnScreen) h3EverShown = true }
     val promptViewModel: PromptOptimizerViewModel = viewModel()
     val transitions = rememberScreenTransitions()
     val tabReselects = remember { MutableSharedFlow<MainRoute>(extraBufferCapacity = 1) }
@@ -437,13 +448,10 @@ fun MainNavHost(
                                     )
                                 }
 
-                                // H3 workspace
-                                composable(MainRoute.H3Workspace.route) {
-                                    H3WorkspaceScreen(
-                                        generationViewModel = generationViewModel,
-                                        onOpenWorkflowSettings = { navController.navigate(SettingsRoute.Workflows.route) }
-                                    )
-                                }
+                                // H3 workspace: drawn by the keep-alive slot just below this NavHost, so
+                                // that leaving the tab mid-run does not tear the page — and the 连拍 chain
+                                // it drives — down. The destination stays registered for the back stack.
+                                composable(MainRoute.H3Workspace.route) { }
 
                                 // Prompt composer tabs: TagComposer <-> StoryComposer
                                 composable(MainRoute.TagComposer.route) {
@@ -594,12 +602,40 @@ fun MainNavHost(
                                     )
                                 }
                             }
+                            // H3, kept composed while it has work in flight: hidden as a zero-size box on
+                            // the other tabs, so its 连拍 chain and the sampling preview survive the switch.
+                            // Must apply paddingValues like NavHost, otherwise it ignores the top/bottom bars
+                            // and collides directly into the phone's system status bar!
+                            if (h3EverShown && (h3OnScreen || h3HasWork)) {
+                                Box(
+                                    modifier = if (h3OnScreen) {
+                                        Modifier.fillMaxSize().padding(paddingValues)
+                                    } else {
+                                        Modifier.size(0.dp)
+                                    }
+                                ) {
+                                    H3WorkspaceScreen(
+                                        generationViewModel = generationViewModel,
+                                        onOpenWorkflowSettings = { navController.navigate(SettingsRoute.Workflows.route) },
+                                        isVisible = h3OnScreen
+                                    )
+                                }
+                            }
                             // One switch for the tab over the screens, so choosing a source animates it as a toggle
                             // group does; each screen's top bar keeps its place (SourceSwitchPlaceholder)
                             SourceSwitchOverlay(currentScreen, sourceSwitchAnchors)
                         }
                     }
                 }
+            }
+            // The queue drawer is hosted once, here, instead of inside each tab: every pill opens the
+            // same sheet, and the H3 page kept alive in the background can no longer bring a second
+            // copy of it to the front.
+            if (sh.hnet.comfychair.ui.components.QueueSheetController.visible) {
+                sh.hnet.comfychair.ui.components.generation.QueueSheet(
+                    generationViewModel = generationViewModel,
+                    onDismiss = { sh.hnet.comfychair.ui.components.QueueSheetController.visible = false }
+                )
             }
             // Messages and the restore confirmation of every settings page
             SettingsEventsHost(settingsViewModel)

@@ -91,8 +91,15 @@ fun H3SourcePickerSheet(
     currentSelectedFile: String? = null,
     onDismiss: () -> Unit,
     onPickFromAlbum: () -> Unit,
-    /** [localPath] is set for a frame this app wrote: it must be uploaded before it can be used. */
-    onSelectFile: (filename: String, localPath: String?) -> Unit
+    /**
+     * [localPath] is set for a frame this app wrote: it must be uploaded before it can be used.
+     *
+     * [item] is the gallery entry the pick came from, or null for a file already sitting in the
+     * server's input folder. A gallery image lives in the server's *output* folder, which the
+     * workflow cannot read, so the caller needs the entry (and its cache key) to turn it into an
+     * input file rather than passing the name through.
+     */
+    onSelectFile: (filename: String, localPath: String?, item: GalleryItem?) -> Unit
 ) {
     // skipPartiallyExpanded = false allows smooth dragging between half-expanded and fully-expanded states
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -309,7 +316,10 @@ fun H3SourcePickerSheet(
                                     Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                                 }
                             )
-                            .clickable { onSelectFile(entry.filename, (entry as? PickerEntry.Local)?.item?.localPath) }
+                            .clickable {
+                                val picked = (entry as? PickerEntry.Local)?.item
+                                onSelectFile(entry.filename, picked?.localPath, picked)
+                            }
                     ) {
                         if (bitmap != null) {
                             Image(

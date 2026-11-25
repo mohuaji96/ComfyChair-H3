@@ -357,8 +357,13 @@ class TagComposerEngine(
             ?.firstOrNull { it.startsWith("toys:") }
             ?.substringAfter(':')
         if (required != null) return candidate == required
+        // 主戏没选就无从判断玩法。这种时候整格是纯道具装饰，登记过玩法的也放行，
+        // 否则「卧室里挂着吊环」会因为没写性行为而被删掉。
+        if (act.isEmpty()) return true
         val acts = library.constraints.toyActs[candidate] ?: return true
-        if (acts.isEmpty()) return true
+        // 登记为「通用」的道具（润滑液、听诊器）与「未登记」分开：前者是确认过不挑玩法，
+        // 后者是还欠一份玩法清单。两者都放行，但只有后者该在体检里报出来。
+        if (acts.isEmpty() || GENERAL_TOY_ACT in acts) return true
         return act in acts
     }
 
@@ -394,15 +399,22 @@ class TagComposerEngine(
         val type = wornType(picks, categoryId)
         if (type.isEmpty()) return true
         // 自带图案的款式同样不吃颜色，否则「白色的豹纹内裤」。
-        return type !in library.constraints.selfColoured && type !in library.constraints.selfPatterned
+        if (type in library.constraints.selfColoured || type in library.constraints.selfPatterned) return false
+        // 名单兜底：以后新加的花色款不必逐条登记，名字里带这些词根就当作自带花色的。
+        return PATTERN_ROOTS.none { it in type }
     }
 
-    /** Drops the colour slot under a garment that already names its colour. */
+    /** Drops the colour slot under a garment that already names its colour, or names nothing. */
     private fun dropSelfColouredColour(picks: MutableMap<String, TagPick>, categoryId: String) {
         val colourKey = key(categoryId, COLOR_SLOT)
         val pick = picks[colourKey] ?: return
         if (pick.value.isEmpty() || pick.locked) return
         val worn = wornType(picks, categoryId)
+        // 款式本身就说「没穿」，前面再挂一个颜色就是「蓝色的无内裤」。
+        if (worn in BARE_STATE_WORDS) {
+            picks[colourKey] = pick.copy(value = "")
+            return
+        }
         // 自带图案的款式和自带上色的一样，再挂一个颜色就撞：「白色的豹纹内裤」。
         if (worn !in library.constraints.selfColoured && worn !in library.constraints.selfPatterned) return
         picks[colourKey] = pick.copy(value = "")
@@ -578,10 +590,9 @@ class TagComposerEngine(
                 // An ignored slot is switched off for the session: leave it alone rather than
                 // drawing a value the player never asked for.
                 if (current.ignored) return@forEachIndexed
-                // 第二格给第三位女性，一男三女才有她；人数不够就留空。
-                if (category.id == PARTNER_ACT && slot.id == PARTNER_ACT_SLOT_2 &&
-                    (crowdSize(picks) ?: 0) < 4
-                ) {
+                // 同场动作写的是「另一个人在做什么」，一男一女只有两个人，写出来就是凭空多一个人。
+                // 一格要满三人、第二格要满四人，人数不够就留空。
+                if (category.id == PARTNER_ACT && !partnerHasSomeone(picks, slot.id)) {
                     if (!current.locked && current.value.isNotEmpty()) {
                         picks[slotKey] = current.copy(value = "")
                     }
@@ -657,10 +668,16 @@ class TagComposerEngine(
             val slotKey = key(category.id, slot.id)
             val current = picks[slotKey] ?: TagPick()
             if (current.locked || current.ignored) return@forEach
+            if (category.id == PARTNER_ACT && !partnerHasSomeone(picks, slot.id)) {
+                // 人数被上游改少了（从一男两女退到一男一女），这格也得跟着清掉。
+                if (current.value.isNotEmpty()) picks[slotKey] = current.copy(value = "")
+                return@forEach
+            }
             val accepted = selectedValues(picks, skip).toMutableSet().apply { remove(current.value) }
             val pool = slot.randomPool().filter { candidate ->
                 allowedIn(category.id, candidate) &&
                     !conflicts(candidate, accepted) &&
+                    !duplicatesPartner(category.id, slot.id, candidate, picks) &&
                     satisfies(candidate, picks, slotKey, skip)
             }
             val chosen = pickRandom(preferPeople(category.id, narrowFor(category.id, slot.id, pool, picks), picks), current.value, slotKey)
@@ -890,15 +907,22 @@ class TagComposerEngine(
             "2D", "动画", "动漫", "漫画", "插画", "平涂", "水墨", "铅笔", "色粉",
             "油画", "水彩", "版画", "拼贴", "黏土", "赛璐璐", "立绘", "厚涂",
         ).any { text.contains(it) }
-        val lens = listOf("3D", "写实", "摄影", "胶片", "实拍", "照片", "渲染", "CG")
+        // 三维和实拍怕的东西不一样。三维怕被画成照片的颗粒与噪点，实拍怕被画成
+        // CG 的塑料光泽。混成一条「不是画」的反向词，两边都防不住。
+        val is3d = text.contains("3D")
+        val isPhoto = !is3d && listOf("写实", "摄影", "胶片", "实拍", "照片")
             .any { text.contains(it) }
 
         return when {
             drawn && english ->
                 "3d render, 3d model, photorealistic, real skin texture, figurine, blind box, plastic sheen"
             drawn -> "3D渲染, 三维模型, 照片写实, 真实皮肤质感, 手办, 盲盒, 塑料光泽"
-            lens && english -> "anime, cartoon, hand-drawn lines, flat colour blocking, exaggerated proportions"
-            lens -> "动漫, 卡通, 手绘线条, 平涂色块, 夸张比例"
+            is3d && english ->
+                "anime, cartoon, hand-drawn lines, flat colour blocking, photo grain, camera noise"
+            is3d -> "动漫, 卡通, 手绘线条, 平涂色块, 实拍照片, 胶片颗粒"
+            isPhoto && english ->
+                "anime, cartoon, hand-drawn lines, flat colour blocking, 3d render, cg, plastic sheen"
+            isPhoto -> "动漫, 卡通, 手绘线条, 平涂色块, 3D渲染, CG, 塑料光泽"
             else -> ""
         }
     }
@@ -930,18 +954,28 @@ class TagComposerEngine(
 
         val kind = value(RACE, "kind")
         val ethnicity = value(RACE, "ethnicity")
-        val age = value(PERSON, "age")
-        val look = value(PERSON, "look")
+        // 日常档没有「形象」分类，年龄感是单独一格（age.range），不兜底就整句少一个年龄段。
+        val age = value(PERSON, "age").ifEmpty { value("age", "range") }
+        val look = value(PERSON, "look").ifEmpty { value("look", "kind") }
         // 妆容是人物句直接读的，不经过分类表那道遮挡；脸埋进手掌时这里也得自己让掉。
         // NSFW 把妆容并进了「形象」；SFW 那边仍是独立分类，两档都要能取到。
         val faceCat = if (library.category(PERSON)?.slots?.any { it.id == "face" } == true) PERSON else "makeup"
         // 取景把脸裁掉（背面视角、只露出背影）时妆容也没有落笔的地方，年龄和气质不受影响。
         val framing = hiddenRegionsOf(picks.values.filter { it.value.isNotEmpty() }.map { it.value })
         val makeup = if ("face" in framing || hiddenByFace(faceCat, picks, "face")) "" else value(faceCat, "face")
-        val fantasy = kind.isNotEmpty() && kind != HUMAN_KIND
+        // 日常档的种族格写的是「东亚面孔」这类地域词。它不是异族，直接当名词会成
+        // 「她是一名东亚面孔」，也会走去种族那一支补前置，收成「东亚女性」才站得住。
+        val faceKind = kind.endsWith("面孔")
+        val fantasy = kind.isNotEmpty() && kind != HUMAN_KIND && !faceKind
         // 身份没有了，人类一律用 女孩 / 女性 收尾，按年龄切换，免得写出「二十八岁的女」。
-        val noun = if (fantasy) library.constraints.raceName[kind] ?: kind else womanNoun(age)
-        val (lookTail, nounTail) = womanTail(lookAfter(age, look), noun)
+        val noun = when {
+            faceKind -> kind.removeSuffix("面孔") + "女性"
+            fantasy -> library.constraints.raceName[kind] ?: kind
+            else -> womanNoun(age)
+        }
+        val faceDetailLook = if (look in FACE_DETAIL_LOOKS) look else ""
+        val temperamentLook = if (look in FACE_DETAIL_LOOKS) "" else formatLookModifier(lookAfter(age, look))
+        val (lookTail, nounTail) = womanTail(temperamentLook, noun)
         // 女警 / 龙女 自带「女」，再加就成了 女女警；夜班护士这种四字职业前面塞一个「女」
         // 也读不顺；气质是「欲女」时同样会叠成「欲女女护士」。一律不加。
         val female = if (nounTail.isEmpty() || noun.contains("女") || nounTail.length > 3 ||
@@ -969,12 +1003,20 @@ class TagComposerEngine(
                 append(nounTail)
             }
         }
-        return listOf(makeup, core).filter { it.isNotEmpty() }.joinToString("，").ifEmpty { null }
+        return listOf(makeup, faceDetailLook, core).filter { it.isNotEmpty() }.joinToString("，").ifEmpty { null }
     }
 
     /** 年龄词里已经带了「熟女」，气质再写一遍就成了「四十岁熟女的熟女护士」。 */
     private fun lookAfter(age: String, look: String): String =
         if (look.isNotEmpty() && age.contains(look)) "" else look
+
+    /** 「媚态」「风尘味」「纯欲风」等名词型气质直接贴在「女孩」前会生硬，补上连词同时保留原词子串。 */
+    private fun formatLookModifier(look: String): String = when {
+        look.isEmpty() -> ""
+        look in WTIH_DE_LOOKS -> "带着${look}的"
+        look in DE_SUFFIX_LOOKS -> "${look}的"
+        else -> look
+    }
 
     /**
      * 气质本身以「女」结尾时，收尾名词要换个接法。
@@ -1023,17 +1065,22 @@ class TagComposerEngine(
             val look = looks.randomOrNull(random).orEmpty().also(looks::remove)
             val hairColor = hairColors.randomOrNull(random).orEmpty().also(hairColors::remove)
             val hairStyle = hairStyles.randomOrNull(random).orEmpty().also(hairStyles::remove)
-            // 锁骨微卷、湿发贴脸这类不是名词，前面挂颜色会读成「金色锁骨微卷」，退回长发。
+            // 锁骨微卷、湿发贴脸这类状态词不是发型名，前面挂颜色会读成「金色锁骨微卷」，退回长发；
+            // 马尾、丸子头、波波头、姬发式、麻花辫等正常发型名词直接接颜色。
             val hair = when {
                 hairColor.isEmpty() -> ""
-                hairStyle.endsWith("发") && !hairStyle.contains("的") && hairStyle.length <= 5 ->
+                hairStyle.isNotEmpty() &&
+                    hairStyle !in library.constraints.hairState &&
+                    !hairStyle.contains("的") ->
                     hairColor + hairStyle
                 else -> hairColor + "长发"
             }
             val fantasy = kind.isNotEmpty() && kind != HUMAN_KIND
             val noun = if (fantasy) library.constraints.raceName[kind] ?: kind else womanNoun(age)
+            val faceDetail = if (look in FACE_DETAIL_LOOKS) look else ""
+            val cleanLook = if (look in FACE_DETAIL_LOOKS) "" else formatLookModifier(lookAfter(age, look))
             // 年龄词已经写着「熟女」，气质再补一个就是「四十岁熟女的熟女机械人形」。
-            val (lookOut, nounOut) = womanTail(lookAfter(age, look), noun)
+            val (lookOut, nounOut) = womanTail(cleanLook, noun)
             val female = if (nounOut.isEmpty() || noun.contains("女") || nounOut.length > 3 ||
                 lookOut.endsWith("女") || nounOut in GENDERLESS
             ) "" else "女"
@@ -1043,6 +1090,7 @@ class TagComposerEngine(
                 append(lookOut)
                 append(female)
                 append(nounOut)
+                if (faceDetail.isNotEmpty()) append("，").append(faceDetail)
                 // 头发放在句尾，避开「银色长直发的三十岁的」这种连着的两个「的」。
                 if (hair.isNotEmpty()) append("，").append(hair)
                 append("。")
@@ -1132,6 +1180,8 @@ class TagComposerEngine(
             if (phrase.isNotEmpty()) {
                 byCategory[category.id] = when {
                     category.id == PEOPLE_ID -> phrase + roleNote(phrase)
+                    // 手部动作在模型眼里是没有主语的碎片：「手掌按在膝上」会被摊到画面里所有人身上。
+                    category.id == HAND_ACTION -> herHands(phrase)
                     // With two bodies on screen an unowned mark lands on both of them.
                     owned -> "她身上的$phrase"
                     else -> phrase
@@ -1164,7 +1214,11 @@ class TagComposerEngine(
             val own = tier.mapNotNull { byCategory[it] }
             own + extras[index].orEmpty().sortedBy(tierOf).mapNotNull { byCategory[it] }
         }
-        return blocks.filter { it.isNotEmpty() }.joinToString("\n") { it.joinToString(SEPARATOR) }
+        // 段尾补句号：模型把换行当空格，两段就会连读成「匀称穿白色衬衫」。
+        // 换行留给人看，句号给模型断句，两个都要。
+        return blocks.filter { it.isNotEmpty() }
+            .map { sentenceEnd(it.joinToString(SEPARATOR)) }
+            .joinToString("\n")
     }
 
     /**
@@ -1184,7 +1238,7 @@ class TagComposerEngine(
         }
 
         val blocks = mutableListOf<List<String>>()
-        val malePresent = byCategory[PEOPLE].orEmpty().contains("男")
+        val malePresent = byCategory[PEOPLE]?.isNotEmpty() == true && malePresent(picks)
         // Style (with its render cues), environment and light lead. They used to sit behind forty
         // body words, and the model answered 走廊 with a bed because by then it had decided the
         // scene was a close interior.
@@ -1208,8 +1262,12 @@ class TagComposerEngine(
         val personLine = personClause(picks)
         used += RACE
         used += PERSON
+        used += "makeup"
+        // 人物句已经用掉的这两格，别再让末尾兜底把同一句拆开重说一遍。
+        used += "age"
+        used += "look"
         val heroItems = SECTION_HERO.mapNotNull { id ->
-            if (id == RACE || id == PERSON) return@mapNotNull null
+            if (id == RACE || id == PERSON || id == "makeup") return@mapNotNull null
             if (id in BODY_BLOCK && id !in bodyKeeping) {
                 // Mark it spent, or the leftovers sweep below puts it back as a new block.
                 used += id
@@ -1229,16 +1287,34 @@ class TagComposerEngine(
                 if (wear.isNotEmpty()) {
                     if (isNotEmpty()) append("；")
                     // 无内裤 / 无内衣 already carry the negation; prefixing 穿 produced 穿无内裤.
-                    // 衣物是「穿」，配饰是「戴」，道具只能「拿」。原来全都挂在「穿」底下，
-                    // 就有了「穿口罩」「穿串珠肛塞」「穿悬吊吊环」。
-                    val dressed = wearItems.filter { it.first in WEAR_CLOTHES }
-                        .map { it.second }.filter { it !in BARE_WORD }
+                    // 衣物是「穿」，配饰是「戴」，道具只能「拿」；穿脱状态、衣物细节与半脱走光短语
+                    // 自成子句，不挂「穿」前缀（避免「穿双手在背后解胸罩」「穿露出一边乳房」）。
+                    val dressedItems = wearItems.filter {
+                        it.first in wearClothes() && it.second !in BARE_WORD && !isStandaloneWearClause(it.first, it.second)
+                    }
+                    // 外衣和内衣挤在同一个「穿」后面，模型分不清哪件在外面。分开说：
+                    // 五cm 的吊带裙和底下那件蕾丝，层次才对得上。
+                    val dressed = dressedItems.filter { it.first !in INNER_WEAR }.map { it.second }
+                    val innerDressed = dressedItems.filter { it.first in INNER_WEAR }.map { it.second }
+                    val stateClothes = wearItems.filter {
+                        it.second !in BARE_WORD && (
+                            it.first in wearStates() ||
+                                (it.first in wearClothes() && isStandaloneWearClause(it.first, it.second))
+                            )
+                    }.map { it.second }
                     val worn = wearItems.filter { it.first in WEAR_ACCESSORY || it.first in WEAR_PROPS }
                         .filter { it.second !in BARE_WORD }
                     val bare = wear.filter { it in BARE_WORD }.map { BARE_WORD.getValue(it) }
+                    // 没有外衣时别写「内搭」——她身上就那一件，说「穿」才对。
+                    val innerPhrase = when {
+                        innerDressed.isEmpty() -> null
+                        dressed.isEmpty() -> "穿${innerDressed.joinToString("，")}"
+                        else -> "内搭${innerDressed.joinToString("，")}"
+                    }
                     val groups = listOfNotNull(
-                        "穿${dressed.joinToString("，")}".takeIf { dressed.isNotEmpty() }
-                    ) + wearGroups(worn)
+                        "穿${dressed.joinToString("，")}".takeIf { dressed.isNotEmpty() },
+                        innerPhrase
+                    ) + stateClothes + wearGroups(worn)
                     if (groups.isNotEmpty()) append(groups.joinToString("，"))
                     bare.forEachIndexed { index, text ->
                         if (groups.isNotEmpty() || index > 0) append("，")
@@ -1248,13 +1324,20 @@ class TagComposerEngine(
             }
             if (sentence.isNotEmpty()) blocks += listOf(sentence)
         } else {
-            // 没有男性时不拆「她是…」那句，但衣物同样要按穿/戴/拿分组，
-            // 否则配饰和道具会裸列成「花环，金框墨镜，素圈戒指，跳蛋」。
+            // 没有男性时不拆「她是…」那句，但衣物同样要按穿/状态/戴/拿分组，
+            // 否则配饰和道具会裸列成「花环，金框墨镜，素圈戒指，跳蛋」，衣物细节则会变成「穿露出一边乳房」。
             val body = listOfNotNull(personLine) + heroItems.filter { it.first in HER_BODY }
                 .map { (_, value) -> BARE_WORD[value] ?: value }
             val wearItems = heroItems.filter { it.first !in HER_BODY }
-            val clothes = wearItems.filter { it.first in WEAR_CLOTHES }
-                .map { it.second }.filter { it !in BARE_WORD }
+            val clothes = wearItems.filter {
+                it.first in wearClothes() && it.second !in BARE_WORD && !isStandaloneWearClause(it.first, it.second)
+            }.map { it.second }
+            val stateClothes = wearItems.filter {
+                it.second !in BARE_WORD && (
+                    it.first in wearStates() ||
+                        (it.first in wearClothes() && isStandaloneWearClause(it.first, it.second))
+                    )
+            }.map { it.second }
             val worn = wearItems.filter { it.first in WEAR_ACCESSORY || it.first in WEAR_PROPS }
                 .filter { it.second !in BARE_WORD }
             val bare = wearItems.map { it.second }.filter { it in BARE_WORD }
@@ -1262,7 +1345,7 @@ class TagComposerEngine(
             val parts = listOfNotNull(
                 body.joinToString("，").takeIf { body.isNotEmpty() },
                 "穿${clothes.joinToString("，")}".takeIf { clothes.isNotEmpty() }
-            ) + wearGroups(worn) + bare
+            ) + stateClothes + wearGroups(worn) + bare
             if (parts.isNotEmpty()) blocks += listOf(parts.joinToString("，"))
         }
 
@@ -1271,10 +1354,15 @@ class TagComposerEngine(
         // 这两格由 maleSentence 自己渲染。不先 take 掉的话，下面的 rest 兜底会把它们
         // 再拼一遍到她的段落里，同一个词就出现两次。
         take(MALE_FACE)
-        // Before the act, not after: a man placed after the verb gets put wherever fits.
-        maleSentence(byCategory, picks)?.let(act::add)
-        SECTION_ACT_MAIN.forEach { take(it)?.let(act::add) }
+        take(MALE_FEATURE)
+        // 男方单独成句：混在她的动作串里，逗号会把「她」和「他」连成一个人。
+        // 位置仍在主戏之前——放在动词后面，模型会把他随手摆在任意位置。
+        val maleText = maleSentence(byCategory, picks)
+        val mainAct = mutableListOf<String>()
+        SECTION_ACT_MAIN.forEach { take(it)?.let(mainAct::add) }
         blocks += act
+        if (maleText != null) blocks += listOf(maleText)
+        blocks += mainAct
 
         // 第三个人的动作必须自己带主语。混进上面那串逗号里，读起来像是她自己在做,
         // 而旁观者句又会让同一个人同时出现在角落——两套机制都描述第三个人。
@@ -1286,9 +1374,14 @@ class TagComposerEngine(
             picks[key(PARTNER_ACT, slot)]?.value
                 ?.takeIf { it.isNotEmpty() }
                 ?.takeIf { fitsPartnerReach(it, picks) }
-        val partner = if (poseAlreadyCovers) null else partnerWord(PARTNER_ACT_SLOT)
+        // 存档里可能留着人数改小之前的旧值，出口这里再确认一次真的有人能做这件事：
+        // 一男一女只有两个人，「另一个人在做什么」写出来就是凭空多一个人。
+        val partner = if (poseAlreadyCovers || !partnerHasSomeone(picks, PARTNER_ACT_SLOT)) null
+                      else partnerWord(PARTNER_ACT_SLOT)
         // 一男三女才有第二个旁观者；两格抽到同一句等于同一个人被写两遍。
-        val partner2 = if (poseAlreadyCovers) null else partnerWord(PARTNER_ACT_SLOT_2)?.takeIf { it != partner }
+        val partner2 = if (poseAlreadyCovers || partner == null ||
+            !partnerHasSomeone(picks, PARTNER_ACT_SLOT_2)
+        ) null else partnerWord(PARTNER_ACT_SLOT_2)?.takeIf { it != partner }
         // 这两格各自成句，不能再交给 rest 兜底拼回一串。
         used += PARTNER_ACT
         // 第二位、第三位女性各自一句，否则三个人共用一张脸。她的动作接在同一句末尾，
@@ -1320,8 +1413,62 @@ class TagComposerEngine(
         if (rest.isNotEmpty()) blocks += rest.values.toList()
 
 
-        return blocks.filter { it.isNotEmpty() }.joinToString("\n") { it.joinToString(SEPARATOR) }
+        return blocks.filter { it.isNotEmpty() }
+            .map { sentenceEnd(it.joinToString(SEPARATOR).replace("。$SEPARATOR", "。")) }
+            .joinToString("\n")
     }
+
+    /**
+     * 一句收在句号上。
+     *
+     * 换行对模型不是分隔符：段尾只靠换行，两段会连读成「匀称穿白色衬衫」。
+     * 已经收在句末标点上的不再重复；右括号、右引号要留在句号里面。
+     */
+    private fun sentenceEnd(text: String): String {
+        if (text.isEmpty()) return text
+        val trimmed = text.trimEnd()
+        val tail = listOf("）", "」", "』", "”", "’", ")", "\"", "'")
+        var body = trimmed
+        var closing = ""
+        while (body.isNotEmpty() && tail.any { body.endsWith(it) }) {
+            closing = body.last() + closing
+            body = body.dropLast(1)
+        }
+        if (body.isEmpty()) return trimmed
+        return when (body.last()) {
+            '。', '！', '？', '…', '!', '?' -> trimmed
+            else -> body + "。" + closing
+        }
+    }
+
+    /**
+     * 同场动作（partnerAct）要真有那第几个人在场：一格满三人，第二格满四人。
+     *
+     * 一男一女只有两个人，抽出来就是凭空多一个人；这条判据同时挡住「上游把人数改小了」的残留。
+     */
+    private fun partnerHasSomeone(picks: Map<String, TagPick>, slotId: String): Boolean {
+        val crowd = crowdSize(picks) ?: 0
+        return if (slotId == PARTNER_ACT_SLOT_2) crowd >= 4 else crowd >= 3
+    }
+
+    /**
+     * 判断某条衣物槽产出的短语是否为独立状态/动作子句（不能前置「穿」）。
+     */
+    private fun isStandaloneWearClause(categoryId: String, phrase: String): Boolean {
+        if (categoryId in wearStates()) return true
+        if (library.constraints.pos[phrase] == "verb") return true
+        return STANDALONE_WEAR_PREFIXES.any { phrase.startsWith(it) }
+    }
+
+    /**
+     * garment 在两档里是两个东西：成人档放的是衣物细节与穿脱状态（双手在背后解胸罩），
+     * 日常档放的是连身装（米白针织连衣裙、深蓝成套西装）。同一个分类 id，接法必须分开。
+     */
+    private fun wearClothes(): Set<String> =
+        if (library.profile == "sfw") WEAR_CLOTHES + GARMENT else WEAR_CLOTHES
+
+    private fun wearStates(): Set<String> =
+        if (library.profile == "sfw") WEAR_STATES - GARMENT else WEAR_STATES
 
     /**
      * 人数 says a man exists but never where he stands, so the organ arrives without its owner
@@ -1356,6 +1503,19 @@ class TagComposerEngine(
         }
     }
 
+    /**
+     * 手部动作补主语。
+     *
+     * 词条本身是碎片：名词打头（手指抵唇、手掌按在膝上）补「她的」不补会读成「她的手指
+     * 抵唇」之外的人；动词打头（撩头发、摊开手掌）补「她」。代词后面不加「的」——
+     * 「她的只剩丝袜了」这种恰恰是加错了地方。
+     */
+    private fun herHands(phrase: String): String {
+        if (phrase.isEmpty() || phrase.startsWith("她")) return phrase
+        val nounLed = listOf("手", "指", "掌", "臂", "拳", "肘")
+        return if (nounLed.any { phrase.startsWith(it) }) "她的$phrase" else "她$phrase"
+    }
+
     private fun maleSentence(byCategory: Map<String, String>, picks: Map<String, TagPick>): String? {
         val people = byCategory[PEOPLE].orEmpty()
         if (!people.contains("男")) return null
@@ -1366,8 +1526,11 @@ class TagComposerEngine(
         // is a label, and a label cannot be given its own sentence or its own posture.
         val male = library.category(MALE_BODY)?.let { activeValues(picks, it) }.orEmpty()
         val build = male["body"].orEmpty()
-        val feature = male["feature"].orEmpty()
+        val age = male["age"].orEmpty()
+        // 日常档把男方外貌放在独立的 maleFeature 分类里，成人档才是 maleBody.feature。
+        val feature = male["feature"].orEmpty().ifEmpty { byCategory[MALE_FEATURE].orEmpty() }
         val outfit = male["outfit"].orEmpty()
+        val state = male["state"].orEmpty()
         val organ = byCategory[PENIS]
 
         // His hands were the one thing the library never described, so the model invented
@@ -1386,11 +1549,12 @@ class TagComposerEngine(
                 }
             }
 
-        val wear = maleWear(outfit)
-        val who = if (build.isEmpty() && feature.isEmpty() && wear.isEmpty()) {
+        val wear = maleWear(outfit, state)
+        val tag = listOf(age, build).filter { it.isNotEmpty() }.joinToString("、")
+        val who = if (tag.isEmpty() && feature.isEmpty() && wear.isEmpty()) {
             "画面里有一名男性"
         } else {
-            "他是一名" + (if (build.isEmpty()) "" else "${build}的") + "男性" +
+            "他是一名" + (if (tag.isEmpty()) "" else "${tag}的") + "男性" +
                 (if (feature.isEmpty()) "" else "，$feature") + wear
         }
 
@@ -1450,14 +1614,19 @@ class TagComposerEngine(
     /**
      * Some outfits are states, not garments: 只穿内裤 and 西装革履 cannot take 穿着 in front.
      */
-    private fun maleWear(outfit: String): String = when {
-        outfit.isEmpty() -> ""
-        outfit == "全裸" -> "，全身赤裸"
-        outfit.startsWith("只") || outfit.contains("革履") || outfit.contains("解开") ||
-            outfit.contains("围着") || outfit.contains("挂着") || outfit.contains("身上什么也没穿") ||
-            outfit.contains("赤裸") || outfit.contains("未着寸缕") || outfit.contains("一丝不挂") ->
-            "，$outfit"
-        else -> "，穿着$outfit"
+    private fun maleWear(outfit: String, state: String = ""): String {
+        // 「什么都没穿」不是衣服的状态，是「没有衣服」，它替代整条穿着描述。
+        if (state == "什么都没穿") return "，身上什么也没穿"
+        val base = when {
+            outfit.isEmpty() -> ""
+            outfit == "全裸" -> "，全身赤裸"
+            outfit.startsWith("只") || outfit.contains("革履") || outfit.contains("解开") ||
+                outfit.contains("围着") || outfit.contains("挂着") || outfit.contains("身上什么也没穿") ||
+                outfit.contains("赤裸") || outfit.contains("未着寸缕") || outfit.contains("一丝不挂") ->
+                "，$outfit"
+            else -> "，穿着$outfit"
+        }
+        return if (base.isEmpty()) "" else base + (if (state.isEmpty()) "" else "，$state")
     }
 
     /**
@@ -1481,10 +1650,9 @@ class TagComposerEngine(
         // A style whose name promises a colour cannot leave it to chance: 霓虹夜色 without neon
         // is a night portrait. The forced word still shows in 调色, and the player can change it.
         val feel = graded["feel"].orEmpty().ifEmpty { library.styleFeel[canonicalStyle(medium)].orEmpty() }
-        val palette = graded["palette"].orEmpty()
+        // 调色与主色已并成一格、光质与光位并成一格，这里只认这两格。
         val tone = graded["tone"].orEmpty()
-        val pos = graded["pos"].orEmpty()
-        if (medium.isEmpty() && feel.isEmpty() && palette.isEmpty() && tone.isEmpty() && pos.isEmpty()) {
+        if (medium.isEmpty() && feel.isEmpty() && tone.isEmpty()) {
             return null
         }
 
@@ -1496,15 +1664,7 @@ class TagComposerEngine(
             parts += if (strict) library.stylePrompts[canonicalStyle(medium)] ?: medium else medium
         }
         if (feel.isNotEmpty()) parts += feel
-        if (palette.isNotEmpty()) {
-            parts += if (strict && library.paletteRule.isNotBlank()) {
-                library.paletteRule.replace("%s", palette)
-            } else {
-                palette
-            }
-        }
         if (tone.isNotEmpty()) parts += tone
-        if (pos.isNotEmpty()) parts += pos
         // The sentence already ends with 。; joining with a comma produced "。，暗调胶片".
         return parts.joinToString("，").replace("。，", "。")
     }
@@ -1585,8 +1745,6 @@ class TagComposerEngine(
             // 「分类.格」规则也要在出句时认一次：穿上衣以后，已经抽中的乳房形态与乳头
             // 不能还挂在句子里。锁住的不算——锁住就是玩家明确要的那一格。
             if (!pick.locked && slotGated(slotKey, picks)) return@forEach
-            // 复合格已经给出完整情绪，单格不再挤进同一句。
-            if (category.id == EXPRESSION && slot.id == "face" && compoundOwnsTheLine(picks)) return@forEach
             values[slot.id] = pick.value
         }
         return values
@@ -1672,7 +1830,8 @@ class TagComposerEngine(
         candidate: String,
         picks: Map<String, TagPick>,
         selfKey: String,
-        skip: Set<String>
+        skip: Set<String>,
+        manual: Boolean = false
     ): String? {
         if (hasWordRules && candidate in bannedWords(picks)) return "与已选词的排除规则冲突"
         // 第二格是第三位女性的动作，一男三女才有她。写在这里，面板问「为什么这格是空的」
@@ -1685,7 +1844,7 @@ class TagComposerEngine(
         if (!fitsSelfColour(candidate, picks, selfKey)) return "这一件自带颜色，不再叠颜色"
         if (!fitsScenePose(candidate, picks)) return "动作已经写清体位，不再叠场景排布"
         if (selfKey.startsWith("$POSE.") && actNamesPosition(picks)) return "动作已经写死了体位"
-        if (selfKey == key(EXPRESSION, "face") && compoundOwnsTheLine(picks)) return "复合情绪已经独占这一句"
+
         if (selfKey.startsWith("toys.") && !toyFitsTheAct(candidate, picks)) return "这个道具要配对应的玩法"
         if (clashesByMotion(selfKey.substringBefore('.'), candidate, picks)) return "与动作语义冲突"
         if (!fitsGroup(library.constraints.posture, candidate, picks, selfKey, skip)) return "姿势组冲突"
@@ -1696,14 +1855,16 @@ class TagComposerEngine(
         // Head count and sex belong here too: one woman cannot perform a two-man act, and that is
         // a contradiction in the words, not a feasibility question.
         if (!fitsMale(candidate, picks)) return "画面里没有男人"
-        if (!fitsPeople(candidate, picks, selfKey)) return "人数不够"
+        if (!fitsPeople(candidate, picks, selfKey, manual)) return "人数不够"
         // 「后入」配「一只手从背后揉着她的乳房」是同句直接矛盾，不是可行性问题，
         // 普通模式也得拦。放在 feasibility 那一段就等于默认放过。
         if (!fitsPostureHint(candidate, picks)) return "方位与当前动作对不上"
         if (!fitsOrganState(candidate, picks)) return "阴茎状态与当前动作对不上"
         if (!fitsPartnerReach(candidate, picks)) return "整根没入时够不到根部"
         if (!fitsRegionSkin(candidate, picks, selfKey)) return "这个地域不长这种肤色"
-        if (!fitsEra(candidate, picks, selfKey)) return "服装与场地不是一个年代"
+        // 古装与现代场地不互斥：古装站在便利店就当 cosplay 读。硬拦会把古装的可选场地砍到
+        // 只剩二十来个，抽到古装时整段衣服空着的比例也跟着涨。eras 表留在数据里备用。
+        if (!fitsLowerBareState(candidate, picks, selfKey)) return "下身已经穿好了，不能再写赤裸"
         return null
     }
 
@@ -1723,23 +1884,20 @@ class TagComposerEngine(
     }
 
     /**
-     * 服装与场地不是一个年代。
+     * 下身已经穿好了，就不能再写「下身赤裸」。
      *
-     * 只有标了年代的场地参与配对：客栈、洞府只认古装，便利店、地铁只认现代装。没标年代的
-     * 场地（卧室、森林、纯白背景）不限，cosplay 照样成立。衣服没标年代一律按现代算，
-     * 所以古装出现在便利店会被拦下。
+     * 抽脱状态排在衣服之前，正常情况下这一格会先把下衣关掉；但玩家手动锁了下衣、或者只重抽
+     * 这一格时，锁住的值不会被清，两句就会挤进同一段。反方向不用管：抽到「下身赤裸」时，
+     * 跳过规则本来就会清下衣。
      */
-    private fun fitsEra(candidate: String, picks: Map<String, TagPick>, selfKey: String): Boolean {
-        val table = library.constraints.eras
-        if (table.isEmpty()) return true
-        val categoryId = selfKey.substringBefore('.')
-        val place = selectedWord(picks, SCENE).orEmpty()
-        val placeEra = table[place] ?: return true
-        // 只判衣物款式格；穿脱状态、衣物细节是动作与状态，不分年代。
-        if (selfKey.substringAfter('.', "") != TYPE_SLOT) return true
-        if (categoryId !in ERA_CATEGORIES) return true
-        return (table[candidate] ?: MODERN_ERA) == placeEra
+    private fun fitsLowerBareState(candidate: String, picks: Map<String, TagPick>, selfKey: String): Boolean {
+        if (selfKey != key(OUTFIT_STATE, "state")) return true
+        val blocked = LOWER_BARE_STATES[candidate] ?: return true
+        return blocked.none { wornType(picks, it).isNotEmpty() }
     }
+
+    // 年代配对（fitsEra）已撤掉：古装与现代场地不互斥。eras 表仍留在词库里，
+    // 谁要恢复这条限制，按「场地标了年代就只认同年代的衣服」写一遍即可。
 
     /**
      * 抵着入口的阴茎 only exists before entry.
@@ -1793,7 +1951,9 @@ class TagComposerEngine(
      */
     fun blockedWords(categoryId: String, slotId: String, picks: Map<String, TagPick>): Map<String, String> =
         reasonsFor(categoryId, slotId, picks) { candidate, slotKey, skip ->
-            basicTag(candidate, picks, slotKey, skip)
+            // 置灰只表示「自动抽取不会选它」。景别与构图在多人档不自动抽，但玩家点名要时
+            // 照给，所以这里按手动口径判，不把它灰掉。
+            basicTag(candidate, picks, slotKey, skip, manual = true)
         }
 
     /**
@@ -2089,7 +2249,10 @@ class TagComposerEngine(
                 val slotKey = key(category.id, slot.id)
                 val current = picks[slotKey] ?: return@forEach
                 if (current.value.isEmpty() || current.locked || slotKey == protect) return@forEach
-                if (slot.id == COLOR_SLOT && wornType(picks, category.id) in library.constraints.selfColoured) {
+                val worn = wornType(picks, category.id)
+                if (slot.id == COLOR_SLOT &&
+                    (worn in library.constraints.selfColoured || worn in library.constraints.selfPatterned)
+                ) {
                     picks[slotKey] = current.copy(value = "")
                     return@forEach
                 }
@@ -2171,11 +2334,25 @@ class TagComposerEngine(
      * A solo subject therefore never gets a two-person action, while a group shot still
      * accepts the single-person pool — most poses are written from one viewpoint.
      */
-    private fun fitsPeople(candidate: String, picks: Map<String, TagPick>, selfKey: String): Boolean {
+    private fun fitsPeople(
+        candidate: String,
+        picks: Map<String, TagPick>,
+        selfKey: String,
+        manual: Boolean = false
+    ): Boolean {
         // An unset 人数 used to mean "no gate at all", so a solo page could show 几个人一起
         // 靠过来. Fall back to the largest head count this tab is allowed to draw.
         val crowd = crowdSize(picks) ?: crowdLimit() ?: return true
         val categoryId = selfKey.substringBefore('.')
+        // 景别与构图是给一个主体取景的：两人同框时画面由人和关系决定，
+        // 「胸部特写」「三分构图」这种只对一个人成立的说法就会打架。
+        // 只拦自动抽取：玩家自己点名要这一格时照给，多人档输出偏短可以靠手补。
+        if (!manual && crowd > 1 && selfKey in library.constraints.soloOnlySlots) return false
+        // 场上有男人时，只写一个人自己的动作会让另一个人凭空消失：男方介绍句刚说完，
+        // 下一句却是她独自骑在玩具上。这类词只在纯女或单人场出现。
+        if (categoryId == SEX_ACT && malePresent(picks) &&
+            library.peopleNeeded(categoryId, candidate) <= 1
+        ) return false
         if (categoryId !in library.constraints.peopleByCategory &&
             candidate !in library.constraints.people
         ) return true
@@ -2561,8 +2738,16 @@ class TagComposerEngine(
                 // 乳头单独成一小句：这一格的词自带名词（乳头硬挺、粉嫩乳晕），接在「水滴形的巨乳」
                 // 后面若用「的」，会读成「巨乳的乳头」，把归属写错。
                 val nipple = values["nipple"].orEmpty()
-                val breast = if (shape.isNotEmpty() && size.isNotEmpty()) "${shape}的$size"
-                             else size.ifEmpty { shape }
+                val breast = when {
+                    shape.isNotEmpty() && size.isNotEmpty() ->
+                        if (shape in BREAST_POST_SHAPES) {
+                            "$size，$shape"
+                        } else {
+                            val cleanShape = shape.removeSuffix("胸部").removeSuffix("的")
+                            "${cleanShape}的$size"
+                        }
+                    else -> size.ifEmpty { shape }
+                }
                 when {
                     nipple.isEmpty() -> breast
                     breast.isEmpty() -> nipple
@@ -2606,16 +2791,20 @@ class TagComposerEngine(
             JOIN_SKIN -> {
                 var tone = values["tone"].orEmpty()
                 val state = values["state"].orEmpty()
+                val toneIsFeature = tone in SKIN_FEATURE_TONES
                 // 皮肤油亮 + 皮肤上挂着水珠 said 皮肤 twice; the state already carries the noun.
                 // 「棕褐皮肤的汗水浸透的皮肤」说了两遍皮肤：状态自带名词时，色调只留颜色。
-                if (state.contains("皮肤")) tone = tone.removePrefix("皮肤").removeSuffix("皮肤")
+                if (!toneIsFeature && state.contains("皮肤")) {
+                    tone = tone.removePrefix("皮肤").removeSuffix("皮肤").removeSuffix("的")
+                }
                 val extra = category.slots
                     .filter { it.id != "tone" && it.id != "state" }
                     .mapNotNull { values[it.id] }
                     .filter { it.isNotEmpty() }
                     .joinToString("，")
                 val base = when {
-                    tone.isNotEmpty() && state.isNotEmpty() -> "${tone}的$state"
+                    tone.isNotEmpty() && state.isNotEmpty() ->
+                        if (toneIsFeature) "$tone，$state" else "${tone}的$state"
                     else -> tone.ifEmpty { state }
                 }
                 listOf(base, extra).filter { it.isNotEmpty() }.joinToString("，")
@@ -2637,7 +2826,8 @@ class TagComposerEngine(
                 val stateful = category.id == HAIR && rest in library.constraints.hairState
                 // 白衬衫 keeps its own colour even when the colour slot still holds one: a locked
                 // pick is never cleared, so this is the last place that guarantees the line reads.
-                val selfColoured = rest.isNotEmpty() && rest in library.constraints.selfColoured
+                val selfColoured = rest.isNotEmpty() &&
+                    (rest in library.constraints.selfColoured || rest in library.constraints.selfPatterned)
                 val head = when {
                     selfColoured -> rest
                     color.isNotEmpty() && rest.isNotEmpty() ->
@@ -2659,23 +2849,8 @@ class TagComposerEngine(
         }
     }
 
-    /**
-     * 复合情绪独占这一句。
-     *
-     * 「失神而满足」本身就是完整情绪，再拼一个单格就是两个情绪并排（失神而满足迷离）。
-     * 单格在抽词与修补时让位，只有复合格被锁住时才反过来保留单格。
-     */
-    private fun compoundOwnsTheLine(picks: Map<String, TagPick>): Boolean =
-        picks[key(EXPRESSION, "compound")]?.let { it.value.isNotEmpty() && !it.ignored } == true &&
-            picks[key(EXPRESSION, "face")]?.locked != true
-
-    private fun expressionPhrase(values: Map<String, String>): String {
-        val face = values["face"].orEmpty()
-        val compound = values["compound"].orEmpty()
-        if (compound.isNotEmpty()) return compound
-        if (face.isEmpty()) return compound
-        return face
-    }
+    /** 表情与复合情绪已经并成一格，这里只要取那一个值。 */
+    private fun expressionPhrase(values: Map<String, String>): String = values["face"].orEmpty()
 
     private fun isPants(type: String): Boolean = type.contains("裤") && !type.contains("裙")
 
@@ -2711,6 +2886,9 @@ class TagComposerEngine(
 
         /** 他的脸 — optional category; when off, the framing decides as before. */
         private const val MALE_FACE = "maleFace"
+
+        /** 日常档的男方外貌单独成一个分类，成人档并进 maleBody.feature，两档都要取到。 */
+        private const val MALE_FEATURE = "maleFeature"
 
         /** 第三个人的动作，单独成句，不混进她的动作列表。 */
         private const val PARTNER_ACT = "partnerAct"
@@ -2784,10 +2962,32 @@ class TagComposerEngine(
         )
 
         /**
+         * 款式本身就表示「这件没穿」。颜色槽对它们一律让位：写了「没穿内裤」再补「蓝色」
+         * 就成了「蓝色的没穿内裤」。两个同义写法都在这里登记，行为才一致。
+         */
+        private val BARE_STATE_WORDS = BARE_WORD.keys + setOf(
+            "没穿内裤", "没穿胸罩", "赤足", "光脚", "光腿", "全裸"
+        )
+
+        /**
          * Draw order is the catalog's tier field: 人数 1 → 场景 2 → 性行为 3 → 取景 4 →
          * 穿搭状态 5 → 姿势动作 6 → 身体 7 → 衣物 8 → 配饰 9 → 派生 10 → 风格 11.
          * A low tier may remove what a high tier put down, never the other way round.
          */
+         /** 登记为「通用」的玩具不挑玩法，与「还没登记」区分开。 */
+         private const val GENERAL_TOY_ACT = "通用"
+
+         /** 前提写成 `top:` 时只要求那一类身上有东西，不点名具体款式。 */
+         private const val ANY_IN_CATEGORY = ""
+
+         /** 贴身里衣：和外套分开说，模型才分得清里外。 */
+        private val INNER_WEAR = setOf("bra", "panties")
+
+        /** 名字里带这些词根的款式自带花色，前面不该再挂一个纯色。 */
+         private val PATTERN_ROOTS = listOf(
+             "格纹", "条纹", "波点", "碎花", "豹纹", "印花", "彩色", "渐变", "双色"
+         )
+
          private const val RACE = "race"
          private const val PERSON = "person"
          
@@ -2873,10 +3073,11 @@ private val PROMPT_TIERS: List<List<String>> = listOf(
         "bra", "panties", "top", "bottom", "garment", "socks", "shoes",
         "headwear", "jewelry", "toys", "outfitState",
     ),
-    // 六、姿态、男方、性行为、手部、表情与视线、另一人在做什么。
+    // 六、姿态、手部、表情与视线先说清她这一侧，再写男方与性行为。
+    // 反过来的话，她的表情和视线会接在男方那句后面，读起来全成了他在做。
     listOf(
-        "pose", "headPose", "maleFace", "maleBody", "maleHand", "penis",
-        "sexAct", "handAction", "expression", "gazeDir", "partnerAct",
+        "pose", "headPose", "handAction", "expression", "gazeDir",
+        "maleFace", "maleBody", "maleHand", "penis", "sexAct", "partnerAct",
     ),
 )
 
@@ -2898,8 +3099,19 @@ val promptOrder: List<String> get() = PROMPT_TIERS.flatten()
         private val SURFACE_HOLDERS = listOf(POSE, SEX_ACT, ACTIVITY, HAND_ACTION, HEAD_POSE, SKIN)
 
         /** 参与年代配对的衣物分类。没登记年代的词按现代算。 */
-        private val ERA_CATEGORIES = listOf("top", "bottom", "panties", "bra", "socks", "shoes")
-        private const val MODERN_ERA = "modern"
+        /** 这些穿脱状态本身就说「只剩这件」，与它点名的分类不能并存。 */
+        private val LOWER_BARE_STATES = mapOf(
+            "下身赤裸" to listOf("bottom", "panties"),
+            "全裸" to listOf("bottom", "panties", "top"),
+            "只穿上衣" to listOf("bottom", "panties"),
+            "只穿袜子" to listOf("bottom", "panties"),
+            "只围毛巾" to listOf("bottom", "panties"),
+            "毛巾遮在胸前" to listOf("bottom", "panties"),
+            "床单松散裹身" to listOf("bottom", "panties"),
+            "裸体围裙" to listOf("bottom", "panties"),
+            "只穿内裤" to listOf("bottom"),
+            "只穿裤子" to listOf("top")
+        )
 
     /** Activities that need room to move. */
     private val ROAMING = setOf("奔跑", "行走", "跳跃", "爬行", "扑倒", "冲撞")
@@ -2929,47 +3141,86 @@ val promptOrder: List<String> get() = PROMPT_TIERS.flatten()
          * Paragraph layout for the sectioned output. Every category appears once, except
          * maleBody and penis which the staging sentence speaks for.
          */
-        private val SECTION_HEAD = listOf("mood", "grade", "camera", "scene", "people")
-
-        private val SECTION_HERO = listOf(
-            "race", "person", "hair", "top", "bottom", "outfitState",
-            // 衣物细节跟在着装之后。不放进段落表就全走兜底，被排到句尾和场景痕迹混作一段。
-            "garment",
-            "eyeColor", "featureHead", "bodyType",
-            "breasts", "bra", "panties", "legs", "pussy",
-            "fluids", "skin", "socks", "shoes",
-            "headwear", "jewelry", "toys"
+        private val SECTION_HEAD = listOf(
+            "mood", "grade",
+            // 日常档独有的媒介、质感、光线、构图与焦段，属于定调的一层，必须排在最前。
+            "style", "film", "light", "composition", "lens",
+            // 环境痕迹挪到人物之后：冰箱门开没开、楼下有人经过，这些在人物登场前
+            // 堆一长串，会把媒介风格和主体一起冲淡。
+            // 环境痕迹留在场景这一层。挪到末尾试过：「浴室里还弥漫着水汽」会接在
+            // 动作之后，读起来像事后补话，比挤在人物前面更别扭。
+            "camera", "scene", "season", "weather", "sceneTrace", "people"
         )
 
-        private val SECTION_ACT_PRE = listOf("pose", "headPose")
+        private val SECTION_HERO = listOf(
+            "race", "person", "hair", "eyeColor", "featureHead", "skin", "bodyType",
+            "breasts", "waist", "hips", "legs", "pussy",
+            "top", "bottom", "bra", "panties", "socks", "shoes",
+            "outfitState",
+            // 衣物细节跟在着装与穿脱状态之后。
+            "garment",
+            "headwear", "jewelry", "toys", "propObject", "handProp"
+        )
+
+        private val SECTION_ACT_PRE = listOf(
+            "pose", "headPose", "handAction", "expression", "gazeDir", "activity"
+        )
         private val SECTION_ACT_MAIN = listOf(
-            "sexAct", "activity", "handAction", "expression", "gazeDir"
+            "sexAct", "interaction", "fluids", "pet"
         )
         private val SECTION_TAIL = emptyList<String>()
 
         /**
-         * What reads as her rather than her clothes, for the 她是 / 穿 split.
-         *
-         * Everything else in SECTION_HERO is worn or put on (上衣, 丝袜, 墨镜, 项链), so the
-         * second half of the sentence can start with 穿 without repeating a noun.
+         * What reads as her static body/appearance rather than her clothes, for the 她是 / 穿 split.
          */
         private val HER_BODY = setOf(
             "race", "person", "featureHead",
             "eyeColor", "hair", "bodyType",
             "breasts", "legs", "pussy",
-            "skin", "fluids",
-            // A state, not a garment: 穿全裸 / 穿只穿内裤 is what the first cut produced.
-            "outfitState"
+            "skin"
         )
 
-        /** 靠「穿」连接。 */
-        private val WEAR_CLOTHES = setOf("top", "bottom", "bra", "panties", "socks", "shoes", "garment")
+        /** 靠「穿」连接的衣物分类（其中独立状态词由 isStandaloneWearClause 分流）。 */
+        private val WEAR_CLOTHES = setOf("top", "bottom", "bra", "panties", "socks", "shoes")
+
+        private const val GARMENT = "garment"
+
+        /** 穿脱状态与衣物细节：不加「穿」，紧随衣物之后作为状态子句。 */
+        private val WEAR_STATES = setOf("outfitState", "garment")
 
         /** 靠「戴着」连接。 */
         private val WEAR_ACCESSORY = setOf("headwear", "jewelry")
 
-        /** 靠「拿着」连接——肛塞、冰块、皮拍这类。 */
-        private val WEAR_PROPS = setOf("toys")
+        /** 靠「拿着」连接——肛塞、冰块、皮拍及 SFW 随身物/手部道具。 */
+        private val WEAR_PROPS = setOf("toys", "propObject", "handProp")
+
+        /** 形象格中描述五官/肤色细节的词：单独放作前置子句，不直接塞在「女孩」前。 */
+        private val FACE_DETAIL_LOOKS = setOf(
+            "苍白肤色浅青黑眼圈", "冷白皮薄唇", "小麦色肌肤健康感", "深眼窝高鼻梁",
+            "鹅蛋脸柔美轮廓", "素颜圆脸", "混血感立体五官", "微肉脸颊", "窄脸尖下巴"
+        )
+
+        /** 名词型气质：修饰人物名词时补「带着…的」或「…的」，同时保留原词子串。 */
+        private val WTIH_DE_LOOKS = setOf("媚态", "风尘味", "反差萌", "书卷气")
+        private val DE_SUFFIX_LOOKS = setOf(
+            "纯欲风", "厌世感", "破碎感", "清冷感", "故事感",
+            "距离感", "松弛感", "娇纵感", "反差感", "贵族气质"
+        )
+
+        /** 肤色槽里描述面部/局部特征而非底色的词，与皮肤状态用逗号并列而不挂「的」。 */
+        private val SKIN_FEATURE_TONES = setOf("有雀斑", "晒痕")
+
+        /** 乳房形态槽里属于动作/分句的词，放在罩杯之后用逗号衔接。 */
+        private val BREAST_POST_SHAPES = setOf("用手挡住却没挡住", "从侧面能看见弧度", "随动作轻微晃动")
+
+        /** 衣物槽中自带完整主谓或动作状态、不能前置「穿」的词首。 */
+        private val STANDALONE_WEAR_PREFIXES = listOf(
+            "只穿", "不穿", "没穿", "赤足", "光脚", "光腿", "全裸", "半裸", "半脱",
+            "胸罩移位", "胸罩滑落", "胸罩被", "胸罩扣", "胸罩下缘", "解开一半",
+            "褪到", "挂在", "被拨", "被拉", "拉高", "湿透", "透出", "滑落到", "只挂在", "半褪到",
+            "丝袜破洞", "丝袜抽丝", "丝袜滑落", "袜口", "单只",
+            "高跟鞋挂在", "高跟鞋掉了", "高跟鞋踩在", "鞋带散开"
+        )
 
         /** Breast and legs are the only body groups left; 腰腹与臀部已并入身材，不再单独成段。 */
         private val BODY_BLOCK = listOf("breasts", "legs")

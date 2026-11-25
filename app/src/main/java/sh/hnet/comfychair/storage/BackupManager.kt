@@ -269,6 +269,8 @@ class BackupManager(private val context: Context) {
             put("debugLoggingEnabled", prefs.getBoolean("debug_logging_enabled", false))
             put("disabledWorkflows", JSONArray(prefs.getStringSet("disabled_workflows", null).orEmpty().sorted()))
             put("promptSpellCheckEnabled", prefs.getBoolean("prompt_spell_check", false))
+            put("h3PreviewEnabled", prefs.getBoolean("h3_preview_enabled", true))
+            put("relayNotifyEnabled", prefs.getBoolean("relay_notify_enabled", false))
         }
     }
 
@@ -440,6 +442,12 @@ class BackupManager(private val context: Context) {
         }
         if (json.has("promptSpellCheckEnabled")) {
             editor.putBoolean("prompt_spell_check", json.optBoolean("promptSpellCheckEnabled", false))
+        }
+        if (json.has("h3PreviewEnabled")) {
+            editor.putBoolean("h3_preview_enabled", json.optBoolean("h3PreviewEnabled", true))
+        }
+        if (json.has("relayNotifyEnabled")) {
+            editor.putBoolean("relay_notify_enabled", json.optBoolean("relayNotifyEnabled", false))
         }
 
         editor.apply()

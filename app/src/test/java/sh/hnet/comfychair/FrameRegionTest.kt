@@ -67,7 +67,7 @@ class FrameRegionTest {
         val library = library()
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
-            "camera.crop" to TagPick("腰部以上特写", locked = true),
+            "camera.shot" to TagPick("半身照", locked = true),
             "sexAct.act" to TagPick("使用按摩棒")
         )
         engine.repair(picks)
@@ -82,7 +82,7 @@ class FrameRegionTest {
         val library = library()
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
-            "camera.crop" to TagPick("下半身在画外", locked = true),
+            "camera.shot" to TagPick("下半身在画外", locked = true),
             "pussy.look" to TagPick("阴唇被手指分开")
         )
         engine.repair(picks)
@@ -94,7 +94,7 @@ class FrameRegionTest {
         val library = library()
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
-            "camera.crop" to TagPick("只露出背影", locked = true),
+            "camera.shot" to TagPick("只露出背影", locked = true),
             "expression.face" to TagPick("高潮失神"),
             // 妆容现在住在「形象」里，跟着脸一起被裁掉；同一类的年龄感、气质不受影响。
             "person.face" to TagPick("水光唇"),
@@ -138,7 +138,8 @@ class FrameRegionTest {
     }
 
     @Test
-    fun theCropSlotActuallyGetsDrawn() {
+    fun theShotSlotActuallyGetsDrawn() {
+        // 裁切并进景别之后，这一格一定出词：全身、半身、特写、画外裁切都住在里面。
         val library = library()
         val engine = soloEngine(library)
         var drawn = 0
@@ -146,18 +147,14 @@ class FrameRegionTest {
         repeat(300) {
             val picks = mutableMapOf<String, TagPick>()
             engine.randomize(picks)
-            val crop = picks["camera.crop"]?.value.orEmpty()
-            if (crop.isNotEmpty()) {
-                drawn++
-                words += crop
+            val shot = picks["camera.shot"]?.value.orEmpty()
+            if (shot.isNotEmpty()) {
+                drawn += 1
+                words += shot
             }
         }
-        // The remaining ~16% is legitimate: when 构图 lands on 全身照 / 半身照 every crop word
-        // is mutually exclusive with it, and a full-body shot has nothing to crop.
-        assertTrue("only $drawn/300 draws had a crop word", drawn >= 240)
-        // Four, not eight: the words that hide groin now stand down whenever an act is drawn,
-        // so 只露出肩部 / 腰部以上特写 / 下半身在画外 / 只露出少量肌肤 only appear with 性行为 off.
-        assertTrue("only ${words.size} distinct crop words: $words", words.size >= 4)
+        assertTrue("only $drawn/300 draws had a shot word", drawn >= 290)
+        assertTrue("only ${words.size} distinct shot words: $words", words.size >= 6)
     }
 
     @Test
@@ -166,10 +163,10 @@ class FrameRegionTest {
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
             "pussy.look" to TagPick("阴唇被手指分开"),
-            "camera.crop" to TagPick("下半身在画外")
+            "camera.shot" to TagPick("下半身在画外")
         )
         engine.repair(picks)
-        assertEquals("下半身在画外", picks["camera.crop"]?.value.orEmpty())
+        assertEquals("下半身在画外", picks["camera.shot"]?.value.orEmpty())
         assertEquals("", picks["pussy.look"]?.value.orEmpty())
     }
 
@@ -224,7 +221,7 @@ class FrameRegionTest {
         val library = library()
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
-            "camera.crop" to TagPick("脚部在画外", locked = true),
+            "camera.shot" to TagPick("脚部在画外", locked = true),
             "shoes.type" to TagPick("短靴")
         )
         engine.repair(picks)
@@ -236,7 +233,7 @@ class FrameRegionTest {
         val library = library()
         val engine = soloEngine(library)
         val picks = mutableMapOf<String, TagPick>(
-            "camera.shot" to TagPick("贴得很近的半身", locked = true),
+            "camera.shot" to TagPick("半身照", locked = true),
             "pussy.look" to TagPick("阴唇微微张开")
         )
         engine.repair(picks)
@@ -244,15 +241,15 @@ class FrameRegionTest {
     }
 
     @Test
-    fun aFullBodyShotCannotCropTheFeet() {
+    fun aFullBodyShotKeepsTheFeetInFrame() {
+        // 裁切并进景别之后，「全身照」和「脚部在画外」住同一个槽，一轮只出一个值，
+        // 从前那种「全身照 + 脚部在画外」的自相矛盾从结构上就不存在了。
+        // 还值得守的是另一半：全身照本身不裁任何部位。
         val library = library()
-        val engine = soloEngine(library)
-        val picks = mutableMapOf<String, TagPick>(
-            "camera.crop" to TagPick("脚部在画外", locked = true),
-            "camera.shot" to TagPick("全身照")
+        assertFalse(
+            "全身照不该出现在 frameHides 里：全身都进画，没有要裁的部位",
+            "全身照" in library.constraints.frameHides
         )
-        engine.repair(picks)
-        assertFalse(picks["camera.shot"]?.value == "全身照")
     }
 
     @Test
@@ -279,15 +276,11 @@ class FrameRegionTest {
     fun theExpressionClauseNeverRepeatsTheSubject() {
         val library = library()
         val engine = soloEngine(library)
-        val picks = mapOf(
-            "expression.face" to TagPick("高潮失神"),
-            "expression.compound" to TagPick("失神而满足")
-        )
+        // 表情与复合情绪已并成一格，一次只出一个说法，不会再并排成「失神而满足高潮失神」。
+        val picks = mapOf("expression.face" to TagPick("高潮失神"))
         val text = engine.compose(picks)
+        assertTrue("表情要在句子里：$text", text.contains("高潮失神"))
         assertFalse("repeated 失神: $text", text.contains("失神失神"))
-        // 复合格独占这一句，单格不再并排。
-        assertTrue("复合情绪要在句子里：$text", text.contains("失神而满足"))
-        assertFalse("单格情绪不该同时出现：$text", text.contains("高潮失神"))
     }
 
     @Test

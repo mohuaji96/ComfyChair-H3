@@ -75,7 +75,7 @@ class MaleHandTest {
             repeat(20) {
                 val picks = mutableMapOf(
                     "people.count" to TagPick("一男一女", locked = true),
-                    "camera.crop" to TagPick(crop, locked = true)
+                    "camera.shot" to TagPick(crop, locked = true)
                 )
                 engine.randomize(picks, onlyCategory = "maleHand")
                 val value = picks["maleHand.$slot"]?.value.orEmpty()

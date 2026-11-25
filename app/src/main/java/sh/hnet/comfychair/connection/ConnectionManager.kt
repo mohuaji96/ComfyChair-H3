@@ -1,8 +1,17 @@
 package sh.hnet.comfychair.connection
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.media.MediaDataSource
+import android.media.MediaMetadataRetriever
+import android.os.Build
+import android.util.Base64
 import android.widget.Toast
+import java.nio.ByteBuffer
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +95,45 @@ object ConnectionManager {
     const val CLIENT_ID_PREFS = "ConnectionClientIds"
     private const val KEEPALIVE_INTERVAL_MS = 30000L
     private const val MAX_RECONNECT_ATTEMPTS = 8
+    /**
+     * Preview payloads this app can turn into a picture or short clip: stills, animated WebP,
+     * fragmented MP4 (which `ModelPreviewOverrideKJ` prefers whenever PyAV/x264 is available on the
+     * server), and the empty mime sent on step 0's initial noise frame.
+     */
+    private val PREVIEW_MIMES = setOf("", "image/jpeg", "image/png", "image/webp", "video/mp4")
+
+    /**
+     * An animated WebP needs the platform decoder; below API 28 the bytes fall through to
+     * [BitmapFactory], which paints the first frame — a still, but never a blank card.
+     */
+    private fun decodeAnimated(bytes: ByteArray): Drawable? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+        return runCatching {
+            ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes)))
+                .takeIf { it is AnimatedImageDrawable }
+        }.getOrNull()
+    }
+
+    /** Extracts a poster frame from an in-memory MP4 preview clip so the card never flashes black. */
+    private fun decodeVideoPoster(bytes: ByteArray): Bitmap? = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(object : MediaDataSource() {
+                override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+                    if (position >= bytes.size) return -1
+                    val count = minOf(size, (bytes.size - position).toInt())
+                    System.arraycopy(bytes, position.toInt(), buffer, offset, count)
+                    return count
+                }
+                override fun getSize(): Long = bytes.size.toLong()
+                override fun close() {}
+            })
+            retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: retriever.getFrameAtTime(0)
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrNull()
 
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -808,6 +856,48 @@ object ConnectionManager {
                     WebSocketMessage.Status(queueRemaining)
                 }
                 "previewing", "executed" -> null  // Don't emit for these types
+                // The preview override node reports its own step: a still or short clip per denoise step
+                // plus the step index and timing. When `preview_frames > 1` and PyAV/x264 is available on
+                // the server, it encodes fragmented MP4 (`video/mp4`); otherwise animated WebP
+                // (`image/webp`), or a single JPEG (`image/jpeg`, or empty mime on step 0).
+                "kj_preview_override" -> {
+                    val data = message.optJSONObject("data")
+                    val mime = data?.optString("mime").orEmpty().lowercase()
+                    if (data == null || mime !in PREVIEW_MIMES) {
+                        null
+                    } else {
+                        val encoded = data.optString("image")
+                        val bytes = if (encoded.isEmpty()) null else
+                            runCatching { Base64.decode(encoded, Base64.DEFAULT) }.getOrNull()
+                        if (bytes == null) {
+                            null
+                        } else {
+                            val isVideo = mime == "video/mp4"
+                            val animated = if (mime == "image/webp") decodeAnimated(bytes) else null
+                            val bitmap = when {
+                                isVideo -> decodeVideoPoster(bytes)
+                                animated != null -> runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+                                else -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            }
+                            if (!isVideo && animated == null && bitmap == null) {
+                                null
+                            } else {
+                                val avgMillis = data.optDouble("avg_step_ms", 0.0).takeIf { it > 0 }
+                                    ?: data.optDouble("step_ms", 0.0)
+                                WebSocketMessage.SamplingPreview(
+                                    bitmap = bitmap,
+                                    step = data.optInt("step", 0),
+                                    total = data.optInt("total", 0),
+                                    stepMillis = if (avgMillis > 0) avgMillis.toLong() else null,
+                                    animated = animated,
+                                    videoBytes = if (isVideo) bytes else null,
+                                    width = data.optInt("w", bitmap?.width ?: 0),
+                                    height = data.optInt("h", bitmap?.height ?: 0)
+                                )
+                            }
+                        }
+                    }
+                }
                 else -> {
                     if (messageType.isNotEmpty()) WebSocketMessage.Unknown(messageType) else null
                 }
@@ -822,12 +912,27 @@ object ConnectionManager {
     }
 
     /**
-     * Parse binary WebSocket message (preview images) and emit
+     * Parse binary WebSocket message (preview images) and emit.
+     * Supports both legacy event type 1 (8-byte header) and event type 4
+     * (`PREVIEW_IMAGE_WITH_METADATA`, 8-byte header + JSON metadata length).
      */
     private fun parseAndEmitBinaryMessage(bytes: ByteString) {
         if (bytes.size > 8) {
             try {
-                val pngBytes = bytes.substring(8).toByteArray()
+                val eventType = ((bytes[0].toInt() and 0xFF) shl 24) or
+                    ((bytes[1].toInt() and 0xFF) shl 16) or
+                    ((bytes[2].toInt() and 0xFF) shl 8) or
+                    (bytes[3].toInt() and 0xFF)
+                val secondWord = ((bytes[4].toInt() and 0xFF) shl 24) or
+                    ((bytes[5].toInt() and 0xFF) shl 16) or
+                    ((bytes[6].toInt() and 0xFF) shl 8) or
+                    (bytes[7].toInt() and 0xFF)
+                val headerSize = if (eventType == 4 && secondWord > 0 && 8 + secondWord < bytes.size) {
+                    8 + secondWord
+                } else {
+                    8
+                }
+                val pngBytes = bytes.substring(headerSize).toByteArray()
                 val bitmap = BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.size)
                 if (bitmap != null) {
                     scope.launch { _webSocketMessages.emit(WebSocketMessage.PreviewImage(bitmap)) }

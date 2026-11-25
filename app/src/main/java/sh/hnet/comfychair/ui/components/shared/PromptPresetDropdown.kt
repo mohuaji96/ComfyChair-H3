@@ -9,12 +9,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkAdd
-import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.DropdownMenuGroup
@@ -65,24 +61,17 @@ fun PromptPresetDropdown(
 
     Box(modifier = modifier) {
         IconButton(onClick = { expanded = true }) {
-            // With the AI entry inside, the plain bookmark no longer says what the menu holds:
-            // the starred variant marks the AI badge, and its filled form still marks the preset in use.
-            if (onOptimizePrompt != null) {
-                Icon(
-                    painter = painterResource(
-                        if (activePresetId != null) R.drawable.ic_prompt_library_filled
-                        else R.drawable.ic_prompt_library_outline
-                    ),
-                    contentDescription = stringResource(R.string.button_prompt_presets),
-                    tint = if (activePresetId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Icon(
-                    imageVector = if (activePresetId != null) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                    contentDescription = stringResource(R.string.button_prompt_presets),
-                    tint = if (activePresetId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            // The open notebook replaced the plain bookmark in both cases: at 24 dp the star perched on
+            // the bookmark's edge read as noise, while a page with a spark says "saved prompts" and
+            // still carries the AI mark. The filled form marks the preset in use.
+            Icon(
+                painter = painterResource(
+                    if (activePresetId != null) R.drawable.ic_prompt_library_filled
+                    else R.drawable.ic_prompt_library_outline
+                ),
+                contentDescription = stringResource(R.string.button_prompt_presets),
+                tint = if (activePresetId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         val groupCount = if (favorites.isNotEmpty()) 3 else 2

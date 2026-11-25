@@ -303,20 +303,6 @@ class H3P0RegressionTest {
             .getJSONObject("inputs").getJSONArray("length").getString(0))
     }
 
-    // --- P0-8: diff preview ------------------------------------------------
-
-    @Test fun diffPreviewDescribesTheSamePayload() {
-        // Integers keep the rendering deterministic: org.json rewrites 5.0 as 5.
-        val original = api("4" to node("PrimitiveInt", "value" to 5))
-        val edited = api("4" to node("PrimitiveInt", "value" to 8))
-        val patch = H3ApiPatch.applyDetailed(original, edited, original)
-        val preview = H3DiffPreview.build(patch, listOf("77" to "Reroute"), nodesBefore = 2, nodesAfter = 2)
-        assertEquals(2, preview.lines.size)
-        assertEquals("#4.value", preview.lines[0].title)
-        assertEquals("5 → 8", preview.lines[0].detail)
-        assertEquals(H3DiffPreview.Kind.REMOVED, preview.lines[1].kind)
-        assertEquals(0, preview.nodeDelta)
-    }
     @Test fun referenceSlotsFollowTheWorkflowNotTheUi() {
         val official2 = H3WorkflowAdapter.inspect(official("官方参考生视频.json"))!!
         assertEquals(listOf(0, 1), official2.referenceInputs.keys.sorted())

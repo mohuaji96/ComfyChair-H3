@@ -73,17 +73,22 @@ import sh.hnet.comfychair.queue.H3RelayService
 import sh.hnet.comfychair.workflow.ProgressStage
 import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.ui.components.GenerationButton
+import sh.hnet.comfychair.ui.components.H3SamplingPreviewState
+import sh.hnet.comfychair.ui.components.H3SamplingPreviewStrip
 import sh.hnet.comfychair.ui.components.H3SeedField
 import sh.hnet.comfychair.workflow.H3Naming
 import sh.hnet.comfychair.connection.ConnectionManager
+import sh.hnet.comfychair.connection.WebSocketMessage
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.util.GenerationMetadata
 import sh.hnet.comfychair.util.H3Frame
 import sh.hnet.comfychair.util.LoraInfo
 import sh.hnet.comfychair.util.VideoUtils
 import sh.hnet.comfychair.workflow.H3Continuation
+import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.workflow.H3Plan
 import sh.hnet.comfychair.workflow.H3Resolution
+import sh.hnet.comfychair.workflow.H3SamplingPreview
 import sh.hnet.comfychair.workflow.H3Seed
 import sh.hnet.comfychair.workflow.JobRecovery
 import sh.hnet.comfychair.workflow.PendingJobStore
@@ -114,7 +119,8 @@ fun H3StudioContent(
     area: H3Plan.Area,
     generationViewModel: GenerationViewModel?,
     onOpenWorkflowSettings: () -> Unit,
-    onPickWorkflow: () -> Unit = {}
+    onPickWorkflow: () -> Unit = {},
+    isVisible: Boolean = true
 ) {
     val context = LocalContext.current
     val workflow = remember(workflowId) { WorkflowManager.getWorkflowById(workflowId) }
@@ -133,7 +139,11 @@ fun H3StudioContent(
     var presetName by remember { mutableStateOf("") }
     var presets by remember { mutableStateOf(presetStore.list()) }
     var draft by remember(workflowId, area) { mutableStateOf(draftStore.load(workflowId, area, spec)) }
-    LaunchedEffect(workflowId, area) {
+    // Also re-check when returning to the H3 tab (`isVisible == true`): while H3 is kept alive in
+    // the background for a running job or 连拍, `workflowId` and `area` do not change on tab return,
+    // so a frame sent from Gallery -> 用作素材 would otherwise sit unconsumed in `h3_pending`.
+    LaunchedEffect(workflowId, area, isVisible) {
+        if (!isVisible) return@LaunchedEffect
         val pendingPrefs = context.getSharedPreferences("h3_pending", android.content.Context.MODE_PRIVATE)
         val slot = pendingPrefs.getString("sourceSlot", null)
         val file = pendingPrefs.getString("sourceFile", null)
@@ -251,6 +261,15 @@ fun H3StudioContent(
     var resultPoster by remember { mutableStateOf<Bitmap?>(null) }
     var resultLoading by remember { mutableStateOf(false) }
 
+    // 采样预览: the frame and the switch live in [H3SamplingPreviewState], not in this composition —
+    // leaving the tab tears the page down, and a `remember` here would take the strip with it.
+    // Cleanup is owned by [H3SamplingPreviewState] watching [JobRegistry.queueState] directly, so
+    // switching tabs while a job is still queued (`ownJobExecuting == false`) cannot wipe `_attached`.
+    val previewFrame by H3SamplingPreviewState.frame.collectAsState()
+    val previewAttached by H3SamplingPreviewState.attached.collectAsState()
+    val previewVisible by H3SamplingPreviewState.visible.collectAsState()
+    val genState = generationViewModel?.generationState?.collectAsState()?.value
+
     // 完整连拍: queued segments are draft snapshots, so each keeps the settings it was added with.
     var relayCount by remember { mutableStateOf(autoPrefs.getInt("relay_count", 0)) }
     var relaySubmitAfterFrame by remember { mutableStateOf(false) }
@@ -283,10 +302,24 @@ fun H3StudioContent(
     }
 
     fun finishRelay() {
+        // The queued drafts go too: leaving relay_count behind made the page believe segments were
+        // still waiting after a 停止连拍, and the next run picked the chain up again.
         relayDone = 0
+        persistRelay(0)
         autoPrefs.edit().putInt("relay_done", 0).apply()
         H3RelayStatus.clear()
         H3RelayService.stop(context)
+    }
+
+    // 停止连拍 from the queue sheet: it is outside this page, so it clears the prefs and bumps a
+    // signal; the local counters follow here.
+    val relayStopSignal by H3RelayStatus.stopSignal.collectAsState()
+    LaunchedEffect(relayStopSignal) {
+        if (relayStopSignal > 0) {
+            relayDone = 0
+            persistRelay(0)
+            autoPrefs.edit().putInt("relay_done", 0).apply()
+        }
     }
 
     // Reference tiles. The template itself wires `ref_image_0..N`, so those slots are always
@@ -853,6 +886,36 @@ fun H3StudioContent(
                 chainPosition = nextChainPosition(chain)
                 prompt = H3Naming.applyPrefix(prompt, H3Naming.prefixFor(chain, chainPosition, draft.sequenceAutoName))
             }
+            // 采样预览: decided once per run, on the payload that actually goes out. The stored graph
+            // is never edited, so a template keeps working whichever way the switch points.
+            // Over mobile 5G the full 20 MB `/object_info` may still be downloading when the user
+            // hits 生成; if the registry is not populated yet, probe the single 2 KB endpoint so the
+            // two-pass Turbo templates still get the preview node injected.
+            val previewWanted = AppSettings.isH3PreviewEnabled(context) && AppSettings.isLivePreviewEnabled(context)
+            val registry = ConnectionManager.nodeTypeRegistry
+            // The node's own schema is also the only place the installed vae_approx models are
+            // listed. That list decides whether an animated preview is possible at all, so it is
+            // fetched whenever the preview is on — 2 KB against a run that takes minutes.
+            val previewSchema = if (!previewWanted) null else withContext(Dispatchers.IO) {
+                runCatching {
+                    val res = live.getText("/object_info/${H3SamplingPreview.NODE_TYPE}", 64 * 1024)
+                    (res as? sh.hnet.comfychair.ComfyUIClient.TextResult.Ok)?.text
+                }.getOrNull()
+            }
+            val nodeAvailable = when {
+                !previewWanted -> false
+                previewSchema != null -> previewSchema.contains(H3SamplingPreview.NODE_TYPE)
+                registry.getNodeDefinition(H3SamplingPreview.NODE_TYPE) != null -> true
+                else -> !registry.isPopulated()
+            }
+            val patched = H3SamplingPreview.apply(
+                prompt,
+                enabled = previewWanted,
+                nodeAvailable = nodeAvailable,
+                tinyVae = H3SamplingPreview.pickTinyVae(previewSchema)
+            )
+            prompt = patched.json
+            H3SamplingPreviewState.begin(patched.attached)
             // Keep the last few real payloads: without them a failed run cannot be reproduced.
             withContext(Dispatchers.IO) { archivePayload(context, mode, prompt) }
             val onResult: (Boolean, String?, String?) -> Unit = { ok, id, error ->
@@ -1185,8 +1248,9 @@ fun H3StudioContent(
                 H3Card(
                     title = if (area == H3Plan.Area.R2V) "参考素材" else "素材",
                     subtitle = if (area == H3Plan.Area.R2V) {
-                        if (filledRefs.isEmpty()) "至少 1 张，最多 ${draft.refs.size}"
-                        else "已选 ${filledRefs.size} / ${draft.refs.size} 张" +
+                        val maxCap = if (spec.maxRefSlots > 0) spec.maxRefSlots else H3_MAX_PICTURES
+                        if (filledRefs.isEmpty()) "至少 1 张，最多 $maxCap 张"
+                        else "已选 ${filledRefs.size} / $maxCap 张" +
                             (if (draft.continuation.isNotBlank()) " · 含尾帧" else "")
                     } else {
                         "当前：$modeLabel · " + when {
@@ -2031,6 +2095,30 @@ fun H3StudioContent(
             }
         )
 
+        // 采样预览 sits directly on top of the bar: whatever the page is scrolled to, the picture and
+        // the 中止 button are within one thumb's reach of each other.
+        H3SamplingPreviewStrip(
+            frame = previewFrame,
+            running = ownJobExecuting && (previewAttached || previewFrame != null),
+            runKey = lastPromptId,
+            fallbackStep = if (genState?.stage == ProgressStage.SAMPLE) genState.progress else 0,
+            fallbackTotal = if (genState?.stage == ProgressStage.SAMPLE) genState.maxProgress else 0,
+            onCancel = { abortOwnJob() },
+            visible = previewVisible,
+            // The eye writes the same setting as 设置 → 生成. It only hides the picture for the run in
+            // flight — that payload already carries the node, so the line stays and one tap brings it
+            // back; the next submission is the one that goes out without it.
+            onTogglePreview = { on ->
+                AppSettings.setH3PreviewEnabled(context, on)
+                H3SamplingPreviewState.setVisible(on)
+                message = if (on) {
+                    "采样预览已打开"
+                } else {
+                    "采样预览已关闭，下一轮不再占用显卡算力；想现在打开，点那一行「点开恢复」"
+                }
+            }
+        )
+
         // 底部固定条：只剩摘要和生成。切换模板与编辑结构都是低频动作，已移入高级设置，
         // 但模板名必须留在这里——按下生成的那一刻要看得见这条命是哪个模板跑的。
         Surface(tonalElevation = 3.dp) {
@@ -2174,7 +2262,7 @@ fun H3StudioContent(
                     pendingSlot = s
                     picker.launch("image/*")
                 },
-                onSelectFile = { filename, localPath ->
+                onSelectFile = { filename, localPath, item ->
                     val s = sourcePickerSlot
                     sourcePickerSlot = null
                     fun applySlotName(name: String) {
@@ -2191,30 +2279,78 @@ fun H3StudioContent(
                         })
                         previewRevision++
                     }
-                    if (localPath == null) {
-                        // A server file is used by its name: nothing is uploaded
-                        applySlotName(filename)
-                        message = "已载入服务器素材：$filename"
-                    } else {
-                        // A frame this app wrote is only on the phone, so the server gets a copy
-                        val target = ConnectionManager.clientOrNull
-                        val bytesResult = runCatching { java.io.File(localPath).readBytes() }
-                        val bytes = bytesResult.getOrNull()
-                        if (target == null || bytes == null || bytes.isEmpty()) {
-                            message = "该帧无法读取，未能上传"
-                        } else {
-                            busy = true
-                            message = "正在上传提取帧…"
-                            target.uploadImage(
-                                bytes, "h3_${UUID.randomUUID()}.png",
-                                overwrite = false, returnFullPath = true
-                            ) { ok, name, error, _ ->
-                                main.post {
-                                    busy = false
-                                    if (ok && name != null) {
-                                        applySlotName(name)
-                                        message = "已载入提取帧：$filename"
-                                    } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                    when {
+                        // 服务器素材：文件本来就在 input 里，按名字用，什么都不用传
+                        item == null && localPath == null -> {
+                            applySlotName(filename)
+                            message = "已载入服务器素材：$filename"
+                        }
+
+                        // 提取帧：文件只在这台手机上，读出来传给服务器
+                        localPath != null -> {
+                            val target = ConnectionManager.clientOrNull
+                            val bytes = runCatching { java.io.File(localPath).readBytes() }.getOrNull()
+                            if (target == null || bytes == null || bytes.isEmpty()) {
+                                message = "该帧无法读取，未能上传"
+                            } else {
+                                busy = true
+                                message = "正在上传提取帧…"
+                                target.uploadImage(
+                                    bytes, "h3_${UUID.randomUUID()}.png",
+                                    overwrite = false, returnFullPath = true
+                                ) { ok, name, error, _ ->
+                                    main.post {
+                                        busy = false
+                                        if (ok && name != null) {
+                                            applySlotName(name)
+                                            message = "已载入提取帧：$filename"
+                                        } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                                    }
+                                }
+                            }
+                        }
+
+                        // 图库图片：原图在服务器的 output 里，工作流只认 input。
+                        // 从图库缓存取字节再传成 input 素材，比回 output 下载更稳：手机上已有
+                        // 缓存时不用再请求一次，服务器把 output 清了也照样能用。
+                        else -> {
+                            val target = ConnectionManager.clientOrNull
+                            val picked = item
+                            if (target == null || picked == null) {
+                                message = "没有连接到服务器"
+                            } else {
+                                busy = true
+                                message = "正在从图库取图…"
+                                scope.launch {
+                                    val key = picked.toCacheKey()
+                                    val bmp = MediaCache.fetchImage(key, picked.subfolder, picked.type)
+                                    val bytes = bmp?.let { b ->
+                                        java.io.ByteArrayOutputStream().use { out ->
+                                            b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                            out.toByteArray()
+                                        }
+                                    }
+                                    if (bytes == null || bytes.isEmpty()) {
+                                        main.post {
+                                            busy = false
+                                            message = "这张图本地和服务器都没有了"
+                                        }
+                                        return@launch
+                                    }
+                                    // 文件名取缓存键的哈希：同一张图反复选用，服务器上只留一份。
+                                    val name = "h3_ref_${key.keyString.hashCode().toUInt().toString(16)}.png"
+                                    target.uploadImage(
+                                        bytes, name, subfolder = "h3_refs",
+                                        overwrite = true, returnFullPath = true
+                                    ) { ok, stored, error, _ ->
+                                        main.post {
+                                            busy = false
+                                            if (ok && stored != null) {
+                                                applySlotName(stored)
+                                                message = "已取用图库图片：$filename"
+                                            } else message = "上传失败：${error ?: "服务器未返回文件名"}"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2647,6 +2783,10 @@ private class H3DraftStore(context: android.content.Context) {
         val o = runCatching { JSONObject(raw) }.getOrNull() ?: return defaults
         val refs = mutableListOf<String>()
         o.optJSONArray("refs")?.let { arr -> for (i in 0 until arr.length()) refs.add(arr.optString(i)) }
+        if (area == H3Plan.Area.R2V && refs.isEmpty()) {
+            val minSlots = spec.refIndices.size.coerceAtLeast(3)
+            repeat(minSlots) { refs.add("") }
+        }
         val loras = mutableMapOf<String, H3LoraDraft>()
         o.optJSONObject("loras")?.let { obj ->
             obj.keys().forEach { key ->

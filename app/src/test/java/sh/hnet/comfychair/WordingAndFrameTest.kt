@@ -50,7 +50,7 @@ class WordingAndFrameTest {
         listOf("遮盖乳头", "乳头隔衣透出", "露出一边乳房").forEach { word ->
             val picks = mutableMapOf(
                 "people.count" to TagPick("单人女孩", locked = true),
-                "camera.crop" to TagPick("胸部在画外", locked = true),
+                "camera.shot" to TagPick("胸部在画外", locked = true),
                 "garment.detail" to TagPick(word, locked = true)
             )
             val prompt = e.compose(picks)

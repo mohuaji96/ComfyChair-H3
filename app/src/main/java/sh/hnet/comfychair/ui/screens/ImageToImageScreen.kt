@@ -53,6 +53,7 @@ import sh.hnet.comfychair.ui.components.generation.EmptyResultState
 import sh.hnet.comfychair.ui.components.generation.EmptySourcePicker
 import sh.hnet.comfychair.ui.components.generation.GenerationControls
 import sh.hnet.comfychair.ui.components.generation.GenerationOptionsSheet
+import sh.hnet.comfychair.ui.components.PreviewCurtain
 import sh.hnet.comfychair.ui.components.generation.GenerationPreviewArea
 import sh.hnet.comfychair.ui.components.generation.GenerationScreenEffects
 import sh.hnet.comfychair.ui.components.generation.GenerationTopBar
@@ -221,7 +222,7 @@ fun ImageToImageScreen(
         val resultThumb = if (showResults) outputThumb ?: previewThumb else previewThumb
 
         // Preview area with the source and the result – collapses when typing in the prompt field
-        GenerationPreviewArea {
+        GenerationPreviewArea(workspace = PreviewCurtain.IMAGE, running = isThisScreenExecuting) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

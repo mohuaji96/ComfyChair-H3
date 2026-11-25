@@ -33,9 +33,8 @@ class PeopleScopeTest {
         assertEquals(1, lib.peopleNeeded("outfitState", "只穿内裤"))
         assertEquals(1, lib.peopleNeeded("top", "浴袍"))
         assertEquals(1, lib.peopleNeeded("bodyType", "微胖"))
-        // The male wardrobe keeps the reading the global map gave it: a man has to be present.
-        assertEquals(2, lib.peopleNeeded("maleBody", "身上什么也没穿"))
-        assertEquals(2, lib.peopleNeeded("maleBody", "松松系着的浴袍"))
+        // 男方那些衣服词不再单独标人数：男方句只在有男性时才会拼出来，这一格没有人可数。
+        assertEquals(0, lib.peopleNeeded("maleBody", "背心短裤"))
     }
 
     @Test

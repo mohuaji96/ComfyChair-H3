@@ -178,6 +178,7 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
             ComposerHeader(
                 groupCount = visible.size,
                 tagCount = library.tagCount,
+                version = library.version,
                 menuOpen = menuOpen,
                 onMenuOpenChange = { menuOpen = it },
                 onImportMerge = { importMergeLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
@@ -402,6 +403,7 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
 private fun ComposerHeader(
     groupCount: Int,
     tagCount: Int,
+    version: String,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
     onImportMerge: () -> Unit,
@@ -417,13 +419,21 @@ private fun ComposerHeader(
     ) {
         Column(Modifier.weight(1f)) {
             Text("词库组合", style = MaterialTheme.typography.titleMedium)
+            // 两个组合页的顶端写成同一副样子：数量、版本一行，操作提示一行。
             Text(
-                "$groupCount 组 · $tagCount 词 · 点分类名可单独重随",
+                "$groupCount 项 · $tagCount 词" + if (version.isBlank()) "" else " · $version",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "点分类名可单独重随",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         TextButton(onClick = onStory) { Text("剧情") }
+        // Queue pill, same as the generation tabs: a run started elsewhere stays watchable here.
+        sh.hnet.comfychair.ui.components.QueueIndicatorPill(modifier = Modifier.padding(horizontal = 4.dp))
         onStatusLamp()
         val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
         IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {

@@ -242,15 +242,29 @@ fun GalleryScreen(
         }
     }
 
+    // Map each item's grid key (`promptId_filename_index`) to its position in `visibleItems` so
+    // date header rows (`day-...`) do not shift the prefetch window as the user scrolls deeper.
+    val itemIndexByGridKey = remember(visibleItems) {
+        visibleItems.mapIndexed { idx, item ->
+            "${item.promptId}_${item.filename}_${item.index}" to idx
+        }.toMap()
+    }
+
     // Track scroll position and update cache priorities with debounce
     // Only update when Gallery is the active view (not when MediaViewer is animating closed)
-    LaunchedEffect(gridState.firstVisibleItemIndex, gridState.layoutInfo.visibleItemsInfo.size) {
+    LaunchedEffect(gridState.firstVisibleItemIndex, gridState.layoutInfo.visibleItemsInfo.size, itemIndexByGridKey) {
         if (prefetchItems.isNotEmpty() && MediaCache.isActiveView(ActiveView.GALLERY)) {
             // Debounce scroll updates to avoid excessive calls during fast scrolling
             kotlinx.coroutines.delay(100)
+            val visibleIndices = gridState.layoutInfo.visibleItemsInfo.mapNotNull { info ->
+                (info.key as? String)?.let { itemIndexByGridKey[it] }
+            }
+            val firstIdx = visibleIndices.minOrNull()
+                ?: gridState.firstVisibleItemIndex.coerceIn(0, (prefetchItems.size - 1).coerceAtLeast(0))
+            val count = visibleIndices.size.coerceAtLeast(4)
             MediaCache.updateGalleryPosition(
-                firstVisibleIndex = gridState.firstVisibleItemIndex,
-                visibleItemCount = gridState.layoutInfo.visibleItemsInfo.size,
+                firstVisibleIndex = firstIdx,
+                visibleItemCount = count,
                 allItems = prefetchItems,
                 columnsInGrid = 2
             )
@@ -264,10 +278,10 @@ fun GalleryScreen(
     }
     LaunchedEffect(itemsKey) {
         if (visibleItems.isNotEmpty()) {
-            // Base prefetch on current scroll position instead of always starting from 0
-            // The grid keeps its scroll position when a filter swaps in a shorter list, so the
-            // start index can point past the end -- subList() then throws and the app closes.
-            val startIndex = gridState.firstVisibleItemIndex
+            val visibleIndices = gridState.layoutInfo.visibleItemsInfo.mapNotNull { info ->
+                (info.key as? String)?.let { itemIndexByGridKey[it] }
+            }
+            val startIndex = (visibleIndices.minOrNull() ?: gridState.firstVisibleItemIndex)
                 .coerceIn(0, (visibleItems.size - 1).coerceAtLeast(0))
             val endIndex = (startIndex + 24).coerceAtMost(visibleItems.size)
             val initialItems = visibleItems.subList(startIndex, endIndex).map { item ->
@@ -398,7 +412,12 @@ fun GalleryScreen(
         TopAppBar(
             title = {
                 if (uiState.isSelectionMode) {
-                    Text(stringResource(R.string.gallery_selected_count, uiState.selectedItems.size))
+                    Text(
+                        stringResource(R.string.gallery_selected_count, uiState.selectedItems.size),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 } else {
                     Text(
                         stringResource(R.string.title_gallery),
@@ -417,7 +436,14 @@ fun GalleryScreen(
                 }
             },
             actions = {
-                ServerStatusLamp()
+                // In selection mode, action icons take the full width; hide the queue pill and status lamp
+                // so the selected count title is not squeezed into vertical single-character wrap.
+                if (!uiState.isSelectionMode) {
+                    sh.hnet.comfychair.ui.components.QueueIndicatorPill(
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    ServerStatusLamp()
+                }
                 if (uiState.isSelectionMode) {
                     val allPicked = galleryViewModel.isEverythingSelected(visibleItems)
                     TextButton(
@@ -871,7 +897,8 @@ private fun GalleryItemCard(
                 }
 
                 // Video duration badge at bottom end
-                val durationMs = item.durationMs.takeIf { it > 0 } ?: MediaCache.getVideoDurationMs(cacheKey)
+                val cardContext = LocalContext.current
+                val durationMs = item.durationMs.takeIf { it > 0 } ?: MediaCache.getVideoDurationMs(cacheKey, cardContext)
                 if (durationMs != null && durationMs > 0) {
                     Surface(
                         modifier = Modifier

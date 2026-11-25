@@ -111,8 +111,8 @@ object MediaCache {
     private var applicationContext: Context? = null
     private var isPrefetchWorkersStarted = false
 
-    // Caching mode - true for memory-first (default), false for disk-first
-    private var isMemoryFirstMode = true
+    // Caching mode - false for disk-first (default in ComfyChair H3), true for memory-only
+    private var isMemoryFirstMode = false
 
     // Memory budget: 1/3 of max heap for bitmaps (full-res images), 1/8 for video bytes
     // Bitmaps are large (4MB+ per 1024x1024 image), so we need generous cache for smooth scrolling
@@ -430,7 +430,7 @@ object MediaCache {
     private val prefetchQueue = PriorityBlockingQueue<PrefetchRequest>()
     private val inProgressKeys = ConcurrentHashMap.newKeySet<String>()
 
-    private const val MAX_CONCURRENT_PREFETCH = 3
+    private const val MAX_CONCURRENT_PREFETCH = 8
 
     /** A warm-up request that has not finished by then is not worth waiting for. */
     private const val PREFETCH_TIMEOUT_MS = 30_000L
@@ -543,7 +543,7 @@ object MediaCache {
             }
             if (path != null) {
                 val sampled = decodeSampled(path, maxPx) ?: return@withContext null
-                bitmapCache.put(thumbKey(key, maxPx), sampled)
+                bitmapCache.put(thumbKey(key, maxPx), sampled, PriorityLruCache.PRIORITY_ADJACENT)
                 return@withContext sampled
             }
             return@withContext null
@@ -552,7 +552,7 @@ object MediaCache {
             fetchBitmap(key, true, subfolder, type)
         } ?: return@withContext null
         val scaled = scaleDown(frame, maxPx)
-        bitmapCache.put(thumbKey(key, maxPx), scaled)
+        bitmapCache.put(thumbKey(key, maxPx), scaled, PriorityLruCache.PRIORITY_ADJACENT)
         return@withContext scaled
     }
 
@@ -1122,7 +1122,27 @@ object MediaCache {
     }
 
     /** A video's length once its thumbnail was made, for its duration badge; null if unknown. */
-    fun getVideoDurationMs(key: MediaCacheKey): Long? = videoDimensionsCache[key.keyString]?.durationMs
+    fun getVideoDurationMs(key: MediaCacheKey, context: Context? = null): Long? {
+        val inMem = videoDimensionsCache[key.keyString]?.durationMs
+        if (inMem != null && inMem > 0L) return inMem
+        if (context == null) return null
+        val path = localPath(context, key, isVideo = true) ?: return null
+        return runCatching {
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(path)
+                val dur = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                val w = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+                val h = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+                if (dur != null && dur > 0L) {
+                    videoDimensionsCache[key.keyString] = VideoDimensions(w, h, dur)
+                }
+                dur
+            } finally {
+                runCatching { retriever.release() }
+            }
+        }.getOrNull()
+    }
 
     /**
      * Get video URI for ExoPlayer playback.
@@ -1363,6 +1383,11 @@ object MediaCache {
                                     } else {
                                         fetchVideoBytes(request.key, request.subfolder, request.type)
                                     }
+                                } else if (activeView == ActiveView.GALLERY && !isMemoryFirstMode) {
+                                    // In the gallery grid only the sampled thumbnail is drawn; warming
+                                    // the file on disk without decoding a 20 MP full-size bitmap keeps
+                                    // the shared LRU from evicting the thumbnails currently on screen.
+                                    prefetchImage(request.key, request.subfolder, request.type)
                                 } else {
                                     fetchImage(request.key, request.subfolder, request.type, cachePriority)
                                 }

@@ -127,22 +127,75 @@ class TagLibraryStore private constructor(
         right.excludes.forEach { pair ->
             if (mergedExcludes.none { it.toSet() == pair.toSet() }) mergedExcludes.add(pair)
         }
+        val mergedSynonyms = left.synonyms.toMutableList()
+        right.synonyms.forEach { group ->
+            if (mergedSynonyms.none { it.toSet() == group.toSet() }) mergedSynonyms.add(group)
+        }
+        val mergedPeopleByCategory = (left.peopleByCategory.keys + right.peopleByCategory.keys)
+            .associateWith { k -> left.peopleByCategory[k].orEmpty() + right.peopleByCategory[k].orEmpty() }
 
         return current.copy(
             categories = categories,
             singletons = (current.singletons + incoming.singletons).distinct(),
             mutex = (current.mutex + incoming.mutex).distinct(),
             skipRules = (current.skipRules + incoming.skipRules).distinct(),
+            hiddenRules = (current.hiddenRules + incoming.hiddenRules).distinct(),
+            anchors = current.anchors.copy(
+                families = current.anchors.families + incoming.anchors.families,
+                of = current.anchors.of + incoming.anchors.of,
+                addOn = (current.anchors.addOn + incoming.anchors.addOn).distinct()
+            ),
             constraints = left.copy(
                 // Incoming annotations win: they come from a newer library.
+                handCap = maxOf(left.handCap, right.handCap),
                 handCost = left.handCost + right.handCost,
                 posture = left.posture + right.posture,
                 place = left.place + right.place,
-                requires = left.requires + right.requires,
-                people = left.people + right.people,
-                peopleCount = left.peopleCount + right.peopleCount,
+                gaze = left.gaze + right.gaze,
+                mouthCap = maxOf(left.mouthCap, right.mouthCap),
+                mouthCost = left.mouthCost + right.mouthCost,
+                headCap = maxOf(left.headCap, right.headCap),
+                headCost = left.headCost + right.headCost,
+                soloPose = (left.soloPose + right.soloPose).distinct(),
+                scenePoses = (left.scenePoses + right.scenePoses).distinct(),
+                hairState = (left.hairState + right.hairState).distinct(),
+                onePiece = (left.onePiece + right.onePiece).distinct(),
+                onePieceBottom = (left.onePieceBottom + right.onePieceBottom).distinct(),
+                toyActs = left.toyActs + right.toyActs,
+                synonyms = mergedSynonyms,
                 excludes = mergedExcludes,
-                handCap = maxOf(left.handCap, right.handCap)
+                requires = left.requires + right.requires,
+                allowedPostures = left.allowedPostures + right.allowedPostures,
+                postureHints = left.postureHints + right.postureHints,
+                headPlacements = left.headPlacements + right.headPlacements,
+                sceneProps = left.sceneProps + right.sceneProps,
+                propNeeds = left.propNeeds + right.propNeeds,
+                exactPeople = (left.exactPeople + right.exactPeople).distinct(),
+                raceFeatureHead = left.raceFeatureHead + right.raceFeatureHead,
+                raceFeatureBody = left.raceFeatureBody + right.raceFeatureBody,
+                raceLead = left.raceLead + right.raceLead,
+                raceName = left.raceName + right.raceName,
+                people = left.people + right.people,
+                peopleByCategory = mergedPeopleByCategory,
+                wordAliases = left.wordAliases + right.wordAliases,
+                peopleCount = left.peopleCount + right.peopleCount,
+                placeSupports = left.placeSupports + right.placeSupports,
+                poseNeeds = left.poseNeeds + right.poseNeeds,
+                selfColoured = (left.selfColoured + right.selfColoured).distinct(),
+                selfPatterned = (left.selfPatterned + right.selfPatterned).distinct(),
+                pos = left.pos + right.pos,
+                eras = left.eras + right.eras,
+                skinByRegion = left.skinByRegion + right.skinByRegion,
+                maleOnly = (left.maleOnly + right.maleOnly).distinct(),
+                malePeople = (left.malePeople + right.malePeople).distinct(),
+                frameHides = left.frameHides + right.frameHides,
+                frameHidesCategories = left.frameHidesCategories + right.frameHidesCategories,
+                regions = left.regions + right.regions,
+                categoryRegions = left.categoryRegions + right.categoryRegions,
+                handBlock = (left.handBlock + right.handBlock).distinct(),
+                subjects = left.subjects + right.subjects,
+                faceZone = left.faceZone + right.faceZone,
+                weight = left.weight + right.weight
             )
         )
     }

@@ -1,10 +1,14 @@
 package sh.hnet.comfychair.ui.components.generation
 
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,8 +39,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -56,43 +67,43 @@ import sh.hnet.comfychair.viewmodel.base.BaseGenerationViewModel
 
 private val PopupWidth = 280.dp
 
+// Four chips plus the gaps have to fit the popup's content width, so the cells share one size.
+private val SizeRatioChipWidth = 60.dp
+private val SizeRatioChipHeight = 32.dp
+
 /** One of the shapes the size popup offers, as width : height. */
 internal data class SizeRatio(val label: String, val width: Int, val height: Int)
 
-/** The common shapes, portrait and landscape first in the order people reach for them. */
-internal val SizeRatios = listOf(
-    SizeRatio("1:1", 1, 1),
-    SizeRatio("3:4", 3, 4),
-    SizeRatio("4:3", 4, 3),
-    SizeRatio("2:3", 2, 3),
-    SizeRatio("3:2", 3, 2),
-    SizeRatio("9:16", 9, 16),
-    SizeRatio("16:9", 16, 9)
+/** The shapes in the two rows the popup shows: four across, then three. */
+internal val SizeRatioRows = listOf(
+    listOf(SizeRatio("3:4", 3, 4), SizeRatio("4:3", 4, 3), SizeRatio("2:3", 2, 3), SizeRatio("3:2", 3, 2)),
+    listOf(SizeRatio("1:1", 1, 1), SizeRatio("9:16", 9, 16), SizeRatio("16:9", 16, 9))
 )
+
+/** Flat view of the same shapes, for the popup's readout of which one the numbers already make. */
+internal val SizeRatios: List<SizeRatio> = SizeRatioRows.flatten()
 
 // The width and height fields step by 8, so a computed side is snapped to that grid.
 private const val SIZE_ALIGN = 8
 private const val SIZE_MIN = 16
 private const val SIZE_MAX = 16384
-private const val SIZE_DEFAULT_AREA = 1024.0 * 1024.0
+private const val SIZE_DEFAULT_SIDE = 1024
 
 /**
- * The width and height for [ratio] that keep the current pixel count, so a shape change doesn't
- * also change how much the model has to draw. Falls back to 1024² when the fields don't parse.
+ * The two sides for [ratio], keeping the side that was typed and filling the other in: with 1080
+ * typed and 9:16 picked, this answers 1080×1920. The typed side is kept exactly as it stands, only
+ * the side the app fills is aligned to the grid the fields step on.
  */
-internal fun sizeForRatio(currentWidth: Int, currentHeight: Int, ratio: SizeRatio): Pair<Int, Int> {
-    val parsed = currentWidth.toDouble() * currentHeight.toDouble()
-    val area = if (parsed > 0) parsed else SIZE_DEFAULT_AREA
-    val aligned = { value: Double ->
-        ((value / SIZE_ALIGN).roundToInt() * SIZE_ALIGN).coerceIn(SIZE_MIN, SIZE_MAX)
-    }
-    return aligned(sqrt(area * ratio.width / ratio.height)) to
-        aligned(sqrt(area * ratio.height / ratio.width))
+internal fun sizeFromAnchor(anchor: Int, ratio: SizeRatio, keepWidth: Boolean): Pair<Int, Int> {
+    val base = if (anchor > 0) anchor else SIZE_DEFAULT_SIDE
+    val factor = if (keepWidth) ratio.height.toDouble() / ratio.width else ratio.width.toDouble() / ratio.height
+    val filled = ((base * factor / SIZE_ALIGN).roundToInt() * SIZE_ALIGN).coerceIn(SIZE_MIN, SIZE_MAX)
+    return if (keepWidth) base to filled else filled to base
 }
 
 /**
- * The dock's parameter chips, after the workflow chip: one fixed set in a fixed order (seed, steps, size or
- * megapixels, length, scale), each only when the workflow has that field – the options sheet's quick fields. A chip shows the value; tapping it opens
+ * The dock's parameter chips, after the workflow chip: one fixed set in a fixed order (size or megapixels,
+ * steps, seed, length, scale), each only when the workflow has that field – the options sheet's quick fields. A chip shows the value; tapping it opens
  * a small popup above it with the same control as the options sheet. Values apply at once; tapping outside closes it.
  */
 @Composable
@@ -100,34 +111,42 @@ fun ParameterChips(state: CommonGenerationState, viewModel: BaseGenerationViewMo
     val caps = state.capabilities
     val workflowName = state.selectedWorkflow
 
-    if (caps.hasSeed) SeedChip(state, viewModel)
-    if (caps.hasSteps) {
-        val steps = state.steps.toIntOrNull()
-        ParameterChip(
-            title = stringResource(R.string.label_steps),
-            label = steps?.let { pluralStringResource(R.plurals.label_steps_count, it, it) } ?: state.steps,
-            isError = state.stepsError != null
-        ) {
-            ConstrainedNumberField(NumberParameter.STEPS, workflowName, state.steps, viewModel::onStepsChange, state.stepsError)
-        }
-    }
+    // Size leads the row: it is read at a glance far more often than the seed, and the row is cut off
+    // on a narrow dock, so the two numbers people reach for should not be the ones pushed out.
     if (caps.hasWidth && caps.hasHeight) {
         ParameterChip(
             title = stringResource(R.string.label_size),
             label = "${state.width}×${state.height}",
             isError = state.widthError != null || state.heightError != null
         ) {
+            // Which side a ratio keeps: whatever was typed last, and when only one side has a number,
+            // plainly that side – filling 1080 and picking 9:16 should give height, not a new width.
+            var lastTypedWidth by remember { mutableStateOf(true) }
+            val width = state.width.toIntOrNull() ?: 0
+            val height = state.height.toIntOrNull() ?: 0
+            val keepWidth = when {
+                width > 0 && height <= 0 -> true
+                height > 0 && width <= 0 -> false
+                else -> lastTypedWidth
+            }
             // A shape first, the exact numbers second: picking 9:16 twice as fast as typing it
             SizeRatioRow(
-                currentWidth = state.width.toIntOrNull() ?: 0,
-                currentHeight = state.height.toIntOrNull() ?: 0
-            ) { width, height ->
-                viewModel.onWidthChange(width.toString())
-                viewModel.onHeightChange(height.toString())
+                currentWidth = width,
+                currentHeight = height,
+                keepWidth = keepWidth
+            ) { nextWidth, nextHeight ->
+                viewModel.onWidthChange(nextWidth.toString())
+                viewModel.onHeightChange(nextHeight.toString())
             }
             // One under the other: side by side, a menu-wide popup leaves too little room for four digits
-            ConstrainedNumberField(NumberParameter.WIDTH, workflowName, state.width, viewModel::onWidthChange, state.widthError)
-            ConstrainedNumberField(NumberParameter.HEIGHT, workflowName, state.height, viewModel::onHeightChange, state.heightError)
+            ConstrainedNumberField(
+                NumberParameter.WIDTH, workflowName, state.width,
+                { lastTypedWidth = true; viewModel.onWidthChange(it) }, state.widthError
+            )
+            ConstrainedNumberField(
+                NumberParameter.HEIGHT, workflowName, state.height,
+                { lastTypedWidth = false; viewModel.onHeightChange(it) }, state.heightError
+            )
         }
     } else if (caps.hasMegapixels) {
         ParameterChip(
@@ -140,6 +159,17 @@ fun ParameterChips(state: CommonGenerationState, viewModel: BaseGenerationViewMo
             )
         }
     }
+    if (caps.hasSteps) {
+        val steps = state.steps.toIntOrNull()
+        ParameterChip(
+            title = stringResource(R.string.label_steps),
+            label = steps?.let { pluralStringResource(R.plurals.label_steps_count, it, it) } ?: state.steps,
+            isError = state.stepsError != null
+        ) {
+            ConstrainedNumberField(NumberParameter.STEPS, workflowName, state.steps, viewModel::onStepsChange, state.stepsError)
+        }
+    }
+    if (caps.hasSeed) SeedChip(state, viewModel)
     if (caps.hasLength) {
         val length = state.length.toIntOrNull()
         ParameterChip(
@@ -220,29 +250,91 @@ private fun SeedChip(state: CommonGenerationState, viewModel: BaseGenerationView
 
 /**
  * The shapes above the two size fields. The one the current numbers already make is checked, so the
- * row doubles as a readout; a row of chips rather than a menu, since there are only seven.
+ * row doubles as a readout; a row of chips rather than a menu, since there are only seven. Picking one
+ * keeps [keepWidth]'s side as it stands and fills in the other.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SizeRatioRow(currentWidth: Int, currentHeight: Int, onPick: (Int, Int) -> Unit) {
+private fun SizeRatioRow(
+    currentWidth: Int,
+    currentHeight: Int,
+    keepWidth: Boolean,
+    onPick: (Int, Int) -> Unit
+) {
     val current = SizeRatios.firstOrNull { ratio ->
         currentWidth > 0 && currentHeight > 0 &&
             ratio.width * currentHeight == ratio.height * currentWidth
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        SizeRatios.forEach { ratio ->
-            FilterChip(
-                selected = ratio == current,
-                onClick = {
-                    val (width, height) = sizeForRatio(currentWidth, currentHeight, ratio)
-                    onPick(width, height)
-                },
-                label = { Text(ratio.label, maxLines = 1) }
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Two rows instead of one scrolling row: seven chips never fit the popup's width, and the
+        // ones scrolled out of sight looked like a clipped button.
+        SizeRatioRows.forEach { ratios ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ratios.forEach { ratio ->
+                    SizeRatioChip(
+                        ratio = ratio,
+                        selected = ratio == current,
+                        onClick = {
+                            val anchor = if (keepWidth) currentWidth else currentHeight
+                            val (width, height) = sizeFromAnchor(anchor, ratio, keepWidth)
+                            onPick(width, height)
+                        }
+                    )
+                }
+            }
         }
+        // Which side survives a ratio change is the part that used to surprise: say it before it happens.
+        Text(
+            text = if (keepWidth) "以宽度为准 · 点比例只改高度" else "以高度为准 · 点比例只改宽度",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * One shape: a rectangle drawn at the ratio beside its numbers. Fixed width so the four columns of
+ * the first row line up with the three of the second.
+ */
+@Composable
+private fun SizeRatioChip(ratio: SizeRatio, selected: Boolean, onClick: () -> Unit) {
+    val content = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .size(width = SizeRatioChipWidth, height = SizeRatioChipHeight)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .border(
+                width = 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = ratio.label },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RatioGlyph(ratio, content)
+        Spacer(Modifier.width(4.dp))
+        Text(ratio.label, style = MaterialTheme.typography.labelSmall, color = content, maxLines = 1)
+    }
+}
+
+/** The rectangle itself, longest side fixed so the shapes stay comparable at a glance. */
+@Composable
+private fun RatioGlyph(ratio: SizeRatio, color: Color) {
+    Canvas(Modifier.size(14.dp)) {
+        val long = size.minDimension
+        val wide = ratio.width >= ratio.height
+        val width = if (wide) long else long * ratio.width / ratio.height
+        val height = if (wide) long * ratio.height / ratio.width else long
+        drawRoundRect(
+            color = color,
+            topLeft = Offset((size.width - width) / 2f, (size.height - height) / 2f),
+            size = Size(width, height),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = 1.2.dp.toPx())
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.connection
 
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 
 /**
  * Typed WebSocket messages parsed from ComfyUI server.
@@ -26,6 +27,23 @@ sealed class WebSocketMessage {
     data class Status(val queueRemaining: Int?) : WebSocketMessage()
     data class ExecutionCached(val nodeCount: Int) : WebSocketMessage()
     data class PreviewImage(val bitmap: Bitmap) : WebSocketMessage()
+    /**
+     * One denoise step of a video job, framed by a preview override node on the server: the still it
+     * decoded plus the step it belongs to. The plain [PreviewImage] carries no step, and a video
+     * sampler's frame only arrives through this event when such a node is in the graph.
+     */
+    data class SamplingPreview(
+        val bitmap: Bitmap?,
+        val step: Int,
+        val total: Int,
+        val stepMillis: Long? = null,
+        /** An animated frame sequence, when the server sent a WebP clip; drawn by itself, no bitmap. */
+        val animated: Drawable? = null,
+        /** Fragmented MP4 clip when the server encoded video/mp4 (default when PyAV/x264 is present). */
+        val videoBytes: ByteArray? = null,
+        val width: Int = 0,
+        val height: Int = 0
+    ) : WebSocketMessage()
     data class Unknown(val type: String) : WebSocketMessage()
 }
 

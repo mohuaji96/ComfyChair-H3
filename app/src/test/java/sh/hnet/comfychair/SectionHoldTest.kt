@@ -99,7 +99,7 @@ class SectionHoldTest {
     fun aHeldStorySectionKeepsIgnoredFieldsEmpty() {
         val gen = StoryGenerator(storyLibrary(), Random(41))
         val first = gen.randomize(gen.emptyPicks()).first
-        val held = gen.sections.first { it.label == "其它" }.fields.map { it.key }.toSet()
+        val held = gen.sections.first { it.label == "过程" }.fields.map { it.key }.toSet()
         val next = gen.randomize(first, held = held).first
         held.forEach { key -> assertEquals("$key 不该动", first[key]?.value, next[key]?.value) }
     }

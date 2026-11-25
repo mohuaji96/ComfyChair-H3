@@ -346,7 +346,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
             val needed = lib.peopleNeeded(selfKey.substringBefore('.'), value).coerceAtLeast(2)
             val allowed = allowedPeople()
             val target = lib.constraints.peopleCount.entries
-                .filter { it.key.contains("男") && it.value >= needed }
+                .filter { isMalePeople(lib, it.key) && it.value >= needed }
                 .filter { allowed.isEmpty() || it.key in allowed }
                 .minByOrNull { it.value }
             if (target != null) {
@@ -493,9 +493,9 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         // confusion this regroup is meant to remove.
         val chosenPeople = picks["$PEOPLE_ID.count"]?.value.orEmpty()
         val malePossible = if (chosenPeople.isNotBlank()) {
-            chosenPeople.contains("男")
+            isMalePeople(library.value, chosenPeople)
         } else {
-            allowedPeople().any { it.contains("男") }
+            allowedPeople().any { isMalePeople(library.value, it) }
         }
         return library.value.categories
             .filter { category ->
@@ -679,6 +679,11 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         val merged = if (carried.isEmpty()) mutable else mutable + carried
         stored[mode] = merged
         stateStore.save(mode, merged)
+    }
+
+    private fun isMalePeople(lib: TagLibrary, peopleWord: String): Boolean {
+        val explicit = lib.constraints.malePeople
+        return if (explicit.isNotEmpty()) peopleWord in explicit else peopleWord.contains("男")
     }
 
     companion object {

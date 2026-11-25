@@ -120,6 +120,9 @@ class SettingsViewModel : ViewModel() {
     private val _isLivePreviewEnabled = MutableStateFlow(true)
     val isLivePreviewEnabled: StateFlow<Boolean> = _isLivePreviewEnabled.asStateFlow()
 
+    private val _isH3PreviewEnabled = MutableStateFlow(true)
+    val isH3PreviewEnabled: StateFlow<Boolean> = _isH3PreviewEnabled.asStateFlow()
+
     private val _mediaStorageMode = MutableStateFlow(MediaStorageMode.MEMORY_ONLY)
     val mediaStorageMode: StateFlow<MediaStorageMode> = _mediaStorageMode.asStateFlow()
 
@@ -150,6 +153,7 @@ class SettingsViewModel : ViewModel() {
         )
         // Load settings
         _isLivePreviewEnabled.value = AppSettings.isLivePreviewEnabled(context)
+        _isH3PreviewEnabled.value = AppSettings.isH3PreviewEnabled(context)
         _mediaStorageMode.value = AppSettings.getMediaStorageMode(context)
         _isDebugLoggingEnabled.value = AppSettings.isDebugLoggingEnabled(context)
         _isAutoConnectEnabled.value = AppSettings.isAutoConnectEnabled(context)
@@ -478,6 +482,20 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
+    /** The H3 workspace's own preview switch; the global one above still gates it. */
+    fun setH3PreviewEnabled(context: Context, enabled: Boolean) {
+        viewModelScope.launch {
+            AppSettings.setH3PreviewEnabled(context, enabled)
+            _isH3PreviewEnabled.value = enabled
+            sh.hnet.comfychair.ui.components.H3SamplingPreviewState.setVisible(enabled)
+        }
+    }
+
+    /** Re-reads the H3 preview switch after the eye icon on the H3 page flipped it directly. */
+    fun refreshH3Preview(context: Context) {
+        _isH3PreviewEnabled.value = AppSettings.isH3PreviewEnabled(context)
+    }
+
     /**
      * Whether generated media is stored on the device, so switching to memory-only storage needs
      * a confirmation (the files will be deleted).
@@ -748,6 +766,7 @@ class SettingsViewModel : ViewModel() {
         DebugLogger.d(TAG, "Reloaded AppSettings - livePreview: $newLivePreview, mediaStorage: $newMediaStorageMode, debugLogging: $finalDebugLogging, autoConnect: $newAutoConnect")
 
         _isLivePreviewEnabled.value = newLivePreview
+        _isH3PreviewEnabled.value = AppSettings.isH3PreviewEnabled(context)
         _mediaStorageMode.value = newMediaStorageMode
         _isDebugLoggingEnabled.value = finalDebugLogging
         _isAutoConnectEnabled.value = newAutoConnect

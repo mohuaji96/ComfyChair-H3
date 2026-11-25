@@ -33,9 +33,9 @@ class StoryComposerTest {
         val gen = generator()
         val picks = gen.randomize(gen.emptyPicks()).first
         gen.fields.forEach { field ->
-            // 情绪 / 道具 / 细节 / 痕迹默认关着，这几格本来就该空；
+            // 情绪 / 细节 / 痕迹默认关着，这几格本来就该空；
             // 袜子有 25% 概率故意不穿，抽空也是对的。
-            if (field.key == StoryGenerator.MOOD || field.key == StoryGenerator.PROP ||
+            if (field.key == StoryGenerator.MOOD ||
                 field.key == StoryGenerator.DETAIL || field.key == StoryGenerator.MARK ||
                 field.key == StoryGenerator.SOCKS ||
                 // 穿整身衣服时这两格不自动抽，但面板里能选。
@@ -414,9 +414,9 @@ class StoryComposerTest {
         assertTrue("扛腿那条抽不到", "把她的一条腿扛到肩上，阴茎斜着往里插到底" in legUp)
         val plain = gen.allowed(StoryGenerator.ACT, mf)
         listOf(
-            "整根抽出来再整根撞回去，每次都顶到宫口",
+            "整根抽出来再整根撞回去，胯部撞得发红",
             "抓着她的头发往后拉，阴茎撞得更狠，胯拍在她臀上",
-            "一手按着她的小腹，能摸到阴茎在里面顶"
+            "一手按着她的小腹，胯部顶得极沉"
         ).forEach { assertTrue("「$it」抽不到", it in plain) }
     }
 
@@ -453,10 +453,10 @@ class StoryComposerTest {
     @Test
     fun `custom words survive a library swap`() {
         val base = library()
-        val withOne = base.withCustom(mapOf("prop" to listOf("手铐")))
+        val withOne = base.withCustom(mapOf("chore" to listOf("正在数军舰")))
         // 换一份新词库（模拟版本升级），自定义词还在
         val swapped = library().withCustom(withOne.custom.mapValues { it.value.toList() })
-        assertTrue("换词库把自定义词冲掉了", swapped.pool("prop").any { it.text == "手铐" })
+        assertTrue("换词库把自定义词冲掉了", swapped.pool("chore").any { it.text == "正在数军舰" })
     }
 
     @Test
@@ -524,21 +524,24 @@ class StoryComposerTest {
     @Test
     fun `poses and acts come out interleaved`() {
         val gen = generator()
-        val first = "把她压在身上（传教士）"
-        val second = "让她坐上来，扶着腰（正面骑乘）"
+        // 正文会剥掉姿势末尾的体位标签，所以定位用不带括号的部分。
+        val first = "把她压在身上"
+        val second = "让她坐上来，扶着腰"
         val pickScene = "床上"
         val picks = gen.emptyPicks() + mapOf(
             StoryGenerator.CAST to StoryPick("mf", locked = true),
             StoryGenerator.PLACE to StoryPick(pickScene, locked = true),
-            StoryGenerator.POSE to StoryPick("$first${StoryGenerator.SEP}$second", locked = true),
-            StoryGenerator.ACT to StoryPick("把阴茎整根插进她的阴道${StoryGenerator.SEP}阴茎从后面顶到最深处", locked = true)
+            StoryGenerator.POSE to StoryPick("$first（传教士）${StoryGenerator.SEP}$second（正面骑乘）", locked = true),
+            // 第二段必须配正面骑乘能做的动作；「从后面顶」现在被绑定了后入类体位。
+            StoryGenerator.ACT to StoryPick("把阴茎整根插进她的阴道${StoryGenerator.SEP}抽送又急又重，胯部拍得发红", locked = true)
         )
         val text = gen.compose(gen.randomize(picks).first, detail = false, dialogue = false)
         val i1 = text.indexOf(first)
         val i2 = text.indexOf("把阴茎整根插进她的阴道")
         val i3 = text.indexOf(second)
-        val i4 = text.indexOf("阴茎从后面顶到最深处")
+        val i4 = text.indexOf("抽送又急又重")
         assertTrue("顺序不对：$text", i1 in 0 until i2 && i2 < i3 && i3 < i4)
+        assertFalse("正文里不该出现体位标签：$text", text.contains("（传教士）"))
     }
 
     @Test
@@ -621,13 +624,33 @@ class StoryComposerTest {
     }
 
     @Test
-    fun `an empty prop leaves no dangling phrase`() {
+    fun `retired prop slot leaves no dangling phrase`() {
+        // 道具分项已经撤掉，模板里的取道具写法跟着删了。老存档再把 prop 塞回来，
+        // 也不能在正文里留一截「顺手拿起」。
         val gen = generator(seed = 3)
         repeat(30) {
             val base = gen.randomize(gen.emptyPicks()).first
-            val picks = base + (StoryGenerator.PROP to StoryPick(ignored = true))
+            val picks = base + (StoryGenerator.PROP to StoryPick("跳蛋"))
             val text = gen.compose(picks, detail = false, dialogue = false)
-            assertFalse("道具空着却留了半句：$text", text.contains("顺手拿起"))
+            assertFalse("道具撤了却留了半句：$text", text.contains("顺手拿起"))
+            assertFalse("道具撤了却还在取用：$text", text.contains("顺手从一旁取过"))
+        }
+    }
+
+    @Test
+    fun `a solo undress clause carries no pronoun`() {
+        // 单人档场上只有她一个人，「她内裤被拉到膝盖」里的「她」是废话。
+        repeat(15) { index ->
+            val gen = generator(seed = index + 1)
+            val picks = gen.randomize(
+                gen.emptyPicks() + (StoryGenerator.CAST to StoryPick("solo", locked = true))
+            ).first
+            if (picks[StoryGenerator.MID]?.value.isNullOrEmpty()) return@repeat
+            if (picks[StoryGenerator.OUTFIT]?.value.orEmpty().startsWith("全裸")) return@repeat
+            val text = gen.compose(picks, detail = false, dialogue = false)
+            val clause = text.substringAfter("不知不觉间，", "")
+            assertTrue("单人档没写过程中：$text", clause.isNotEmpty())
+            assertFalse("单人档多了主语：$text", clause.startsWith("她"))
         }
     }
 
@@ -662,7 +685,8 @@ class StoryComposerTest {
         val picks = gen.randomize(gen.emptyPicks()).first +
             (StoryGenerator.MOOD to StoryPick("眼尾泛红，带着哭腔低声求饶"))
         val text = gen.compose(picks, detail = false, dialogue = false)
-        assertTrue("情绪没进句子：$text", text.contains("，她眼尾泛红，带着哭腔低声求饶"))
+        // 动作链现在以句号收尾，情绪另起一句，所以前面不再是逗号。
+        assertTrue("情绪没进句子：$text", text.contains("她眼尾泛红，带着哭腔低声求饶"))
         assertTrue("句末标点丢了：$text", text.trim().endsWith("。"))
         assertFalse("情绪前面不该出现「。。」：$text", text.contains("。。"))
     }
@@ -678,17 +702,24 @@ class StoryComposerTest {
     }
 
     @Test
-    fun `prop counts as present for later wording`() {
+    fun `his tie counts as present for later wording`() {
+        // 道具分项撤掉后，领带只能来自他身上那身西装。他穿西装才谈得上解下来蒙眼。
         val gen = generator()
-        val withTie = gen.emptyPicks() + (StoryGenerator.PROP to StoryPick("领带"))
-        assertTrue(
-            "选了领带就该能抽到蒙眼那句",
-            "用领带蒙住她的眼睛" in gen.allowed(StoryGenerator.ESCALATE, withTie)
+        val suited = gen.emptyPicks() + mapOf(
+            StoryGenerator.CAST to StoryPick("mf", locked = true),
+            StoryGenerator.MAN_OUTFIT to StoryPick("西装三件套", locked = true)
         )
-        val withoutTie = gen.emptyPicks()
         assertTrue(
-            "没领带也不该整条消失，但要排在后面",
-            "用领带蒙住她的眼睛" !in gen.allowed(StoryGenerator.ESCALATE, withoutTie)
+            "他穿西装就该能抽到蒙眼那句",
+            "用领带蒙住她的眼睛" in gen.allowed(StoryGenerator.ESCALATE, suited)
+        )
+        val casual = gen.emptyPicks() + mapOf(
+            StoryGenerator.CAST to StoryPick("mf", locked = true),
+            StoryGenerator.MAN_OUTFIT to StoryPick("T恤牛仔", locked = true)
+        )
+        assertTrue(
+            "他没穿西装就不该有领带",
+            "用领带蒙住她的眼睛" !in gen.allowed(StoryGenerator.ESCALATE, casual)
         )
     }
 
@@ -770,7 +801,10 @@ class StoryComposerTest {
         val drawn = gen.randomize(empty).first
         assertEquals("默认关着还往里塞东西", "", drawn[StoryGenerator.MOOD]?.value.orEmpty())
         val text = gen.compose(drawn, detail = false, dialogue = false)
-        assertFalse("句末不该凭空多出情绪：$text", text.contains("，她"))
+        // 别拿「，她」当情绪的替身：动作链里本来就有「按着她的手腕，她夹得很紧」这种句子。
+        // 直接查情绪池里的原话有没有混进来。
+        val moods = library().pool("mood").map { it.text }
+        assertFalse("句末不该凭空多出情绪：$text", moods.any { text.contains(it) })
     }
 
     @Test
@@ -956,12 +990,10 @@ class StoryComposerTest {
     }
 
     @Test
-    fun `props stay out of the sentence until asked`() {
+    fun `the prop slot is gone from the panel`() {
         val gen = StoryGenerator(library(), Random(31))
-        val empty = gen.emptyPicks()
-        assertTrue("道具该默认关着", empty[StoryGenerator.PROP]?.ignored == true)
-        val drawn = gen.randomize(empty).first
-        assertTrue("道具自己冒出来了", drawn[StoryGenerator.PROP]?.value.isNullOrEmpty())
+        assertTrue("道具分项该撤掉了", gen.fields.none { it.key == StoryGenerator.PROP })
+        assertTrue("道具池也该跟着撤掉", library().pool("prop").isEmpty())
     }
 
     @Test
@@ -1067,9 +1099,12 @@ class StoryComposerTest {
         assertTrue("包含白皙双乳", outfitStates.any { it.contains("露出白皙的双乳") })
         assertFalse("不应再包含抽象的里面空荡荡", outfitStates.any { it.contains("里面空荡荡") })
 
-        // 2. 氛围道具池与光影细节池扩充生效
-        assertTrue("道具池扩充金丝眼镜", lib.pool("prop").any { it.text == "细链条金丝眼镜" })
-        assertTrue("细节池扩充丁达尔光束", lib.pool("detail").any { it.text.contains("丁达尔光束") })
+        // 2. 细节池里的生图光学黑话已按审计改成场景描写
+
+        val detailTexts = lib.pool("detail").map { it.text }
+        listOf("丁达尔", "胶片光晕", "轮廓光在肌肤上交织").forEach {
+            assertFalse("细节池还留着生图光学词：$it", detailTexts.any { t -> t.contains(it) })
+        }
 
         // 3. 男主外形与肤质扩充生效
         assertTrue("男主外形扩充肩宽腰窄", lib.pool("man_look").any { it.text.contains("肩宽腰窄") })
@@ -1094,7 +1129,9 @@ class StoryComposerTest {
         )
         val textNormal = gen.compose(picksNormal, detail = false, dialogue = false)
         assertTrue("男主第一句对仗：$textNormal", textNormal.contains("他是一名身形挺拔的男子"))
-        assertTrue("男主第二句身穿与此时：$textNormal", textNormal.contains("他身穿战术T恤配束脚工装裤，此时皮带金属扣解开，裤腰松垮"))
+        assertTrue("男主第二句只报穿什么：$textNormal", textNormal.contains("他身穿战术T恤配束脚工装裤。"))
+        // 他的穿脱挪到「不知不觉间」那一段：入场就解开皮带会把后面的戏提前说掉。
+        assertTrue("男主的穿脱没进过程中：$textNormal", textNormal.contains("不知不觉间，他皮带金属扣解开，裤腰松垮"))
 
         val picksNaked = mapOf(
             StoryGenerator.CAST to StoryPick("mf"),
@@ -1103,22 +1140,24 @@ class StoryComposerTest {
             StoryGenerator.MAN_STATE to StoryPick("浑身肌肉紧绷，手臂线条暴起发力")
         )
         val textNaked = gen.compose(picksNaked, detail = false, dialogue = false)
-        assertTrue("全裸自适应：$textNaked", textNaked.contains("他浑身赤裸，未着寸缕，此时浑身肌肉紧绷"))
+        assertTrue("全裸自适应：$textNaked", textNaked.contains("他浑身赤裸，未着寸缕"))
+        assertTrue("全裸的体态描写该留在过程中：$textNaked", textNaked.contains("不知不觉间，他浑身肌肉紧绷"))
 
-        // 3. 动作链平滑衔接且保留括号体位锚点
+        // 3. 动作链平滑衔接；体位标签只给选词面板看，念出来就穿帮，正文自动剥掉
         val chainPicks = mapOf(
             StoryGenerator.POSE to StoryPick("两人身体呈十字交叉侧卧（侧剪刀位）"),
-            StoryGenerator.ACT to StoryPick("越插越深")
+            StoryGenerator.ACT to StoryPick("阴茎在她体内抽出又顶入，每一下都撞到最里面")
         )
         val chainText = gen.mergeChain(chainPicks)
-        assertTrue("姿势动作平滑连词且保留括号：$chainText", chainText.contains("（侧剪刀位）") && chainText.contains("顺势挺腰越插越深"))
+        assertTrue("姿势动作没连上：$chainText", chainText.contains("顺势挺腰阴茎在她体内抽出又顶入"))
+        assertFalse("体位标签漏进正文：$chainText", chainText.contains("（侧剪刀位）"))
 
         // 4. 手选细节优先进句子
         val detailPicks = mapOf(
-            StoryGenerator.DETAIL to StoryPick("斑驳阳光透过树叶洒在身上")
+            StoryGenerator.DETAIL to StoryPick("阳光筛过树叶，在她身上落下碎影")
         )
         val detailText = gen.compose(detailPicks, detail = false, dialogue = false)
-        assertTrue("手选细节进入长句：$detailText", detailText.contains("斑驳阳光透过树叶洒在身上"))
+        assertTrue("手选细节进入长句：$detailText", detailText.contains("阳光筛过树叶，在她身上落下碎影"))
     }
 
     @Test
@@ -1161,7 +1200,9 @@ class StoryComposerTest {
         assertFalse("绝不能出现男的男子：$text", text.contains("斯文清瘦男的男子"))
         assertTrue("男装后独立成句：$text", text.contains("他身穿战术T恤配束脚工装裤。"))
         assertTrue("开始动作独立上前发起：$text", text.contains("他忽然上前从后面贴上去"))
-        assertTrue("过程中带拉扯过渡：$text", text.contains("动情拉扯间下装褪到脚踝"))
+        // 一男一女场上有两个人，衣服状态要写清是谁的；「她」后面不加「的」。
+        assertTrue("过程中没交代是谁的衣服：$text", text.contains("不知不觉间，她下装褪到脚踝"))
+        assertFalse("「她」后面不该加「的」：$text", text.contains("她的下装褪到脚踝"))
     }
 
     @Test
@@ -1261,10 +1302,11 @@ class StoryComposerTest {
             StoryGenerator.MID to StoryPick("已经完全脱光")
         )
         val textMid = gen.compose(midPicks, detail = false, dialogue = false)
-        assertTrue("完全脱光前缀自然化：$textMid", textMid.contains("动情拉扯间身上的衣物已完全除尽"))
+        assertTrue("完全脱光前缀自然化：$textMid", textMid.contains("不知不觉间，她身上的衣物已完全除尽"))
+        assertFalse("「她」后面不该加「的」：$textMid", textMid.contains("她的身上的衣物"))
 
         // 3. 验证版本号同步
-        assertEquals("0.9.8.8382.570-story", library().version)
+        assertEquals("0.9.8.8382.610-story", library().version)
     }
 
     @Test
@@ -1276,8 +1318,8 @@ class StoryComposerTest {
         val resolvedQueueSize = maxOf(totalQueueSize, ownActiveJobCount)
         assertEquals("服务端有任务时队列数字必须正确统计", 2, resolvedQueueSize)
 
-        // 验证版本号同步为 8382.395
-        assertEquals("0.9.8.8382.570-story", library().version)
+        // 验证版本号同步为 8382.591
+        assertEquals("0.9.8.8382.610-story", library().version)
     }
 
     /** 整段重抽要换人数，单格重抽不能把人数一起换掉。 */

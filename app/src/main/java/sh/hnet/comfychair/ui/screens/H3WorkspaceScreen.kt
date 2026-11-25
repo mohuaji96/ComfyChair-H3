@@ -32,6 +32,7 @@ import sh.hnet.comfychair.workflow.H3Plan
 import sh.hnet.comfychair.ui.components.GenerationProgressBar
 import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.workflow.H3WorkflowAdapter
+import sh.hnet.comfychair.workflow.ProgressStage
 
 /**
  * A workflow the adapter recognises as H3 plus the modes it can actually run.
@@ -58,7 +59,8 @@ private data class H3Entry(
 @Composable
 fun H3WorkspaceScreen(
     generationViewModel: GenerationViewModel?,
-    onOpenWorkflowSettings: () -> Unit
+    onOpenWorkflowSettings: () -> Unit,
+    isVisible: Boolean = true
 ) {
     val version by WorkflowManager.workflowsVersion.collectAsState()
     var tabIndex by rememberSaveable { mutableStateOf(0) }
@@ -90,8 +92,8 @@ fun H3WorkspaceScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        consumePendingWorkflow()
+    LaunchedEffect(isVisible) {
+        if (isVisible) consumePendingWorkflow()
     }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -186,20 +188,18 @@ fun H3WorkspaceScreen(
                 )
             }
         }
-        if (sh.hnet.comfychair.ui.components.QueueSheetController.visible && generationViewModel != null) {
-            sh.hnet.comfychair.ui.components.generation.QueueSheet(
-                generationViewModel = generationViewModel,
-                onDismiss = { sh.hnet.comfychair.ui.components.QueueSheetController.visible = false }
-            )
-        }
+        // The queue drawer is hosted once by the navigation host.
 
         // Under the title, above the tabs -- the same slot the four ordinary pages use. It sits
         // outside the tab switch on purpose: a long reference-video run should stay visible while
         // the user edits parameters on the other tab.
         val genState = generationViewModel?.generationState?.collectAsState()?.value
         val jobQueue by JobRegistry.queueState.collectAsState()
+        // The registry is the half that survives: `genState` lives in a ViewModel and is gone whenever the
+        // process is recreated, while the job keeps running on the server. Asking both meant the bar
+        // disappeared for good after a spell in the background; either one saying "running" is enough.
         val runningHere = jobQueue.executingOwnerId == H3_OWNER_ID &&
-            genState != null && genState.isGenerating
+            (genState?.isGenerating == true || jobQueue.isOwnJobExecuting)
         // The fade-out outlives the job: the state resets to UNKNOWN the moment work ends, so the
         // bar would read "处理中" on its way out. Hold the last real reading for that 120ms.
         var frozen by remember { mutableStateOf(genState) }
@@ -212,12 +212,24 @@ fun H3WorkspaceScreen(
             enter = expandVertically(tween(150)) + fadeIn(tween(150)),
             exit = shrinkVertically(tween(150)) + fadeOut(tween(120))
         ) {
-            (frozen ?: genState)?.let { state ->
+            val state = frozen ?: genState
+            val fallbackStarted = jobQueue.executingPromptId?.let { JobRegistry.executionStartedAtMillis(it) } ?: 0L
+            val effectiveStarted = (state?.startedAt?.takeIf { it > 0L }) ?: fallbackStarted
+            if (state != null) {
                 GenerationProgressBar(
                     stage = state.stage,
                     progress = state.progress,
                     maxProgress = state.maxProgress,
-                    startedAt = state.startedAt
+                    startedAt = effectiveStarted
+                )
+            } else {
+                // A job restored after the process died has no screen state behind it yet. Say "处理中",
+                // but keep the clock ticking from the persisted start timestamp so time is not lost.
+                GenerationProgressBar(
+                    stage = ProgressStage.UNKNOWN,
+                    progress = 0,
+                    maxProgress = 0,
+                    startedAt = effectiveStarted
                 )
             }
         }
@@ -265,7 +277,8 @@ fun H3WorkspaceScreen(
                     area = tab,
                     generationViewModel = generationViewModel,
                     onOpenWorkflowSettings = onOpenWorkflowSettings,
-                    onPickWorkflow = { pickerFor = tab }
+                    onPickWorkflow = { pickerFor = tab },
+                    isVisible = isVisible
                 )
             }
         }

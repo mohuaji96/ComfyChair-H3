@@ -93,6 +93,8 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
     val queueState by JobRegistry.queueState.collectAsState()
     val generationState by generationViewModel.generationState.collectAsState()
     val livePreview by generationViewModel.livePreview.collectAsState()
+    val h3Sample by sh.hnet.comfychair.ui.components.H3SamplingPreviewState.frame.collectAsState()
+    val h3Frame = h3Sample
     val relayDone by sh.hnet.comfychair.queue.H3RelayStatus.done.collectAsState()
     val relayRemaining by sh.hnet.comfychair.queue.H3RelayStatus.remaining.collectAsState()
     val relayDetail by sh.hnet.comfychair.queue.H3RelayStatus.detail.collectAsState()
@@ -155,7 +157,10 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                                 }
                             }
                             androidx.compose.material3.TextButton(
-                                onClick = { sh.hnet.comfychair.queue.H3RelayService.stop(context) }
+                                // Clearing the queue is what actually stops the chain; stopping the
+                                // notification alone left the banner up and the next segment still
+                                // queued behind the running one.
+                                onClick = { sh.hnet.comfychair.queue.H3RelayQueue.clear(context) }
                             ) {
                                 Text("停止连拍", color = MaterialTheme.colorScheme.error)
                             }
@@ -185,7 +190,9 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                     val steps = if (isCurrent) generationState.maxProgress else 0
                     QueueRow(
                         leading = {
-                            val frame = livePreview
+                            // An H3 job previews over its own channel, so the shared slot is empty for
+                            // it; without this the running H3 row sat there with a bare owner icon.
+                            val frame = if (job?.ownerId == "H3_WORKSPACE") h3Frame?.bitmap else livePreview
                             if (frame != null) {
                                 Image(
                                     frame.asImageBitmap(),

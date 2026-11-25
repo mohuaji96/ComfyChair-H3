@@ -1,5 +1,6 @@
 package sh.hnet.comfychair
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -41,25 +42,16 @@ class LibraryShapeTest {
         )
     }
 
+    /** 调色、主色并成一格，光质、光位并成一格：再冒出旧槽位就说明合并退回去了。 */
     @Test
-    fun thePaletteSlotStartsSwitchedOff() {
+    fun theLightingIsTwoSlots() {
         val library = library()
-        assertTrue(
-            "grade.palette should be listed as a default-off slot",
-            "grade.palette" in library.defaultIgnored
-        )
+        val slots = library.category("grade")?.slots?.map { it.id }.orEmpty()
+        assertEquals("两格：调色 + 用光", listOf("feel", "tone"), slots)
         val out = TagDefaults.ignored(library, emptyMap())
-        assertTrue("palette should be ignored", out["grade.palette"]?.ignored == true)
         assertFalse("the style itself stays on", out["mood.medium"]?.ignored == true)
         assertFalse("grading stays on", out["grade.feel"]?.ignored == true)
-    }
-
-    @Test
-    fun lockingThePaletteOutranksTheDefault() {
-        val library = library()
-        val existing = mapOf("grade.palette" to TagPick("冷青与乳白", locked = true))
-        val out = TagDefaults.ignored(library, existing)
-        assertFalse("a locked choice wins", out["grade.palette"]?.ignored == true)
+        assertFalse("lighting stays on", out["grade.tone"]?.ignored == true)
     }
 
     @Test
@@ -68,8 +60,8 @@ class LibraryShapeTest {
         assertNull("画幅 should be folded into 构图", library.category("frame"))
         val camera = library.category("camera")
         assertTrue(
-            "竖幅全身 must still exist somewhere",
-            camera?.slots?.any { "竖幅全身" in it.pool } == true
+            "宽银幕构图 must still exist somewhere",
+            camera?.slots?.any { "宽银幕构图" in it.pool } == true
         )
     }
 }

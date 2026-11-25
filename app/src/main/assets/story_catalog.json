@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "version": "0.9.8.8382.570-story",
+  "version": "0.9.8.8382.610-story",
   "note": "剧情组合专用词库。六族体位 + 衣物状态机，requires 查在场，requiresWorn 查还穿着。 525: partner/outfit_b 池内置，mood 走模板占位。",
   "casts": {
     "solo": {
@@ -181,12 +181,12 @@
           "凌晨",
           "深夜",
           "闷热的夏夜",
-          "雨夜",
-          "雪夜",
+          "深夜",
+          "深夜",
           "黄昏",
-          "外面下着雨，雨声很密",
-          "外面阴着天，雨还下着",
-          "外面堆着新雪，窗台白了一层"
+          "外面下着小雨",
+          "外面阴着天",
+          "外面飘着雪"
         ]
       },
       {
@@ -264,12 +264,12 @@
           "凌晨",
           "深夜",
           "闷热的夏夜",
-          "雨夜",
-          "雪夜",
+          "深夜",
+          "深夜",
           "黄昏",
-          "外面下着雨，雨声很密",
-          "外面阴着天，雨还下着",
-          "外面堆着新雪，窗台白了一层"
+          "外面下着小雨",
+          "外面阴着天",
+          "外面飘着雪"
         ]
       },
       {
@@ -3223,7 +3223,10 @@
       },
       {
         "text": "衣裳堆在脚边，身上只挂着一点",
-        "common": true
+        "common": true,
+        "requiresWorn": [
+          "*"
+        ]
       },
       {
         "text": "只剩丝袜了",
@@ -3281,6 +3284,9 @@
           "高跟鞋",
           "鞋",
           "绣花鞋"
+        ],
+        "requiresWorn": [
+          "高跟鞋"
         ]
       },
       {
@@ -4225,6 +4231,9 @@
           "mf",
           "mff",
           "ff"
+        ],
+        "requiresWorn": [
+          "*"
         ]
       },
       {
@@ -4503,6 +4512,9 @@
         "casts": [
           "mf",
           "mff"
+        ],
+        "requiresWorn": [
+          "*"
         ]
       },
       {
@@ -4555,6 +4567,9 @@
           "演出服",
           "打底衫",
           "手套"
+        ],
+        "requiresWorn": [
+          "*"
         ]
       },
       {
@@ -4614,6 +4629,66 @@
           "mf",
           "mff",
           "ff"
+        ]
+      },
+      {
+        "text": "指尖沿着大腿内侧往上走",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "并起两根手指，慢慢压下去",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "把一条腿架到扶手上",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "侧过身去，手从后面绕进去",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "解开内衣的搭扣，把胸露出来",
+        "casts": [
+          "solo"
+        ],
+        "requiresWorn": [
+          "内衣"
+        ]
+      },
+      {
+        "text": "把枕头垫到腰下",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "跪起来，膝盖分开",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "仰面躺下，双脚踩着床沿",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "背对着镜子弯下腰",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "镜"
         ]
       }
     ],
@@ -5475,6 +5550,108 @@
           "mff",
           "ff"
         ]
+      },
+      {
+        "text": "坐在床沿，一条腿曲起来",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "跪在床上，上身伏下去",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "侧身躺着，一条腿曲起",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "仰躺着，膝盖向上收",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "背靠着床头，腿分开",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "趴在枕头上，臀部抬起来",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "蹲在地上，膝盖朝外张",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "坐在镜子前的地板上",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "镜"
+        ]
+      },
+      {
+        "text": "半跪着，一只脚踩地",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "靠着浴室墙站着，一条腿抬起",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "墙"
+        ]
+      },
+      {
+        "text": "躺在床上，双腿垂在床沿",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "跪趴着，上身压低",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
       }
     ],
     "act": [
@@ -5503,7 +5680,7 @@
         "penetrating": false
       },
       {
-        "text": "玩具整根没进去，只留底座在外面",
+        "text": "玩具整根没入，只留底座在外面",
         "casts": [
           "solo"
         ],
@@ -5517,7 +5694,9 @@
         ],
         "poses": [
           "蹲",
-          "蹲上"
+          "蹲上",
+          "坐椅",
+          "坐边"
         ],
         "penetrating": false
       },
@@ -5558,7 +5737,10 @@
         "casts": [
           "solo"
         ],
-        "poses": [],
+        "poses": [
+          "趴",
+          "趴塌"
+        ],
         "penetrating": false
       },
       {
@@ -5566,7 +5748,11 @@
         "casts": [
           "solo"
         ],
-        "poses": [],
+        "poses": [
+          "躺",
+          "仰开",
+          "跪分"
+        ],
         "penetrating": false
       },
       {
@@ -5598,8 +5784,15 @@
         "casts": [
           "solo"
         ],
-        "poses": [],
-        "penetrating": false
+        "poses": [
+          "夹被",
+          "侧收",
+          "靠墙"
+        ],
+        "penetrating": false,
+        "requiresWorn": [
+          "内裤"
+        ]
       },
       {
         "text": "两根手指撑开自己往里看",
@@ -5646,7 +5839,23 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
         "penetrating": true
       },
       {
@@ -5679,7 +5888,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "插得太深，她的小腹被顶出一点弧度",
@@ -5696,9 +5905,12 @@
         ],
         "poses": [
           "莲花",
-          "跪坐"
+          "跪坐",
+          "面对面坐",
+          "抱坐",
+          "盘腿"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "拉着她的手按在小腹上，让她感觉阴茎在里面",
@@ -5706,7 +5918,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "拔出来，龟头蹭着阴唇磨了两下",
@@ -5714,14 +5926,36 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "一边插一边低头含住她的乳尖",
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "压",
+          "面对面坐",
+          "莲花",
+          "抱坐",
+          "台面平",
+          "床沿",
+          "仰躺开",
+          "张腿",
+          "M字",
+          "抬腿",
+          "侧躺",
+          "汤匙",
+          "骑乘",
+          "反骑",
+          "跨坐",
+          "蹲骑",
+          "坐椅",
+          "椅边",
+          "侧面对面",
+          "面对面",
+          "盘腿"
+        ],
         "penetrating": true
       },
       {
@@ -5731,7 +5965,11 @@
         ],
         "poses": [
           "侧后",
-          "单腿站"
+          "单腿站",
+          "侧躺",
+          "汤匙",
+          "侧面对面",
+          "翘腿"
         ],
         "penetrating": true
       },
@@ -5742,9 +5980,12 @@
         ],
         "poses": [
           "悬空",
-          "正面抱"
+          "正面抱",
+          "墙",
+          "站承",
+          "弓步"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "让她自己扶着阴茎慢慢坐下去",
@@ -5753,9 +5994,16 @@
         ],
         "poses": [
           "骑乘",
-          "蹲骑"
+          "蹲骑",
+          "反骑",
+          "椅边",
+          "坐机器",
+          "蹲下",
+          "跨坐",
+          "背坐",
+          "骑动"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "顶到最里面停着，逼她开口",
@@ -5766,7 +6014,7 @@
         "penetrating": true
       },
       {
-        "text": "抽送得很快，水声盖过说话声",
+        "text": "抽送又急又重，胯部拍得发红",
         "casts": [
           "mf"
         ],
@@ -5786,7 +6034,15 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "折叠",
+          "并腿",
+          "压",
+          "M字",
+          "抬腿",
+          "张腿",
+          "仰躺开"
+        ],
         "penetrating": true
       },
       {
@@ -5795,7 +6051,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "插进去一半就停住，看她忍不住",
@@ -5819,7 +6075,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "阴茎退到穴口又狠狠顶回去",
@@ -5835,9 +6091,15 @@
           "mf"
         ],
         "poses": [
-          "跪趴"
+          "跪趴",
+          "后入",
+          "跪趴下",
+          "塌腰",
+          "弯腰",
+          "站立后",
+          "半跪"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "按着她的后颈，把阴茎送到最深处",
@@ -5846,7 +6108,11 @@
         ],
         "poses": [
           "趴床沿",
-          "跪趴"
+          "跪趴",
+          "俯卧",
+          "推车",
+          "俯撑",
+          "趴床"
         ],
         "penetrating": true
       },
@@ -5856,7 +6122,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "整根拔出来，穴口还开着慢慢合上",
@@ -5864,7 +6130,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "一人被他插着，另一人趴在她身上舔她的阴蒂",
@@ -6287,7 +6553,17 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "跪趴",
+          "跪趴下",
+          "跪坐",
+          "蹲",
+          "蹲下",
+          "蹲上",
+          "趴",
+          "趴床",
+          "躺"
+        ],
         "penetrating": false
       },
       {
@@ -6295,7 +6571,17 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "跪趴",
+          "跪趴下",
+          "跪坐",
+          "蹲",
+          "蹲下",
+          "蹲上",
+          "趴",
+          "趴床",
+          "躺"
+        ],
         "penetrating": false
       },
       {
@@ -6303,7 +6589,9 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "乳交"
+        ],
         "penetrating": false
       },
       {
@@ -6311,7 +6599,9 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "足交"
+        ],
         "penetrating": false
       },
       {
@@ -6320,14 +6610,31 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": false
+        "penetrating": false,
+        "requiresWorn": [
+          "内裤"
+        ]
       },
       {
         "text": "把脸埋进她双腿之间舔她的穴口",
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "仰躺开",
+          "张腿",
+          "M字",
+          "抬腿",
+          "床沿",
+          "台面平",
+          "躺",
+          "仰开",
+          "侧躺",
+          "跪坐",
+          "盘腿",
+          "椅边",
+          "坐椅"
+        ],
         "penetrating": false
       },
       {
@@ -6344,7 +6651,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "两人轮流含着阴茎",
@@ -6407,7 +6714,7 @@
           "股间",
           "素股"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "贴着他的腋下慢慢磨",
@@ -6494,7 +6801,14 @@
         "casts": [
           "mf"
         ],
-        "poses": [],
+        "poses": [
+          "压",
+          "床沿",
+          "台面平",
+          "桌沿",
+          "浴缸边",
+          "坐椅"
+        ],
         "penetrating": true
       },
       {
@@ -6505,26 +6819,30 @@
         "poses": [
           "肩扛"
         ],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "她两条腿盘住他的腰，阴茎插在最里面慢慢地磨",
         "casts": [
           "mf"
         ],
-        "poses": [],
-        "penetrating": true
-      },
-      {
-        "text": "在她臀下垫了个枕头，抬着角度把阴茎往最深处顶",
-        "casts": [
-          "mf"
+        "poses": [
+          "面对面坐",
+          "莲花",
+          "正面抱",
+          "悬空",
+          "抱坐",
+          "跨坐",
+          "骑乘",
+          "面对面",
+          "盘腿",
+          "蹲骑",
+          "反骑"
         ],
-        "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
-        "text": "插到一半停住，龟头抵着最里面来回碾",
+        "text": "在她臀下垫了个枕头，把胯部贴得极紧",
         "casts": [
           "mf"
         ],
@@ -6532,12 +6850,20 @@
         "penetrating": false
       },
       {
-        "text": "一手按着她的小腹，能摸到阴茎在里面顶",
+        "text": "插到一半停住，胯部贴着碾磨",
         "casts": [
           "mf"
         ],
         "poses": [],
-        "penetrating": false
+        "penetrating": true
+      },
+      {
+        "text": "一手按着她的小腹，胯部顶得极沉",
+        "casts": [
+          "mf"
+        ],
+        "poses": [],
+        "penetrating": true
       },
       {
         "text": "抓着她的头发往后拉，阴茎撞得更狠，胯拍在她臀上",
@@ -6553,7 +6879,7 @@
           "mf"
         ],
         "poses": [],
-        "penetrating": true
+        "penetrating": false
       },
       {
         "text": "边插边低头咬她的脖子，她缩了一下，里面跟着绞紧",
@@ -6564,7 +6890,7 @@
         "penetrating": true
       },
       {
-        "text": "整根抽出来再整根撞回去，每次都顶到宫口",
+        "text": "整根抽出来再整根撞回去，胯部撞得发红",
         "casts": [
           "mf"
         ],
@@ -6576,7 +6902,12 @@
         "casts": [
           "ff"
         ],
-        "poses": [],
+        "poses": [
+          "背后",
+          "压",
+          "侧躺",
+          "汤匙"
+        ],
         "penetrating": false
       },
       {
@@ -6600,7 +6931,12 @@
         "casts": [
           "ff"
         ],
-        "poses": [],
+        "poses": [
+          "素股",
+          "股间",
+          "剪刀",
+          "面对面"
+        ],
         "penetrating": false
       },
       {
@@ -6693,8 +7029,24 @@
           "mf",
           "mff"
         ],
-        "poses": [],
-        "penetrating": true,
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
+        "penetrating": false,
         "common": true
       },
       {
@@ -6703,7 +7055,23 @@
           "mf",
           "mff"
         ],
-        "poses": [],
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
         "penetrating": true,
         "common": true
       },
@@ -6713,7 +7081,23 @@
           "mf",
           "mff"
         ],
-        "poses": [],
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
         "penetrating": true,
         "common": true
       },
@@ -6723,8 +7107,24 @@
           "mf",
           "mff"
         ],
-        "poses": [],
-        "penetrating": true,
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
+        "penetrating": false,
         "common": true
       },
       {
@@ -6733,9 +7133,31 @@
           "mf",
           "mff"
         ],
-        "poses": [],
-        "penetrating": true,
-        "common": true
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙",
+          "躺",
+          "仰躺开",
+          "张腿"
+        ],
+        "penetrating": false,
+        "common": true,
+        "requires": [
+          "床"
+        ]
       },
       {
         "text": "从后面插进后穴，一手扶着她的胯",
@@ -6743,7 +7165,23 @@
           "mf",
           "mff"
         ],
-        "poses": [],
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
         "penetrating": true,
         "common": true
       },
@@ -6753,8 +7191,24 @@
           "mf",
           "mff"
         ],
-        "poses": [],
-        "penetrating": true,
+        "poses": [
+          "后入",
+          "侧后",
+          "站立后",
+          "跪趴",
+          "跪趴下",
+          "俯卧",
+          "趴床沿",
+          "推车",
+          "墙",
+          "趴床",
+          "趴塌",
+          "塌腰",
+          "背坐",
+          "侧躺",
+          "汤匙"
+        ],
+        "penetrating": false,
         "common": true
       },
       {
@@ -6764,7 +7218,168 @@
           "mff"
         ],
         "poses": [],
-        "penetrating": true,
+        "penetrating": false,
+        "common": true
+      },
+      {
+        "text": "两女并排跪着，一左一右一起舔着阴茎",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "跪趴",
+          "跪坐"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "两张脸贴在一起，同时舔着同一根阴茎",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "跪趴",
+          "跪坐"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "两条舌头从两侧同时舔过阴茎",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "跪趴",
+          "跪坐"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "一人含着阴茎根部，另一人舔着龟头",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "跪趴",
+          "跪坐"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "两女一前一后轮流含着阴茎吞吐",
+        "casts": [
+          "mff"
+        ],
+        "poses": [
+          "跪趴",
+          "轮流"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "把她抱到洗手台上，从正面顶进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "坐边",
+          "台面平"
+        ],
+        "requires": [
+          "台面"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "把她按在镜子前，让她看着镜子里的自己被插",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "靠墙",
+          "台面平"
+        ],
+        "requires": [
+          "镜"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "把她压趴在桌面上，从后面插进去",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "趴",
+          "桌沿",
+          "趴塌"
+        ],
+        "requires": [
+          "台面"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "贴在她背后，隔着后背压下去后入",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "背后",
+          "趴床",
+          "俯卧"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "双手托起她的臀部，把她抱在腰间抽送",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "悬空",
+          "正面抱"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "把她的双腿并拢压在胸前，一口气顶到底",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "并腿",
+          "折叠"
+        ],
+        "penetrating": true
+      },
+      {
+        "text": "阴茎夹在她紧并的两条大腿之间来回抽送",
+        "casts": [
+          "mf"
+        ],
+        "poses": [
+          "素股",
+          "股间"
+        ],
+        "penetrating": false
+      },
+      {
+        "text": "指腹快速拨弄着充血的阴蒂",
+        "casts": [
+          "solo"
+        ],
+        "poses": [],
+        "penetrating": false
+      },
+      {
+        "text": "一手揉着阴蒂，两根手指插在里面抽送",
+        "casts": [
+          "solo",
+          "ff"
+        ],
+        "poses": [],
+        "penetrating": false,
         "common": true
       }
     ],
@@ -6851,229 +7466,55 @@
           "mf",
           "ff"
         ]
-      }
-    ],
-    "prop": [
+      },
       {
-        "text": "跳蛋",
-        "common": true,
-        "props": [
-          "跳蛋"
+        "text": "手指抽出来，水拉成一条线",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "按摩棒",
-        "common": true,
-        "props": [
-          "按摩棒"
+        "text": "抖着停不下来，腿还在轻轻抽",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "领带",
-        "common": true,
-        "props": [
-          "领带"
+        "text": "高潮过后整个人软下去，手还搭在原处",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "冰块",
-        "common": true,
-        "props": [
-          "冰块"
+        "text": "喷出来的水打湿了大半张床单",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "羽毛",
-        "common": true,
-        "props": [
-          "羽毛"
+        "text": "缓了很久才把手指拿出来",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "眼罩",
-        "common": true,
-        "props": [
-          "眼罩"
+        "text": "玩具滑出来，落在腿间",
+        "casts": [
+          "solo"
         ]
       },
       {
-        "text": "枕头",
-        "common": true,
-        "props": [
-          "枕头"
+        "text": "呼吸慢慢平下来，眼睛还失着焦",
+        "casts": [
+          "solo"
         ]
-      },
-      {
-        "text": "镜子",
-        "props": [
-          "镜子",
-          "镜"
-        ]
-      },
-      {
-        "text": "丝巾",
-        "props": [
-          "丝巾"
-        ]
-      },
-      {
-        "text": "皮带",
-        "props": [
-          "皮带"
-        ]
-      },
-      {
-        "text": "蜡烛",
-        "props": [
-          "蜡烛"
-        ]
-      },
-      {
-        "text": "手机",
-        "props": [
-          "手机"
-        ]
-      },
-      {
-        "text": "毛巾",
-        "props": [
-          "毛巾"
-        ]
-      },
-      {
-        "text": "遥控器",
-        "props": [
-          "遥控器"
-        ]
-      },
-      {
-        "text": "手铐",
-        "props": [
-          "手铐"
-        ]
-      },
-      {
-        "text": "绳子",
-        "props": [
-          "绳子"
-        ]
-      },
-      {
-        "text": "皮拍",
-        "props": [
-          "皮拍"
-        ]
-      },
-      {
-        "text": "口球",
-        "props": [
-          "口球"
-        ]
-      },
-      {
-        "text": "项圈",
-        "props": [
-          "项圈"
-        ]
-      },
-      {
-        "text": "锁链",
-        "props": [
-          "锁链"
-        ]
-      },
-      {
-        "text": "按摩精油",
-        "props": [
-          "按摩精油"
-        ]
-      },
-      {
-        "text": "假阳具",
-        "props": [
-          "假阳具"
-        ]
-      },
-      {
-        "text": "肛塞",
-        "props": [
-          "肛塞"
-        ]
-      },
-      {
-        "text": "束缚带",
-        "props": [
-          "束缚带"
-        ]
-      },
-      {
-        "text": "计时器",
-        "props": [
-          "计时器"
-        ]
-      },
-      {
-        "text": "毛刷",
-        "props": [
-          "毛刷"
-        ]
-      },
-      {
-        "text": "绒布",
-        "props": [
-          "绒布"
-        ]
-      },
-      {
-        "text": "丝质绑带",
-        "props": [
-          "丝质绑带"
-        ]
-      },
-      {
-        "text": "细链条金丝眼镜"
-      },
-      {
-        "text": "细银质锁骨链"
-      },
-      {
-        "text": "发间丝带绑绳"
-      },
-      {
-        "text": "半透明蕾丝眼罩"
-      },
-      {
-        "text": "薄纱遮面面纱"
       }
     ],
     "detail": [
       {
-        "text": "她被他按在台面上，水龙头还开着",
-        "requires": [
-          "水"
-        ],
-        "common": true,
-        "groups": []
-      },
-      {
         "text": "她靠在冰箱边，冰箱门还开着",
         "requires": [
           "冰箱"
-        ],
-        "groups": []
-      },
-      {
-        "text": "他把她压上桌沿，桌上的东西扫落一地",
-        "requires": [
-          "桌"
-        ],
-        "common": true,
-        "groups": []
-      },
-      {
-        "text": "他拽松了她围裙的带子",
-        "requires": [
-          "围裙"
         ],
         "groups": []
       },
@@ -7086,31 +7527,16 @@
         "groups": []
       },
       {
-        "text": "他扯下毛巾扔在地上",
-        "requires": [
-          "毛巾"
-        ],
-        "groups": []
-      },
-      {
-        "text": "她跨进浴缸，水从边缘溢出来",
-        "requires": [
-          "浴缸"
-        ],
-        "groups": []
-      },
-      {
-        "text": "他扯下她的外衣，落在脚边",
-        "common": true,
-        "groups": []
-      },
-      {
         "text": "他随手带上门，没锁",
         "requires": [
           "门"
         ],
         "common": true,
-        "groups": []
+        "groups": [],
+        "casts": [
+          "mf",
+          "mff"
+        ]
       },
       {
         "text": "手机在床头响着，没人接",
@@ -7204,13 +7630,6 @@
       },
       {
         "text": "衣服湿透了贴在身上",
-        "groups": []
-      },
-      {
-        "text": "膝盖在床边压出印子",
-        "requires": [
-          "床"
-        ],
         "groups": []
       },
       {
@@ -7325,12 +7744,6 @@
         "text": "胸口随呼吸剧烈起伏"
       },
       {
-        "text": "大腿内侧泛着红"
-      },
-      {
-        "text": "腰侧留着几道指痕"
-      },
-      {
         "text": "脚背绷成一条直线"
       },
       {
@@ -7338,12 +7751,6 @@
       },
       {
         "text": "小腹绷着，微微起伏"
-      },
-      {
-        "text": "膝盖跪出浅浅的红印"
-      },
-      {
-        "text": "手腕上留着一圈红痕"
       },
       {
         "text": "唇被吻得发亮"
@@ -7361,28 +7768,22 @@
         "text": "脚趾蜷紧又松开"
       },
       {
-        "text": "乳尖被磨得发红"
-      },
-      {
-        "text": "腰后被掐出浅浅的印子"
-      },
-      {
         "text": "光裸的皮肤映着窗外的灯"
       },
       {
-        "text": "斑驳阳光透过树叶洒在身上"
+        "text": "阳光筛过树叶，在她身上落下碎影"
       },
       {
-        "text": "水面折射下的丁达尔光束与细小气泡"
+        "text": "水面反着光，细小的气泡贴着她的皮肤"
       },
       {
-        "text": "摇曳烛光与深邃阴影的强烈明暗对比"
+        "text": "烛光在墙上晃，影子跟着动作摇"
       },
       {
-        "text": "体积雾营造出的空灵胶片感"
+        "text": "屋里浮着一层薄雾，看什么都隔着一层毛边"
       },
       {
-        "text": "暗色调环境光与微弱轮廓光交织"
+        "text": "暗处的光顺着她的肩背勾出一道边"
       }
     ],
     "mood": [
@@ -7412,7 +7813,11 @@
         "common": true
       },
       {
-        "text": "眼神失焦，只能跟着他的节奏起伏"
+        "text": "眼神失焦，只能跟着他的节奏起伏",
+        "casts": [
+          "mf",
+          "mff"
+        ]
       },
       {
         "text": "眼角还挂着泪，却笑着说不许停"
@@ -7430,7 +7835,11 @@
         "text": "仰着头喘息，喉咙里溢出细碎的声音"
       },
       {
-        "text": "咬着下唇瞪着他，眼里全是水光"
+        "text": "咬着下唇瞪着他，眼里全是水光",
+        "casts": [
+          "mf",
+          "mff"
+        ]
       },
       {
         "text": "声音软下来，带着一点撒娇的鼻音"
@@ -7448,7 +7857,11 @@
         "text": "高潮过后眼神发直，一时回不过神"
       },
       {
-        "text": "眼眶湿了，却还倔强地瞪着他"
+        "text": "眼眶湿了，却还倔强地瞪着他",
+        "casts": [
+          "mf",
+          "mff"
+        ]
       },
       {
         "text": "忍不住小声呜咽，又咬着嘴唇压回去"
@@ -7508,10 +7921,62 @@
         "text": "眼神放空，嘴角带着餍足的笑意"
       },
       {
-        "text": "抬眼看他，带着一点求的意思"
+        "text": "抬眼看他，带着一点求的意思",
+        "casts": [
+          "mf",
+          "mff"
+        ]
       },
       {
         "text": "手不知道往哪放，眼神到处躲"
+      },
+      {
+        "text": "声音发颤，只挤出两个字：「慢点。」",
+        "common": true
+      },
+      {
+        "text": "咬着唇低声说：「别停。」",
+        "common": true
+      },
+      {
+        "text": "喘得说不出整句，只剩一句：「还要。」",
+        "common": true
+      },
+      {
+        "text": "眼神失焦，呢喃着：「太多了……」",
+        "common": true
+      },
+      {
+        "text": "主动抬眼看他：「再来。」",
+        "common": true
+      },
+      {
+        "text": "别过脸去，声音闷在枕头里：「别看。」",
+        "common": true
+      },
+      {
+        "text": "抓着床单，喉咙里滚出一句：「抱紧我。」",
+        "common": true
+      },
+      {
+        "text": "事后的沙哑，几乎是耳语：「……别走。」",
+        "common": true
+      },
+      {
+        "text": "清醒而克制，只轻声说：「继续。」",
+        "common": true
+      },
+      {
+        "text": "缓过来后笑了一下：「还行。」",
+        "common": true
+      },
+      {
+        "text": "一直没出声，最后才低低叫了他一声名字。",
+        "common": true
+      },
+      {
+        "text": "手背挡着眼睛，声音发抖：「别看我了。」",
+        "common": true
       }
     ],
     "socks": [
@@ -9480,16 +9945,16 @@
   },
   "templates": {
     "mf": [
-      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{male}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她{mood}。"
+      "{time}{world}{cast}在{place}{weather}。{her}{wear}{male}\n\n{chore}{escalate}。\n\n{outfit_mid}。\n\n{acts_dot}{mark}，{detail}，她{mood}。"
     ],
     "mff": [
-      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{her2}\n\n{wear2}\n\n{male}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她们{mood}。"
+      "{time}{world}{cast}在{place}{weather}。{her}{wear}{her2}{wear2}{male}\n\n{chore}{escalate}。\n\n{outfit_mid}。\n\n{acts_dot}{mark}，{detail}，她们{mood}。"
     ],
     "ff": [
-      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{her2}\n\n{wear2}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她们{mood}。"
+      "{time}{world}{cast}在{place}{weather}。{her}{wear}{her2}{wear2}\n\n{chore}{escalate}。\n\n{outfit_mid}。\n\n{acts_dot}{mark}，{detail}，她们{mood}。"
     ],
     "solo": [
-      "{time}{world}{cast}在{place}{weather}。\n\n{her}\n\n{wear}\n\n{chore}{escalate}\n\n{outfit_mid}\n\n{acts}\n\n{mark}，{detail}，她{mood}。"
+      "{time}{world}{cast}在{place}{weather}。{her}{wear}\n\n{chore}{escalate}。\n\n{outfit_mid}。\n\n{acts_dot}{mark}，{detail}，她{mood}。"
     ]
   },
   "profile": "nsfw",
@@ -9730,6 +10195,10 @@
     [
       "丰满胸部",
       "极度下垂"
+    ],
+    [
+      "闷热的夏夜",
+      "外面飘着雪"
     ]
   ]
 }

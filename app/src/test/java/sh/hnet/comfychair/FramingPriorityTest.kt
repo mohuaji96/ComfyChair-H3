@@ -41,7 +41,7 @@ class FramingPriorityTest {
         repeat(40) {
             engine.randomize(picks)
             val act = picks["sexAct.act"]?.value.orEmpty()
-            val crop = picks["camera.crop"]?.value.orEmpty()
+            val crop = picks["camera.shot"]?.value.orEmpty()
             if (act.isNotEmpty()) drawsWithAct++
             if (act.isNotEmpty() && crop in groinHiding) {
                 throw AssertionError("「$act」配了「$crop」：${engine.drawNote()}")
@@ -62,19 +62,24 @@ class FramingPriorityTest {
         repeat(160) {
             engine.randomize(picks)
             picks["sexAct.act"]?.value?.takeIf { v -> v.isNotEmpty() }?.let { seen += "ACT:$it" }
-            picks["camera.crop"]?.value?.takeIf { v -> v.isNotEmpty() }?.let { seen += it }
+            picks["camera.shot"]?.value?.takeIf { v -> v.isNotEmpty() }?.let { seen += it }
         }
         assertTrue("性行为被忽略却还在抽", seen.none { it.startsWith("ACT:") })
         val cropWords = seen.filterNot { it.startsWith("ACT:") }.toSet()
-        val all = library.category("camera")!!.slots.first { it.id == "crop" }.pool.toSet()
-        assertTrue("出画只抽到 ${cropWords.size}/${all.size}: $cropWords", cropWords.size == all.size)
+        // 裁切并进景别之后这一格有二十多条，160 次抽不满全部；要验的是那些会裁掉部位的
+        // 画外词在性行为关掉后都能回来，而不是逐个穷举。
+        val required = setOf(
+            "胸部在画外", "下半身在画外", "脚部在画外"
+        )
+        val missing = required - cropWords
+        assertTrue("这些画外词没能回来：$missing（抽到 ${cropWords.size} 个）", missing.isEmpty())
     }
 
     @Test
     fun aShoulderOnlyFrameAlsoDropsHairAndTheFace() {
         val library = library()
         val engine = solo(library)
-        val picks = mutableMapOf<String, TagPick>("camera.crop" to TagPick("只露出肩部", locked = true))
+        val picks = mutableMapOf<String, TagPick>("camera.shot" to TagPick("只露出肩部", locked = true))
 
         engine.randomize(picks)
 

@@ -53,7 +53,7 @@ class PriorityOrderTest {
         }
         // 取景、出画同属一个分类，景别 / 机位 / 构图各占一格，彼此不会漂开。
         val framing = library.category("camera")!!.slots.map { it.id }.toSet()
-        assertEquals("取景必须带景别、机位、构图与裁切四个槽", setOf("shot", "angle", "frame", "crop"), framing)
+        assertEquals("取景必须带景别、机位、镜头与构图四个槽", setOf("shot", "angle", "lens", "frame"), framing)
         assertEquals("姿势和动作必须同一层", tier["pose"], tier["activity"])
     }
 

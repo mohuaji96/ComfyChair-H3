@@ -107,22 +107,30 @@ class LibraryUpgradeTest {
         val library = TagLibraryJson.parse(catalog.readText(Charsets.UTF_8))
         val tone = library.slot("grade", "tone")!!.pool
 
-        assertEquals(41, tone.size)
-        listOf("粉色霓虹", "蓝色霓虹", "紫色氛围灯", "浴室雾气里的顶灯", "床头灯只够看清轮廓").forEach {
+        // 光质 41 条里又删掉 10 条道具化的灯，剩下 31 条；连同光位并进来的 4 条，一共 35。
+        assertEquals(35, tone.size)
+        listOf(
+            "粉色霓虹", "蓝色霓虹", "紫色氛围灯", "浴室雾气里的顶灯", "床头灯只够看清轮廓",
+            "只开一盏暖灯", "钨丝灯泡", "荧光灯管", "浴室顶灯", "床头灯",
+            "台灯侧光", "车灯照射", "氛围灯", "屏幕光", "手机屏幕照亮下颌",
+        ).forEach {
             assertFalse("$it 应该已经删掉", it in tone)
         }
-        listOf("暖黄灯光", "冷白灯光", "红色氛围灯", "低角度冷白侧光").forEach {
-            assertFalse("$it 带颜色，应该改名", it in tone)
-        }
-        listOf("钨丝灯泡", "荧光灯管", "氛围灯", "低角度侧光").forEach {
+        // 光位并进光质以后，这几条方向词应该都在。
+        listOf("低角度侧光", "右上逆光", "侧逆光", "地面返光", "环境冷色返光").forEach {
             assertTrue("$it 应该在池里", it in tone)
         }
-        // 改名和删除都要有别名，否则老存档会指向一个不存在的词。
-        listOf("暖黄灯光", "冷白灯光", "红色氛围灯", "低角度冷白侧光", "粉色霓虹", "蓝色霓虹", "紫色氛围灯",
-            "浴室雾气里的顶灯", "床头灯只够看清轮廓").forEach {
-            assertTrue("$it 缺少别名", library.constraints.wordAliases.containsKey(it))
-        }
-        assertTrue(library.constraints.requires.containsKey("斑驳树影"))
-        assertTrue(library.constraints.requires.containsKey("车灯照射"))
+        // 删掉的词不能再留别名：别名指向空词，老存档会拿到一个不存在的说法。
+        listOf("暖黄灯光", "冷白灯光", "红色氛围灯", "紫色氛围灯", "浴室雾气里的顶灯", "床头灯只够看清轮廓")
+            .forEach {
+                assertFalse("$it 的别名该一起删", library.constraints.wordAliases.containsKey(it))
+            }
+        assertTrue("斑驳树影 还留着", library.constraints.requires.containsKey("斑驳树影"))
+        assertFalse(
+            "车灯照射 已经删了，场景前提也该跟着走",
+            library.constraints.requires.containsKey("车灯照射")
+        )
+        // 调色 + 主色并成一格，光质 + 光位并成一格。
+        assertEquals(listOf("feel", "tone"), library.category("grade")!!.slots.map { it.id })
     }
 }

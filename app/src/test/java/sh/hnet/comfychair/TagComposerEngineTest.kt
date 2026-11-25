@@ -100,7 +100,7 @@ class TagComposerEngineTest {
             "outfitState.state" to TagPick("全裸", locked = true),
             "top.type" to TagPick("衬衫", locked = true)
         )
-        assertEquals("全裸", engine.compose(state))
+        assertEquals("全裸。", engine.compose(state))
     }
 
     @Test
@@ -124,7 +124,7 @@ class TagComposerEngineTest {
             "top.color" to TagPick("白色", locked = true)
         )
         // of-color puts the colour in front and joins with 的
-        assertEquals("白色的衬衫", engine.compose(state))
+        assertEquals("白色的衬衫。", engine.compose(state))
     }
 
     @Test
@@ -350,7 +350,7 @@ class TagComposerEngineTest {
         val state = mutableMapOf<String, TagPick>(
             "outfitState.state" to TagPick("穿着整齐", locked = true),
             "top.type" to TagPick("衬衫", locked = true),
-            "maleBody.outfit" to TagPick("身上什么也没穿", locked = true)
+            "maleBody.state" to TagPick("什么都没穿", locked = true)
         )
         val skip = engine.skipped(state)
         assertFalse("男方全裸绝不能把女方上衣加入 skip", "top" in skip)

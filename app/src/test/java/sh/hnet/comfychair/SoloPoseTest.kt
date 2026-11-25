@@ -37,7 +37,7 @@ class SoloPoseTest {
     @Test
     fun theListOnlyHoldsWordsThatMeanAlone() {
         val solo = library().constraints.soloPose.toSet()
-        assertTrue("对镜自拍" in solo)
+        assertTrue("举手机自拍" in solo)
         listOf("撩头发", "叉腰", "抱膝", "双手背后", "手插口袋", "伸懒腰", "咬手指", "坐在床边晃腿").forEach {
             assertFalse("$it 有人在旁边也成立，不该算独处词", it in solo)
         }
@@ -55,15 +55,16 @@ class SoloPoseTest {
 
     @Test
     fun aSelfieWordAndATwoPersonActCannotMeetInEitherOrder() {
+        // 自拍类词已经从视线池挪走，现在只剩动作池里的「举手机自拍」，这条排斥对它照样成立。
         val engine = engine(library())
 
         val actFirst = mutableMapOf<String, TagPick>("sexAct.act" to TagPick("后入", locked = true))
         assertEquals(
             soloReason,
-            engine.strictBlockedWords("gazeDir", "gazeDir", actFirst)["对镜自拍"]
+            engine.strictBlockedWords("activity", "doing", actFirst)["举手机自拍"]
         )
 
-        val poseFirst = mutableMapOf<String, TagPick>("gazeDir.gazeDir" to TagPick("对镜自拍", locked = true))
+        val poseFirst = mutableMapOf<String, TagPick>("activity.doing" to TagPick("举手机自拍", locked = true))
         assertEquals(
             soloReason,
             crowdEngine(library()).strictBlockedWords("sexAct", "act", poseFirst)["后入"]

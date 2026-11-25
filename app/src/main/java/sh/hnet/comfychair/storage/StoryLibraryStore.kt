@@ -154,8 +154,12 @@ class StoryLibraryStore private constructor(
             // 与标签词库同口径：本地副本原样载入，不因禁词丢弃。
             val local = runCatching { StoryLibraryJson.parse(workingFile.readText(Charsets.UTF_8)) }.getOrNull()
             if (local != null) {
-                // 随包词库换了版才顶掉本地那份；用户自己导入的不动。
-                if (bundled != null && !importMark.exists() && newerThan(bundled.version, local.version)) {
+                // 随包词库换了版或补齐了旧版漏写的互斥/非插入标记才顶掉本地那份；用户自己导入的不动。
+                val staleData = bundled != null && (
+                    (local.mutex.isEmpty() && bundled.mutex.isNotEmpty()) ||
+                        (local.pool("act").all { it.penetrating } && bundled.pool("act").any { !it.penetrating })
+                    )
+                if (bundled != null && !importMark.exists() && (newerThan(bundled.version, local.version) || staleData)) {
                     runCatching { backupFile.writeText(workingFile.readText(Charsets.UTF_8), Charsets.UTF_8) }
                     runCatching { writeAtomic(workingFile, StoryLibraryJson.write(bundled)) }
                     return bundled

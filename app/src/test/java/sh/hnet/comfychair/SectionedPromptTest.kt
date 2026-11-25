@@ -41,7 +41,7 @@ class SectionedPromptTest {
         val library = library()
         for (people in listOf("两个女孩", "三个女孩", "五个女孩", "一男两女", "一男多女")) {
             prompts(library, people, 20).forEach { text ->
-                val named = text.contains("另外") || text.contains("其余")
+                val named = text.contains("另外") || text.contains("其余") || text.contains("另一位")
                 assertTrue("$people lost the supporting cast: $text", named)
                 assertTrue("$people lost the position: $text", text.contains("画面"))
             }

@@ -30,6 +30,13 @@ object H3RelayStatus {
 
     val active: Boolean get() = _done.value + _remaining.value > 0
 
+    /**
+     * Bumped whenever the chain is stopped from outside the page (the queue sheet's 停止连拍). The page
+     * watches this to drop the local counters it keeps in composition; zero means "nothing asked".
+     */
+    private val _stopSignal = MutableStateFlow(0)
+    val stopSignal: StateFlow<Int> = _stopSignal.asStateFlow()
+
     fun setDetail(value: String) {
         _detail.value = value
     }
@@ -52,5 +59,11 @@ object H3RelayStatus {
         _done.value = 0
         _remaining.value = 0
         _detail.value = ""
+    }
+
+    /** Stops the chain from outside the page: clears the counts and wakes the page. */
+    fun requestStop() {
+        clear()
+        _stopSignal.value += 1
     }
 }

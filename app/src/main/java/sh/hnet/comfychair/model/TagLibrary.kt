@@ -148,6 +148,13 @@ data class TagConstraints(
      * the room for; those blocks were wrong and were removed.
      */
     val soloPose: List<String> = emptyList(),
+    /**
+     * 只在单人场成立的格，写成「分类.槽」。
+     *
+     * 景别和构图是给一个主体取景用的：两人以上同框时，画面该由人和关系决定，
+     * 硬套一个「胸部特写」或「三分构图」只会打架。
+     */
+    val soloOnlySlots: List<String> = emptyList(),
     /** 纯场景排布姿势（三人围坐、两人面对面站立）。动作自带体位时这些会打架。 */
     val scenePoses: List<String> = emptyList(),
     /** 发型里描述状态而非发型名的词（无刘海、中分、微卷）；「亚麻色的无刘海」不成句。 */
@@ -637,6 +644,7 @@ object TagLibraryJson {
         constraints.put("place", JSONObject(library.constraints.place))
         constraints.put("gaze", JSONObject(library.constraints.gaze))
         constraints.put("soloPose", JSONArray(library.constraints.soloPose))
+        constraints.put("soloOnlySlots", JSONArray(library.constraints.soloOnlySlots))
         constraints.put("scenePoses", JSONArray(library.constraints.scenePoses))
         constraints.put("hairState", JSONArray(library.constraints.hairState))
         constraints.put("onePiece", JSONArray(library.constraints.onePiece))
@@ -870,6 +878,7 @@ object TagLibraryJson {
             place = readStringMap(json.optJSONObject("place")),
             gaze = readStringMap(json.optJSONObject("gaze")),
             soloPose = json.strList("soloPose"),
+            soloOnlySlots = json.strList("soloOnlySlots"),
             scenePoses = json.strList("scenePoses"),
             hairState = json.strList("hairState"),
             onePiece = json.strList("onePiece"),

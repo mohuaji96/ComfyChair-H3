@@ -47,17 +47,21 @@ object RequirementFiller {
                 needCategory(need)?.let { if (category.id != it) return@forEach }
                 category.slots.forEach { slot ->
                     val slotKey = "${category.id}.${slot.id}"
+                    val word = needWord(need)
+                    // `top:` 只要求「身上有上衣」，不点名款式。这时只能填款式格，
+                    // 填颜色会写成「穿白色的」，填材质会写成「穿蕾丝」。
+                    if (word.isEmpty() && slot.id != "type") return@forEach
                     val current = picks[slotKey]
                     if (current != null && (current.ignored || current.locked)) return@forEach
                     val currentValue = current?.value.orEmpty()
                     // Already supplied by this slot; the caller only asks when nothing does.
-                    if (names(currentValue, needWord(need))) return@forEach
+                    if (names(currentValue, word)) return@forEach
 
                     val rejected = blocked(category.id, slot.id)
                     val candidate = slot.pool
-                        .filter { names(it, needWord(need)) }
+                        .filter { names(it, word) }
                         .filter { it !in rejected }
-                        .filter { word -> picks.none { it.key != slotKey && it.value.value == word } }
+                        .filter { pick -> picks.none { it.key != slotKey && it.value.value == pick } }
                         .minByOrNull { preference(library, category.id, slot.id, it) }
                         ?: return@forEach
 

@@ -39,8 +39,8 @@ class P0FixTest {
     /** 他身上本来就没穿，不要再写「穿着」。 */
     @Test
     fun aBareManIsNotDressedInBareness() {
-        val text = compose("people.count" to "一男一女", "maleBody.outfit" to "身上什么也没穿")
-        assertFalse("出现了「穿着身上什么也没穿」：$text", text.contains("穿着身上什么也没穿"))
+        val text = compose("people.count" to "一男一女", "maleBody.state" to "什么都没穿")
+        assertFalse("出现了「穿着什么都没穿」：$text", text.contains("穿着什么都没穿"))
         assertTrue("裸体句没出来：$text", text.contains("身上什么也没穿"))
     }
 

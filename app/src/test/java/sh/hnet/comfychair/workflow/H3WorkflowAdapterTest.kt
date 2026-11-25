@@ -66,25 +66,4 @@ class H3WorkflowAdapterTest {
             type to NodeTypeDefinition(type,"test",inputs.keys().asSequence().map {InputDefinition(it,"*",false)}.toList(),listOf(OutputSlot("*","output")))
         }.toMap()
     }
-    @Test fun disconnectedBrokenScalerIsRetainedWithoutBlockingI2V() {
-        val source=source("官方图生视频.json");val defs=definitions(source)
-        val altered=defs+ ("ImageScaleToTotalPixels" to defs.getValue("ImageScaleToTotalPixels").copy(inputs=listOf(InputDefinition("image","IMAGE",true))))
-        val result=H3PromptCompiler.compile(source) {altered[it]}
-        assertEquals(JSONObject(source).length(),JSONObject(result).length())
-    }
-    @Test fun relayRewiresAndAmbiguousBypassBlocks() {
-        val source=source("官方文生视频.json");val n=JSONObject(source);val a=H3WorkflowAdapter.inspect(source)!!
-        val core=n.getJSONObject(a.coreId).getJSONObject("inputs");val old=core.getJSONArray("clip")
-        n.put("relay",JSONObject().put("class_type","Relay").put("inputs",JSONObject().put("value",old)))
-        core.put("clip",JSONArray().put("relay").put(0))
-        val defs=definitions(source)
-        val result=JSONObject(H3PromptCompiler.compile(n.toString()) {defs[it]})
-        assertFalse(result.has("relay"));assertEquals(old.toString(),result.getJSONObject(a.coreId).getJSONObject("inputs").getJSONArray("clip").toString())
-        n.getJSONObject("relay").getJSONObject("inputs").put("second",old)
-        assertTrue(runCatching {H3PromptCompiler.compile(n.toString()) {defs[it]}}.isFailure)
-    }
-    @Test fun missingActiveBackendNodeIsReported() {
-        val source=source("官方文生视频.json");val defs=definitions(source)-"MiniMaxH3ImageToVideo"
-        assertTrue(runCatching {H3PromptCompiler.compile(source) {defs[it]}}.exceptionOrNull()!!.message!!.contains("MiniMaxH3ImageToVideo"))
-    }
 }

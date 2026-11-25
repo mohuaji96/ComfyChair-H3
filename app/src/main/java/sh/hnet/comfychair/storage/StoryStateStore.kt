@@ -40,7 +40,7 @@ class StoryStateStore(context: Context) {
             }
             val locked = root.optJSONArray("locked_sections")
             StoryState(
-                picks = picks,
+                picks = upgrade(picks),
                 detail = root.optBoolean("detail", true),
                 dialogue = root.optBoolean("dialogue", false),
                 lockedSections = buildSet {

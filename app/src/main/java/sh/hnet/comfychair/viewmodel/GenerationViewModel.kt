@@ -143,6 +143,7 @@ class GenerationViewModel : ViewModel() {
         private const val PREF_CURRENT_PROMPT_ID = "currentPromptId"
         private const val PREF_OWNER_ID = "ownerId"
         private const val PREF_CONTENT_TYPE = "contentType"
+        private const val PREF_STARTED_AT = "startedAt"
         private const val COMPLETION_POLLING_INTERVAL_MS = 3000L
     }
 
@@ -280,6 +281,9 @@ class GenerationViewModel : ViewModel() {
                     dispatchEvent(GenerationEvent.PreviewImage(message.bitmap))
                 }
             }
+            // H3's step frames are collected by that page straight off the socket; routing them into
+            // the single-still preview slot the other pages share would only make it flicker.
+            is WebSocketMessage.SamplingPreview -> Unit
             is WebSocketMessage.ExecutionError -> {
                 val isCurrent = message.promptId == currentState.promptId || message.promptId == null
                 when {
@@ -994,6 +998,7 @@ class GenerationViewModel : ViewModel() {
             putString(PREF_CURRENT_PROMPT_ID, state.promptId)
             putString(PREF_OWNER_ID, state.ownerId)
             putString(PREF_CONTENT_TYPE, state.contentType.name)
+            putLong(PREF_STARTED_AT, state.startedAt)
             apply()
         }
     }
@@ -1113,6 +1118,8 @@ class GenerationViewModel : ViewModel() {
             ContentType.IMAGE
         }
 
+        val startedAt = prefs.getLong(PREF_STARTED_AT, 0L)
+
         if (isGenerating && promptId != null) {
             generationOwnerId = ownerId
             generationContentType = contentType
@@ -1120,7 +1127,8 @@ class GenerationViewModel : ViewModel() {
                 isGenerating = true,
                 promptId = promptId,
                 ownerId = ownerId,
-                contentType = contentType
+                contentType = contentType,
+                startedAt = startedAt
             )
         }
     }

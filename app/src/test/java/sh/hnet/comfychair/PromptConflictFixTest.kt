@@ -57,8 +57,8 @@ class PromptConflictFixTest {
         listOf("胸部在画外", "只露出背影").forEach { crop ->
             val picks = repair(
                 library,
-                lock = "camera.crop",
-                spec = listOf("camera.crop" to crop, "bra.type" to "蕾丝胸罩")
+                lock = "camera.shot",
+                spec = listOf("camera.shot" to crop, "bra.type" to "蕾丝胸罩")
             )
             assertEquals("$crop cannot show a bra", "", picks["bra.type"]?.value.orEmpty())
         }
@@ -166,9 +166,9 @@ class PromptConflictFixTest {
         val library = library()
         val picks = repair(
             library,
-            lock = "camera.crop",
+            lock = "camera.shot",
             spec = listOf(
-                "camera.crop" to "只露出背影",
+                "camera.shot" to "只露出背影",
                 "pussy.look" to "阴毛修剪整齐",
                 "sexAct.act" to "潮吹"
             )
@@ -317,7 +317,7 @@ class PromptConflictFixTest {
         val picks = repair(
             library,
             lock = "scene.place",
-            spec = listOf("scene.place" to "教室", "camera.angle" to "水面倒影")
+            spec = listOf("scene.place" to "教室", "camera.lens" to "水面倒影")
         )
         assertFalse("教室没有水面", picks["camera.angle"]?.value == "水面倒影")
     }
@@ -328,9 +328,9 @@ class PromptConflictFixTest {
         val picks = repair(
             library,
             lock = "scene.place",
-            spec = listOf("scene.place" to "浴室", "camera.angle" to "水面倒影")
+            spec = listOf("scene.place" to "浴室", "camera.lens" to "水面倒影")
         )
-        assertEquals("浴室有水面", "水面倒影", picks["camera.angle"]?.value.orEmpty())
+        assertEquals("浴室有水面", "水面倒影", picks["camera.lens"]?.value.orEmpty())
     }
 
     @Test
@@ -339,7 +339,7 @@ class PromptConflictFixTest {
         val picks = repair(
             library,
             lock = "camera.angle",
-            spec = listOf("camera.angle" to "镜面反射", "scene.place" to "森林")
+            spec = listOf("camera.lens" to "镜面反射", "scene.place" to "森林")
         )
         assertFalse("森林里没有镜子", picks["scene.place"]?.value == "森林")
     }
@@ -349,8 +349,8 @@ class PromptConflictFixTest {
         val library = library()
         val picks = repair(
             library,
-            lock = "camera.crop",
-            spec = listOf("camera.crop" to "膝盖以上", "scene.place" to "森林")
+            lock = "camera.shot",
+            spec = listOf("camera.shot" to "膝上照", "scene.place" to "森林")
         )
         assertEquals("普通取景不该挑场地", "森林", picks["scene.place"]?.value.orEmpty())
     }

@@ -43,7 +43,8 @@ class SubjectMapTest {
         // 妆容并进了「形象」，这一类仍然整类都是她的。
         assertEquals("female", who("person"))
         // His.
-        assertEquals("male", who("penis"))
+        // 阴茎那一格已经删掉，由男方句统一交代，不再单独成一个分类。
+        assertTrue("阴茎分类应已删除", lib.categories.none { it.id == "penis" })
         assertEquals("male", who("maleBody"))
         // Nobody's: the cast, the act, the lens.
         assertEquals("scene", who("people"))

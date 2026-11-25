@@ -83,8 +83,8 @@ fun MainNavigationBar(
         TabItem(
             selected = currentRoute == MainRoute.H3Workspace,
             label = stringResource(R.string.nav_tab_h3),
-            selectedIcon = Icons.Filled.AutoAwesome,
-            icon = Icons.Outlined.AutoAwesome,
+            selectedIcon = H3TabIcons.Filled,
+            icon = H3TabIcons.Outlined,
             badgeCount = h3JobCount,
             onClick = { navController.navigateToScreen(MainRoute.H3Workspace) },
             onReselect = { onReopen(MainRoute.H3Workspace) }

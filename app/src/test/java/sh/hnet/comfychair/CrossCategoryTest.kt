@@ -1,5 +1,6 @@
 package sh.hnet.comfychair
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -60,30 +61,33 @@ class CrossCategoryTest {
         assertTrue("北欧的雪白皮肤被误删", picks["skin.tone"]?.value == "雪白皮肤")
     }
 
-    /** 客栈是古代场景，现代衣服要让位。 */
+    /**
+     * 客栈里穿现代上衣也留着。
+     *
+     * 场地与服装的年代配对已撤掉：硬拦会把古装的可选场地砍到二十来个，抽到古装时整段衣服
+     * 空着的比例跟着涨。古装站进便利店就按 cosplay 读。
+     */
     @Test
-    fun anAncientRoomDropsTheModernOutfit() {
+    fun anAncientRoomKeepsTheModernOutfit() {
         val library = library()
         val picks = repair(
             library,
             lock = "scene.place",
             spec = listOf("scene.place" to "客栈客房", "top.type" to "白衬衫")
         )
-        val left = picks["top.type"]?.value.orEmpty()
-        val ancient = library.constraints.eras.filterValues { it == "ancient" }.keys
-        assertTrue("客栈里还穿着现代上衣：$left", left.isEmpty() || left in ancient)
+        assertEquals("客栈里的现代上衣被误删", "白衬衫", picks["top.type"]?.value.orEmpty())
     }
 
-    /** 便利店是现代场景，古装要让位。 */
+    /** 便利店穿汉服同样留着。 */
     @Test
-    fun aConvenienceStoreDropsTheCostume() {
+    fun aConvenienceStoreKeepsTheCostume() {
         val library = library()
         val picks = repair(
             library,
             lock = "scene.place",
             spec = listOf("scene.place" to "便利店", "top.type" to "汉服")
         )
-        assertFalse("便利店还穿着汉服", picks["top.type"]?.value == "汉服")
+        assertEquals("便利店里的汉服被误删", "汉服", picks["top.type"]?.value.orEmpty())
     }
 
     /** 没标年代的场地不限：卧室里穿汉服照样成立。 */
@@ -116,8 +120,8 @@ class CrossCategoryTest {
         val library = library()
         val picks = repair(
             library,
-            lock = "grade.pos",
-            spec = listOf("grade.pos" to "侧逆光", "grade.feel" to "逆光剪影调")
+            lock = "grade.tone",
+            spec = listOf("grade.tone" to "侧逆光", "grade.feel" to "逆光剪影调")
         )
         assertFalse("影调里又写了一遍逆光", picks["grade.feel"]?.value == "逆光剪影调")
     }

@@ -48,7 +48,7 @@ class Story567Test {
             templates.forEach { template ->
                 val mid = template.indexOf("{outfit_mid}")
                 assertTrue("$cast 模板里没有过程中", mid >= 0)
-                assertTrue("$cast 过程中排到动作之后：$template", mid < template.indexOf("{acts}"))
+                assertTrue("$cast 过程中排到动作之后：$template", mid < template.indexOf("{acts"))
                 assertTrue("$cast 过程中排到开始之前：$template", mid > template.indexOf("{escalate}"))
             }
         }
@@ -60,7 +60,7 @@ class Story567Test {
             if (picks[StoryGenerator.MID]?.value.isNullOrEmpty()) continue
             checked++
             val text = gen.compose(picks, detail = false, dialogue = false)
-            val midAt = text.indexOf("动情拉扯间")
+            val midAt = text.indexOf("不知不觉间")
             assertTrue("没有过程中：$text", midAt >= 0)
             // 过程中之后还要有动作，否则就是又掉到末尾了。
             assertTrue("过程中落在末尾：$text", text.lastIndexOf("；") > midAt)
@@ -82,7 +82,8 @@ class Story567Test {
             if (picks[StoryGenerator.OUTFIT]?.value == "全裸") continue
             checked++
             val text = gen.compose(picks, detail = false, dialogue = false)
-            val clause = text.substringAfter("动情拉扯间", "")
+            // 「不知不觉间」后面现在带一个逗号作停顿，判断归属前先把它剥掉。
+            val clause = text.substringAfter("不知不觉间", "").removePrefix("，")
             assertTrue("过程中没交代是谁：$text", clause.startsWith("女一"))
             if (checked >= 3) break
         }

@@ -42,21 +42,21 @@ class ContentCoverageTest {
     fun aWaistUpShotHasNoThighs() {
         // 臀部与腰腹已并入身材，腿仍然是独立分类：腰部以上特写里不该留下大腿词。
         val library = library()
-        val left = survives(library, "camera.crop", "腰部以上特写", "legs.detail", "肉感大腿")
+        val left = survives(library, "camera.shot", "半身照", "legs.detail", "肉感大腿")
         assertFalse("肉感大腿 survived a waist-up crop", left == "肉感大腿")
     }
 
     @Test
     fun outOfFrameWaistHasNoGenitalMarks() {
         val library = library()
-        val left = survives(library, "camera.crop", "下半身在画外", "skin.mark", "阴部红肿")
+        val left = survives(library, "camera.shot", "下半身在画外", "skin.mark", "阴部红肿")
         assertFalse("阴部红肿 survived", left == "阴部红肿")
     }
 
     @Test
     fun shouldersOnlyHasNoMilkTrail() {
         val library = library()
-        val left = survives(library, "camera.crop", "只露出肩部", "fluids.type", "乳汁顺着乳尖滴")
+        val left = survives(library, "camera.shot", "只露出肩部", "fluids.type", "乳汁顺着乳尖滴")
         assertFalse("乳汁 survived a shoulders-only crop", left == "乳汁顺着乳尖滴")
     }
 

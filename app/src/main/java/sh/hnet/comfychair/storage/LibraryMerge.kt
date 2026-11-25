@@ -119,7 +119,8 @@ object LibraryMerge {
                 categoryRegions = foldListMap(old?.categoryRegions, left.categoryRegions, right.categoryRegions),
                 handBlock = foldList(old?.handBlock, left.handBlock, right.handBlock),
                 subjects = foldMap(old?.subjects, left.subjects, right.subjects),
-                faceZone = foldMap(old?.faceZone, left.faceZone, right.faceZone)
+                faceZone = foldMap(old?.faceZone, left.faceZone, right.faceZone),
+                weight = foldDoubleMap(old?.weight, left.weight, right.weight)
             )
         )
     }
@@ -178,6 +179,18 @@ object LibraryMerge {
         local: Map<String, Int>,
         incoming: Map<String, Int>
     ): Map<String, Int> {
+        if (base == null) return incoming
+        val out = incoming.toMutableMap()
+        local.forEach { (key, value) -> if (base[key] != value) out[key] = value }
+        base.keys.forEach { key -> if (key !in local) out.remove(key) }
+        return out
+    }
+
+    private fun foldDoubleMap(
+        base: Map<String, Double>?,
+        local: Map<String, Double>,
+        incoming: Map<String, Double>
+    ): Map<String, Double> {
         if (base == null) return incoming
         val out = incoming.toMutableMap()
         local.forEach { (key, value) -> if (base[key] != value) out[key] = value }

@@ -106,18 +106,17 @@ class SupportAndStagingTest {
     }
 
     @Test
-    fun aLyingGazeCannotSitOnAChair() {
-        val library = library()
-        val engine = soloEngine(library)
-        val picks = mutableMapOf<String, TagPick>(
-            "pose.body" to TagPick("站立", locked = true),
-            "gazeDir.gazeDir" to TagPick("躺着侧过身看镜头")
-        )
-        engine.repair(picks)
-        // Re-drawing to a posture-free gaze is fine; the lying one is what cannot survive.
-        assertFalse(
-            "standing cannot lie down: ${picks["gazeDir.gazeDir"]?.value}",
-            picks["gazeDir.gazeDir"]?.value == "躺着侧过身看镜头"
-        )
+    fun theGazePoolHoldsNoPostureOrScene() {
+        // 视线池原来混着一堆「回头」「躺着侧过身看镜头」「透过玻璃」这类姿态与场景词，
+        // 才需要「站着不能躺着看镜头」这条修补。词搬走之后规则没有落点了，
+        // 改成守住前提：池子里只剩写「看哪儿、眼睛什么状态」的词。
+        val words = library().slot("gazeDir", "gazeDir")?.pool.orEmpty()
+        assertTrue("视线池空了", words.isNotEmpty())
+        listOf("回头", "趴着", "躺着", "侧过身", "自拍", "透过", "门缝", "蒙眼").forEach { bad ->
+            assertTrue(
+                "视线池里混进了姿态或场景：$bad",
+                words.none { it.contains(bad) }
+            )
+        }
     }
 }

@@ -269,6 +269,13 @@ object StoryLibraryJson {
             templates.put(cast, JSONArray(lines))
         }
         root.put("templates", templates)
+        if (library.mutex.isNotEmpty()) {
+            val mutex = JSONArray()
+            library.mutex.forEach { (a, b) ->
+                mutex.put(JSONArray().put(a).put(b))
+            }
+            root.put("mutex", mutex)
+        }
         return root.toString(2)
     }
 
@@ -278,7 +285,8 @@ object StoryLibraryJson {
             word.props.isEmpty() && word.wears.isEmpty() && word.removes.isEmpty() &&
             word.requires.isEmpty() && word.requiresWorn.isEmpty() &&
             word.avoidGroups.isEmpty() && !word.common && !word.exclusive &&
-            word.times.isEmpty() && word.eras.isEmpty() && word.keep.isEmpty()
+            word.times.isEmpty() && word.eras.isEmpty() && word.keep.isEmpty() &&
+            word.penetrating
         ) {
             return word.text
         }
@@ -300,6 +308,7 @@ object StoryLibraryJson {
             if (word.avoidGroups.isNotEmpty()) put("avoidGroups", JSONArray(word.avoidGroups))
             if (word.eras.isNotEmpty()) put("eras", JSONArray(word.eras.toList()))
             if (word.keep.isNotEmpty()) put("keep", JSONArray(word.keep.toList()))
+            if (!word.penetrating) put("penetrating", false)
             if (word.common) put("common", true)
         }
     }

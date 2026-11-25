@@ -24,6 +24,7 @@ object AppSettings {
     private const val KEY_EDGE_ROUTER = "edge_router"
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
+    private const val KEY_H3_PREVIEW_ENABLED = "h3_preview_enabled"
 
     /** Whether any app setting was ever stored (a fresh install, or one whose data was cleared, has none). */
     fun hasAnyValue(context: Context): Boolean =
@@ -54,6 +55,22 @@ object AppSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_LIVE_PREVIEW_ENABLED, enabled)
+            .apply()
+    }
+
+    /**
+     * Whether the H3 video workspace asks the server for step-by-step frames. Off means the preview
+     * node is taken out of the graph before submission, so the run costs nothing extra on the GPU.
+     * [isLivePreviewEnabled] still wins: it is the switch for every workspace.
+     */
+    fun isH3PreviewEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_H3_PREVIEW_ENABLED, true)
+
+    fun setH3PreviewEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_H3_PREVIEW_ENABLED, enabled)
             .apply()
     }
 

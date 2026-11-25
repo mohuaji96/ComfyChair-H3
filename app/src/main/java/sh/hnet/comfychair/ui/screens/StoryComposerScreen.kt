@@ -244,11 +244,6 @@ fun StoryComposerScreen(onBack: () -> Unit) {
             ) {
                 TogglePill("台词", dialogue) { dialogue = it }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    "点分项可锁定或忽略",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
             LazyColumn(
@@ -490,8 +485,8 @@ fun StoryComposerScreen(onBack: () -> Unit) {
 
         PairSheet(
             picks = picks,
-            poseOptions = generator.allowed(poseKey, picks).map { it to it },
-            actOptions = generator.allowed(actKey, picks).map { it to it },
+            poseOptions = generator.allowed(poseKey, picks - actKey, forPick = true).map { it to it },
+            actOptions = generator.allowed(actKey, picks - poseKey, forPick = true).map { it to it },
             library = library,
             isExcluded = { pool, text -> library.isExcluded(pool, text) },
             onPickPose = { idx, value ->
@@ -504,9 +499,13 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 val key = poseWord?.key.orEmpty()
                 val curAct = aList[idx]
                 val curActWord = library.word("act", curAct)
-                if (curAct.isEmpty() || (key.isNotEmpty() && curActWord != null && curActWord.poses.isNotEmpty() && key !in curActWord.poses)) {
-                    val match = library.pool("act").firstOrNull { it.poses.contains(key) }?.text
-                        ?: library.pool("act").firstOrNull { it.poses.isEmpty() }?.text
+                val scopedActs = generator.allowed(actKey, picks + (poseKey to StoryPick(value)), forPick = true)
+                if (curAct.isEmpty() || curAct !in scopedActs ||
+                    (key.isNotEmpty() && curActWord != null && curActWord.poses.isNotEmpty() && key !in curActWord.poses)
+                ) {
+                    val match = scopedActs.filter { library.word("act", it)?.poses?.contains(key) == true }.randomOrNull()
+                        ?: scopedActs.firstOrNull { library.word("act", it)?.common != true }
+                        ?: scopedActs.firstOrNull()
                     if (match != null) aList[idx] = match
                 }
                 updatePair(pList, aList)
@@ -520,10 +519,14 @@ fun StoryComposerScreen(onBack: () -> Unit) {
                 val actWord = library.word("act", value)
                 val curPose = pList[idx]
                 val curPoseWord = library.word("pose", curPose)
-                if (curPose.isEmpty() || (actWord != null && actWord.poses.isNotEmpty() && (curPoseWord == null || curPoseWord.key !in actWord.poses))) {
+                val scopedPoses = generator.allowed(poseKey, picks - actKey, forPick = true)
+                if (curPose.isEmpty() || curPose !in scopedPoses ||
+                    (actWord != null && actWord.poses.isNotEmpty() && (curPoseWord == null || curPoseWord.key !in actWord.poses))
+                ) {
                     val match = if (actWord != null && actWord.poses.isNotEmpty()) {
-                        library.pool("pose").firstOrNull { it.key in actWord.poses }?.text
-                    } else null
+                        scopedPoses.filter { library.word("pose", it)?.key in actWord.poses }.randomOrNull()
+                            ?: scopedPoses.firstOrNull()
+                    } else scopedPoses.firstOrNull()
                     if (match != null) pList[idx] = match
                 }
                 updatePair(pList, aList)
@@ -531,14 +534,18 @@ fun StoryComposerScreen(onBack: () -> Unit) {
             onRerollPair = { idx ->
                 val pList = picks[poseKey]?.value.orEmpty().split(StoryGenerator.SEP).filter { it.isNotBlank() }.toMutableList()
                 val aList = picks[actKey]?.value.orEmpty().split(StoryGenerator.SEP).filter { it.isNotBlank() }.toMutableList()
-                val randomPose = library.pool("pose").randomOrNull()?.text
+                val allowedPoses = generator.allowed(poseKey, picks - actKey, forPick = true)
+                val curPose = pList.getOrNull(idx).orEmpty()
+                val randomPose = allowedPoses.filter { it != curPose }.randomOrNull() ?: allowedPoses.randomOrNull()
                 if (randomPose != null) {
                     while (pList.size <= idx) pList.add("")
                     while (aList.size <= idx) aList.add("")
                     pList[idx] = randomPose
                     val key = library.word("pose", randomPose)?.key.orEmpty()
-                    val match = library.pool("act").filter { it.poses.contains(key) }.randomOrNull()?.text
-                        ?: library.pool("act").firstOrNull { it.poses.isEmpty() }?.text
+                    val allowedActs = generator.allowed(actKey, picks + (poseKey to StoryPick(randomPose)), forPick = true)
+                    val match = allowedActs.filter { library.word("act", it)?.poses?.contains(key) == true }.randomOrNull()
+                        ?: allowedActs.filter { library.word("act", it)?.common != true }.randomOrNull()
+                        ?: allowedActs.randomOrNull()
                     if (match != null) aList[idx] = match
                     updatePair(pList, aList)
                 }
@@ -546,12 +553,16 @@ fun StoryComposerScreen(onBack: () -> Unit) {
             onAddPair = {
                 val pList = picks[poseKey]?.value.orEmpty().split(StoryGenerator.SEP).filter { it.isNotBlank() }.toMutableList()
                 val aList = picks[actKey]?.value.orEmpty().split(StoryGenerator.SEP).filter { it.isNotBlank() }.toMutableList()
-                val randomPose = library.pool("pose").randomOrNull()?.text
+                val allowedPoses = generator.allowed(poseKey, picks - actKey, forPick = true)
+                val lastPose = pList.lastOrNull().orEmpty()
+                val randomPose = allowedPoses.filter { it != lastPose }.randomOrNull() ?: allowedPoses.randomOrNull()
                 if (randomPose != null) {
                     pList.add(randomPose)
                     val key = library.word("pose", randomPose)?.key.orEmpty()
-                    val match = library.pool("act").filter { it.poses.contains(key) }.randomOrNull()?.text
-                        ?: library.pool("act").firstOrNull { it.poses.isEmpty() }?.text
+                    val allowedActs = generator.allowed(actKey, picks + (poseKey to StoryPick(randomPose)), forPick = true)
+                    val match = allowedActs.filter { library.word("act", it)?.poses?.contains(key) == true }.randomOrNull()
+                        ?: allowedActs.filter { library.word("act", it)?.common != true }.randomOrNull()
+                        ?: allowedActs.randomOrNull()
                     if (match != null) aList.add(match)
                     updatePair(pList, aList)
                 }
@@ -628,12 +639,20 @@ private fun StoryHeader(
         }
         Column(Modifier.weight(1f)) {
             Text("剧情组合", style = MaterialTheme.typography.titleMedium)
+            // 和词库组合页顶端同一副样子：数量、版本一行，操作提示一行。
             Text(
-                "$fieldCount 分项 · $wordCount 词" + if (version.isBlank()) "" else " · $version",
+                "$fieldCount 项 · $wordCount 词" + if (version.isBlank()) "" else " · $version",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "点每项可锁定或忽略",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        // Queue pill, same as the generation tabs: a run started elsewhere stays watchable here.
+        sh.hnet.comfychair.ui.components.QueueIndicatorPill(modifier = Modifier.padding(horizontal = 4.dp))
         sh.hnet.comfychair.ui.components.ServerStatusLamp()
         val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
         IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
@@ -693,7 +712,11 @@ private fun SectionHead(
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("▸", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(
+            if (locked) "▪" else "▸",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (locked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+        )
         Spacer(Modifier.width(5.dp))
         Text(
             label,

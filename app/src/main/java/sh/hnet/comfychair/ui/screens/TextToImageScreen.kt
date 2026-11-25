@@ -38,6 +38,7 @@ import sh.hnet.comfychair.ui.components.config.toBottomSheetConfig
 import sh.hnet.comfychair.ui.components.generation.EmptyResultState
 import sh.hnet.comfychair.ui.components.generation.GenerationControls
 import sh.hnet.comfychair.ui.components.generation.GenerationOptionsSheet
+import sh.hnet.comfychair.ui.components.PreviewCurtain
 import sh.hnet.comfychair.ui.components.generation.GenerationPreviewArea
 import sh.hnet.comfychair.ui.components.generation.GenerationScreenEffects
 import sh.hnet.comfychair.ui.components.generation.GenerationTopBar
@@ -102,7 +103,7 @@ fun TextToImageScreen(
             generationViewModel = generationViewModel
         )
 
-        GenerationPreviewArea {
+        GenerationPreviewArea(workspace = PreviewCurtain.IMAGE, running = isThisScreenExecuting) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

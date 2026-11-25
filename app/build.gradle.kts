@@ -13,8 +13,8 @@ plugins {
  * hand. Checking it here turns a typo into a build error instead of a version that has to be
  * skipped afterwards.
  */
-val appVersionCode = 326
-val appVersionName = "0.9.8.8382.576-h3"
+val appVersionCode = 373
+val appVersionName = "0.9.8.8382.613-h3"
 require(!appVersionCode.toString().contains('4')) {
     "versionCode $appVersionCode 含 4，请跳到下一个数字"
 }
@@ -36,8 +36,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 德/西/法/波四个翻译包保留在源码里当底稿，但不打进包：语言选择只提供中英。
-    // 将来要恢复某种语言，把它从这份名单里去掉，再在语言列表和 locales_config 里加回即可。
+    // 德/西/法/波四个翻译包留在源码里当底稿，但不打进包：语言选择只提供中英。
     androidResources {
         localeFilters += listOf("en", "zh")
     }

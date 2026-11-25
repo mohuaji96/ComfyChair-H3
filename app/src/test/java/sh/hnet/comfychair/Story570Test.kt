@@ -37,7 +37,7 @@ class Story570Test {
             if (picks["w2_outfit"]?.value == "全裸") continue
             checked++
             val text = gen.compose(picks, detail = false, dialogue = false)
-            val mid = text.substringAfter("动情拉扯间", "")
+            val mid = text.substringAfter("不知不觉间", "")
             assertTrue("女二那句没写是谁：$text", mid.contains("女二"))
             if (checked >= 3) break
         }
@@ -83,7 +83,7 @@ class Story570Test {
             StoryGenerator.W2_MID to StoryPick("胸罩被拉了下来", locked = true)
         )
         val text = gen.compose(picks, detail = false, dialogue = false)
-        assertFalse("全裸还写脱衣服：$text", text.contains("动情拉扯间"))
+        assertFalse("全裸还写脱衣服：$text", text.contains("不知不觉间"))
     }
 
     /** 一男一女没有女二，这一格必须是空的，句子里也不许冒出「女二」。 */

@@ -778,12 +778,15 @@ fun WorkflowDetailPage(
             )
         }
 
+        val isH3 = remember(uiState.h3Workflows, workflow.id) {
+            uiState.h3Workflows.any { it.id == workflow.id }
+        }
         SettingsGroup {
             row { shapes ->
                 SettingsSwitchRow(
                     shapes = shapes,
                     title = stringResource(R.string.label_show_in_screens),
-                    supporting = stringResource(workflow.type.screenRes()),
+                    supporting = if (isH3) "H3 视频工作区" else stringResource(workflow.type.screenRes()),
                     checked = enabled,
                     onCheckedChange = { viewModel.onWorkflowEnabledChange(workflow, it) }
                 )

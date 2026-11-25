@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "version": "0.9.8.8382.553-sfw",
+  "version": "0.9.8.8382.610-sfw",
   "profile": "sfw",
   "rating": "general",
   "note": "SFW 剧情：场景叙事链，没有性行为链。性感保留，露骨不在其中。",
@@ -2112,7 +2112,109 @@
       "伏在窗台上",
       "倚着栏杆看远处",
       "站在窗边不动",
-      "脚尖轻点地面"
+      "脚尖轻点地面",
+      {
+        "text": "坐在床沿，一条腿曲起来",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "跪在床上，上身伏下去",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "侧身躺着，一条腿曲起",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "仰躺着，膝盖向上收",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "背靠着床头，腿分开",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "趴在枕头上，臀部抬起来",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "蹲在地上，膝盖朝外张",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "坐在镜子前的地板上",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "镜"
+        ]
+      },
+      {
+        "text": "半跪着，一只脚踩地",
+        "casts": [
+          "solo"
+        ]
+      },
+      {
+        "text": "靠着浴室墙站着，一条腿抬起",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "墙"
+        ]
+      },
+      {
+        "text": "躺在床上，双腿垂在床沿",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      },
+      {
+        "text": "跪趴着，上身压低",
+        "casts": [
+          "solo"
+        ],
+        "requires": [
+          "床"
+        ]
+      }
     ],
     "detail": [
       "雨滴还挂在睫毛上",
@@ -2986,18 +3088,16 @@
   },
   "templates": {
     "solo": [
-      "{time}{cast}在{place}。{female}{chore}，{pose}，{light}，{detail}。",
-      "{time}{cast}在{place}。{female}{pose}，{chore}，{light}，{detail}。"
+      "{time}{cast}在{place}。{female}\n\n{chore}{pose}，{light}，{detail}。"
     ],
     "mf": [
-      "{time}{cast}在{place}。{female}{male}{chore}，{pose}，{light}，{detail}。",
-      "{time}{cast}在{place}。{female}{male}{pose}，{chore}，{light}，{detail}。"
+      "{time}{cast}在{place}。{female}{male}\n\n{chore}{pose}，{light}，{detail}。"
     ],
     "mff": [
-      "{time}{cast}在{place}。{female}{male}{chore}，{pose}，{light}，{detail}。"
+      "{time}{cast}在{place}。{her}{wear}{her2}{wear2}{male}\n\n{chore}{pose}，{light}，{detail}。"
     ],
     "ff": [
-      "{time}{cast}在{place}。{female}{chore}，{pose}，{light}，{detail}。"
+      "{time}{cast}在{place}。{her}{wear}{her2}{wear2}\n\n{chore}{pose}，{light}，{detail}。"
     ]
   },
   "mutex": [
@@ -3084,6 +3184,10 @@
     [
       "四十岁",
       "可爱"
+    ],
+    [
+      "闷热的夏夜",
+      "外面飘着雪"
     ]
   ]
 }

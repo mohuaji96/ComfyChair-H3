@@ -486,20 +486,19 @@ class GalleryRepository private constructor() {
                     GalleryMetadataCache.loadMetadata(context, serverId)
                 }
             } else null
+            val byKey = cached.orEmpty().associateBy { "${it.promptId}|${it.filename}" }
             val byPrompt = cached.orEmpty().associateBy { it.promptId }
             val firstSight = System.currentTimeMillis()
             items = items.map { item ->
-                val known = byPrompt[item.promptId]
+                val known = byKey["${item.promptId}|${item.filename}"] ?: byPrompt[item.promptId]
                 when {
                     known != null -> item.copy(
-                        createdAt = known.createdAt,
-                        sizeBytes = known.sizeBytes,
-                        width = known.width,
-                        height = known.height,
-                        durationMs = known.durationMs
+                        createdAt = if (known.createdAt > 0L) known.createdAt else item.createdAt,
+                        sizeBytes = if (known.sizeBytes > 0L) known.sizeBytes else item.sizeBytes,
+                        width = if (known.width > 0) known.width else item.width,
+                        height = if (known.height > 0) known.height else item.height,
+                        durationMs = if (known.durationMs > 0L) known.durationMs else item.durationMs
                     )
-                    // No history at all to compare against: leave the date unset rather than
-                    // stamping the whole back catalogue with today.
                     cached == null -> item
                     else -> item.copy(createdAt = firstSight)
                 }
@@ -621,9 +620,8 @@ class GalleryRepository private constructor() {
         context: Context
     ): List<GalleryItem> = withContext(Dispatchers.IO) {
         items.map { item ->
-            // Entries the server still lists do not need this: only a survivor's tile depends on
-            // knowing whether its bytes are here.
-            if (!item.localOnly) return@map item
+            // Survivors need local bounds so their tile knows its shape without the server;
+            // server-listed videos also fill duration and size here if a local copy is already present.
             val complete = item.sizeBytes > 0L &&
                 if (item.isVideo) item.durationMs > 0L else item.width > 0
             if (complete) return@map item

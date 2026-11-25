@@ -78,6 +78,9 @@ import sh.hnet.comfychair.queue.JobDescription
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.ui.components.GenerationButton
+import sh.hnet.comfychair.ui.components.HiddenResultState
+import sh.hnet.comfychair.ui.components.HideResultButton
+import sh.hnet.comfychair.ui.components.PreviewCurtain
 import sh.hnet.comfychair.ui.components.PromptLibraryDialog
 import sh.hnet.comfychair.ui.components.PromptPresetDialog
 import sh.hnet.comfychair.ui.components.config.BottomSheetConfig
@@ -254,12 +257,6 @@ fun GenerationTopBar(
         }
     )
 
-    if (sh.hnet.comfychair.ui.components.QueueSheetController.visible) {
-        QueueSheet(
-            generationViewModel = generationViewModel,
-            onDismiss = { sh.hnet.comfychair.ui.components.QueueSheetController.visible = false }
-        )
-    }
 }
 
 /**
@@ -289,7 +286,22 @@ fun BoxScope.ScreenJobStatus(ownerId: String, generationViewModel: GenerationVie
  * action menu may grow past the area's top edge, and a video surface ignores clipping anyway.
  */
 @Composable
-fun ColumnScope.GenerationPreviewArea(content: @Composable () -> Unit) {
+fun ColumnScope.GenerationPreviewArea(
+    workspace: String,
+    running: Boolean,
+    content: @Composable () -> Unit
+) {
+    val context = LocalContext.current
+    val hiddenSet by PreviewCurtain.hidden.collectAsState()
+    val hidden = workspace in hiddenSet
+
+    // Stored flag once per process, then pulled back open by the next run: hiding is a decision
+    // about this result, not a setting that would keep the next one off the screen.
+    LaunchedEffect(Unit) { PreviewCurtain.sync(context) }
+    LaunchedEffect(running) {
+        if (running && hidden) PreviewCurtain.show(context, workspace)
+    }
+
     val cornerColor = MaterialTheme.colorScheme.background
     Box(
         Modifier
@@ -301,7 +313,17 @@ fun ColumnScope.GenerationPreviewArea(content: @Composable () -> Unit) {
                 drawCornerFillets(PreviewCornerRadius.toPx(), cornerColor)
             }
     ) {
-        content()
+        if (hidden) {
+            HiddenResultState(onRestore = { PreviewCurtain.show(context, workspace) })
+        } else {
+            content()
+            HideResultButton(
+                onHide = { PreviewCurtain.hide(context, workspace) },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+            )
+        }
     }
 }
 

@@ -36,7 +36,9 @@ class ToyGateTest {
     @Test
     fun aPlainActNeverPicksUpARestraint() {
         val e = engine()
-        val restraints = library().constraints.toyActs.keys
+        // 「通用」登记的是润滑液这类不挑玩法的道具，不是束缚类，普通动作当然可以拿。
+        val restraints = library().constraints.toyActs
+            .filterValues { "通用" !in it }.keys
         repeat(40) {
             val picks = mutableMapOf(
                 "people.count" to TagPick("单人女孩", locked = true),

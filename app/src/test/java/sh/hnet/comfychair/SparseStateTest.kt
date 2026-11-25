@@ -36,7 +36,7 @@ class SparseStateTest {
         val picks = mutableMapOf<String, TagPick>(
             "mood.medium" to TagPick("写实照片"),
             "grade.feel" to TagPick("港风青绿胶片"),
-            "grade.pos" to TagPick("侧逆光"),
+            "grade.tone" to TagPick("侧逆光"),
             "scene.place" to TagPick("榻榻米"),
             "sexAct.act" to TagPick("手铐拘束"),
             "race.ethnicity" to TagPick("中东")

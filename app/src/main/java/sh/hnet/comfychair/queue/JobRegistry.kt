@@ -123,6 +123,15 @@ object JobRegistry {
     private const val PREFS_NAME = "JobRegistryPrefs"
     private const val PREF_JOBS_JSON = "jobs"
 
+    /**
+     * How many snapshots in a row may miss a tracked job before it counts as gone. Two leaves room for the
+     * empty first poll after a reconnect without keeping finished jobs for ever.
+     */
+    private const val MISSING_SNAPSHOTS_BEFORE_DROP = 2
+
+    /** Consecutive snapshots that did not list a job, keyed by prompt id. */
+    private val missedSnapshots = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
     private val _queueState = MutableStateFlow(QueueState())
     val queueState: StateFlow<QueueState> = _queueState.asStateFlow()
 
@@ -140,10 +149,15 @@ object JobRegistry {
 
     // When each running job started (elapsed realtime), so the status card's timer survives leaving the screen
     private val startTimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    // Wall-clock start times (System.currentTimeMillis) so elapsed clocks survive process recreation
+    private val startTimesMillis = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /** When a running job started; first asked counts as the start if the server's start wasn't seen. */
     fun executionStartedAt(promptId: String): Long =
         startTimes.getOrPut(promptId) { android.os.SystemClock.elapsedRealtime() }
+
+    fun executionStartedAtMillis(promptId: String): Long =
+        startTimesMillis.getOrPut(promptId) { System.currentTimeMillis() }
 
     // Descriptions of our jobs for the queue sheet, in memory only (see JobDescription)
     private val descriptions = java.util.concurrent.ConcurrentHashMap<String, JobDescription>()
@@ -169,6 +183,8 @@ object JobRegistry {
         )
         descriptions.remove(oldPromptId)?.let { descriptions[newPromptId] = it }
         startTimes.remove(oldPromptId)?.let { startTimes[newPromptId] = it }
+        startTimesMillis.remove(oldPromptId)?.let { startTimesMillis[newPromptId] = it }
+        missedSnapshots.remove(oldPromptId)?.let { missedSnapshots[newPromptId] = it }
     }
 
     /**
@@ -260,6 +276,7 @@ object JobRegistry {
     @Synchronized
     fun markExecuting(promptId: String) {
         startTimes.putIfAbsent(promptId, android.os.SystemClock.elapsedRealtime())
+        startTimesMillis.putIfAbsent(promptId, System.currentTimeMillis())
         val currentState = _queueState.value
         val job = currentState.ownJobs[promptId]
 
@@ -310,6 +327,8 @@ object JobRegistry {
         val newJobs = currentState.ownJobs - promptId
         descriptions.remove(promptId)
         startTimes.remove(promptId)
+        startTimesMillis.remove(promptId)
+        missedSnapshots.remove(promptId)
 
         _queueState.value = currentState.copy(
             executingPromptId = if (isCurrentlyExecuting) null else currentState.executingPromptId,
@@ -379,6 +398,7 @@ object JobRegistry {
         }
         descriptions.remove(promptId)
         startTimes.remove(promptId)
+        startTimesMillis.remove(promptId)
     }
 
     /**
@@ -424,16 +444,25 @@ object JobRegistry {
             newState = newState.copy(totalQueueSize = totalCount)
         }
 
-        // The job running on the server
+        // The job running on the server.
+        //
+        // The owner is re-derived on every snapshot, not only when the id changes. After a cold start the
+        // first snapshot can land before restoreState() has put our jobs back: back then the lookup found
+        // nothing, the running job was filed under "someone else's", and the `!=` guard kept it that way
+        // for the rest of its life — the queue sheet called our own job another client's.
         val runningPromptId = snapshot.running.firstOrNull()
         if (runningPromptId != null) {
-            if (newState.executingPromptId != runningPromptId) {
-                val job = newState.ownJobs[runningPromptId]
-                newState = newState.copy(
-                    executingPromptId = runningPromptId,
-                    executingOwnerId = job?.ownerId,
-                    executingContentType = job?.contentType
-                )
+            val job = newState.ownJobs[runningPromptId]
+            val repaired = newState.copy(
+                executingPromptId = runningPromptId,
+                executingOwnerId = job?.ownerId,
+                executingContentType = job?.contentType
+            )
+            if (repaired != newState) {
+                if (newState.executingOwnerId == null && job != null) {
+                    DebugLogger.i(TAG, "Recognised running job ${Obfuscator.promptId(runningPromptId)} as ${job.ownerId}")
+                }
+                newState = repaired
             }
         } else if (newState.executingPromptId != null) {
             // No running jobs on server but we thought something was executing
@@ -450,14 +479,34 @@ object JobRegistry {
             newState = newState.copy(ownQueuePosition = position)
         }
 
-        // Keep jobs that are in the queue OR are not pending/executing (completed/failed awaiting cleanup)
-        val (validJobs, staleJobs) = newState.ownJobs.entries.partition { (promptId, job) ->
+        // Keep jobs that are in the queue OR are not pending/executing (completed/failed awaiting cleanup).
+        //
+        // A single snapshot that misses a job is not proof it is gone. Going to the background drops the
+        // socket, and the first poll after reconnecting can come back empty or half-built; dropping the job
+        // on that one snapshot lost the bar for good, because nothing tracked the id any more.
+        val (presentJobs, missingJobs) = newState.ownJobs.entries.partition { (promptId, job) ->
             promptId in snapshot || (job.status != JobStatus.PENDING && job.status != JobStatus.EXECUTING)
         }
-        if (staleJobs.isNotEmpty()) {
-            DebugLogger.d(TAG, "Removed ${staleJobs.size} stale jobs not found in server queue")
-            staleJobs.forEach { startTimes.remove(it.key) }
-            newState = newState.copy(ownJobs = validJobs.associate { it.key to it.value })
+        presentJobs.forEach { missedSnapshots.remove(it.key) }
+        val confirmedGone = missingJobs.filter { (promptId, _) ->
+            val misses = (missedSnapshots[promptId] ?: 0) + 1
+            missedSnapshots[promptId] = misses
+            misses >= MISSING_SNAPSHOTS_BEFORE_DROP
+        }
+        if (confirmedGone.isNotEmpty()) {
+            DebugLogger.d(TAG, "Removed ${confirmedGone.size} stale jobs not found in server queue")
+            val gone = confirmedGone.map { it.key }.toSet()
+            gone.forEach {
+                missedSnapshots.remove(it)
+                startTimes.remove(it)
+                startTimesMillis.remove(it)
+            }
+            newState = newState.copy(
+                ownJobs = (presentJobs + missingJobs.filter { it.key !in gone })
+                    .associate { it.key to it.value }
+            )
+        } else if (missingJobs.isNotEmpty()) {
+            DebugLogger.d(TAG, "Holding ${missingJobs.size} job(s) through a snapshot that missed them")
         }
 
         if (newState != currentState) {
@@ -480,6 +529,7 @@ object JobRegistry {
                 put("ownerId", job.ownerId)
                 put("contentType", job.contentType.name)
                 put("status", job.status.name)
+                put("startedAt", startTimesMillis[job.promptId] ?: 0L)
             }
             jobsArray.put(jobJson)
         }
@@ -523,6 +573,8 @@ object JobRegistry {
 
                 // Only restore pending/executing jobs (completed/failed don't need restoration)
                 if (status == JobStatus.PENDING || status == JobStatus.EXECUTING) {
+                    val startedAt = jobObj.optLong("startedAt", 0L)
+                    if (startedAt > 0L) startTimesMillis[promptId] = startedAt
                     jobs[promptId] = TrackedJob(
                         promptId = promptId,
                         ownerId = ownerId,
@@ -533,7 +585,16 @@ object JobRegistry {
             }
 
             if (jobs.isNotEmpty()) {
-                _queueState.value = _queueState.value.copy(ownJobs = jobs)
+                val restored = _queueState.value
+                // The first queue poll can land before this runs and file the running job as external.
+                // Re-derive its owner now that the ids are known again, instead of waiting for a change.
+                val running = restored.executingPromptId
+                val owned = running?.let { jobs[it] }
+                _queueState.value = restored.copy(
+                    ownJobs = restored.ownJobs + jobs,
+                    executingOwnerId = owned?.ownerId ?: restored.executingOwnerId,
+                    executingContentType = owned?.contentType ?: restored.executingContentType
+                )
                 DebugLogger.i(TAG, "Restored ${jobs.size} jobs from preferences")
             }
         } catch (e: Exception) {

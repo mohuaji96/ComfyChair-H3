@@ -111,14 +111,21 @@ class PriorityLruCache<K : Any, V : Any>(
     }
 
     /**
-     * Update priorities for multiple entries at once.
-     * Entries not in the map keep their existing priority.
+     * Update priorities for the active window at once.
+     * Keys outside [priorityMap] drop back to [PRIORITY_DEFAULT] so items that scrolled off screen
+     * do not stay pinned at [PRIORITY_CURRENT] forever and deadlock the cache. Size-suffixed
+     * thumbnail keys (`key@maxPx`) inherit their base key's priority.
      */
     fun updateAllPriorities(priorityMap: Map<K, Int>): Unit = synchronized(lock) {
-        for ((key, priority) in priorityMap) {
-            if (cache.containsKey(key)) {
-                priorities[key] = priority
+        for (key in cache.keys) {
+            val direct = priorityMap[key]
+            val inherited = if (direct == null && key is String && key.contains('@')) {
+                @Suppress("UNCHECKED_CAST")
+                priorityMap[key.substringBeforeLast('@') as K]
+            } else {
+                null
             }
+            priorities[key] = direct ?: inherited ?: PRIORITY_DEFAULT
         }
     }
 

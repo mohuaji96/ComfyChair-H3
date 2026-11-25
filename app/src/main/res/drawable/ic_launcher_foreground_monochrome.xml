@@ -1,1 +1,25 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#DDD6FE" android:pathData="M28,32 L35,32 L35,49 L46,49 L46,32 L53,32 L53,76 L46,76 L46,56 L35,56 L35,76 L28,76 Z M60,32 L80,32 L80,39 L69,50 L80,50 L80,76 L60,76 L60,69 L73,69 L73,57 L62,57 L62,50 L73,39 L60,39 Z"/></vector>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Last of the launcher layers: the same chair in one colour, for hosts that ask for a flat mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="768"
+    android:viewportHeight="768">
+
+    <path
+        android:fillType="evenOdd"
+        android:fillColor="#FF000000"
+        android:pathData="M268,206 H492 A16,16 0 0 1 508,222 V246 A16,16 0 0 1 492,262 H268 A16,16 0 0 1 252,246 V222 A16,16 0 0 1 268,206 Z M296,222 H320 A8,8 0 0 1 328,230 V238 A8,8 0 0 1 320,246 H296 A8,8 0 0 1 288,238 V230 A8,8 0 0 1 296,222 Z M364,222 H388 A8,8 0 0 1 396,230 V238 A8,8 0 0 1 388,246 H364 A8,8 0 0 1 356,238 V230 A8,8 0 0 1 364,222 Z M432,222 H456 A8,8 0 0 1 464,230 V238 A8,8 0 0 1 456,246 H432 A8,8 0 0 1 424,238 V230 A8,8 0 0 1 432,222 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M278,250 H306 A8,8 0 0 1 314,258 V344 A8,8 0 0 1 306,352 H278 A8,8 0 0 1 270,344 V258 A8,8 0 0 1 278,250 Z M454,250 H482 A8,8 0 0 1 490,258 V344 A8,8 0 0 1 482,352 H454 A8,8 0 0 1 446,344 V258 A8,8 0 0 1 454,250 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M260,344 H508 A16,16 0 0 1 524,360 V384 A16,16 0 0 1 508,400 H260 A16,16 0 0 1 244,384 V360 A16,16 0 0 1 260,344 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M277.4,414.6 L301.6,383.4 L460.6,569.4 L436.4,600.6 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M490.6,414.6 L466.4,383.4 L307.4,569.4 L331.6,600.6 Z" />
+</vector>

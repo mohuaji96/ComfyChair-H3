@@ -1,6 +1,7 @@
 package sh.hnet.comfychair
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.hnet.comfychair.model.TagLibrary
@@ -105,12 +106,11 @@ class StylePromptTest {
             lib,
             "mood.medium" to "日式动漫",
             "grade.feel" to "日系淡色低饱和",
-            "grade.tone" to "窗边柔光",
-            "grade.pos" to "侧逆光"
+            "grade.tone" to "窗边柔光、侧逆光"
         )
         val head = text.lineSequence().first()
         assertTrue("调色没跟在整句后面: $head", head.contains("日系淡色低饱和"))
-        assertTrue("光质没跟在整句后面: $head", head.contains("窗边柔光"))
+        assertTrue("用光没跟在整句后面: $head", head.contains("窗边柔光"))
         assertTrue("光位没跟在整句后面: $head", head.contains("侧逆光"))
         assertTrue("整句和调色之间不该出现「。，」: $head", !head.contains("。，"))
     }
@@ -139,12 +139,13 @@ class StylePromptTest {
         }
     }
 
+    /** 主色并进调色以后不再单独发规则句，颜色词原样进第一行。 */
     @Test
-    fun thePaletteIsStillARule() {
+    fun theColourPairShipsAsAWord() {
         val lib = library()
-        val palette = lib.category("grade")!!.slots.first { it.id == "palette" }.pool.first()
-        val text = compose(lib, "mood.medium" to "日式动漫", "grade.palette" to palette)
-        assertTrue("主色规则没了: $text", text.contains("主色只用$palette"))
+        val text = compose(lib, "mood.medium" to "日式动漫", "grade.feel" to "朱红与暗金")
+        assertTrue("颜色词没进第一行: $text", text.lineSequence().first().contains("朱红与暗金"))
+        assertFalse("不该再冒主色规则句: $text", text.contains("主色只用"))
     }
 
     /** 普通模式 joins words only: the style ships its name, not the sentence behind it. */
@@ -158,11 +159,11 @@ class StylePromptTest {
         assertTrue("普通模式别带句式前缀: $text", !text.contains("一幅高品质"))
     }
 
-    /** Same for 主色: the rule sentence is a 增强模式 privilege. */
+    /** 普通模式同样只留颜色名，不会带出任何规则句。 */
     @Test
-    fun plainModeShipsThePaletteNameInsteadOfTheRule() {
+    fun plainModeShipsTheColourPairAsAWord() {
         val lib = library()
-        val text = composeStrict(lib, false, "grade.palette" to "朱红与暗金")
+        val text = composeStrict(lib, false, "grade.feel" to "朱红与暗金")
         assertTrue("普通模式不该出现规则句: $text", !text.contains("主色只用"))
         assertTrue("普通模式要留下颜色名: $text", text.contains("朱红与暗金"))
     }

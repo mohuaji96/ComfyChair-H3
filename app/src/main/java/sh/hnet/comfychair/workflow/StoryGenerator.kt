@@ -58,7 +58,13 @@ class StoryGenerator(
                 StoryField(AREOLA, "乳晕", "areola", group = "bust"),
                 StoryField(NIPPLE, "乳头", "nipple", group = "bust"),
                 StoryField(ACCENT, "配饰", "accent"),
-                StoryField(GLASSES, "眼镜", "glasses")
+                StoryField(GLASSES, "眼镜", "glasses"),
+                // 她穿什么和她是同一件事：从「场景与穿着」挪到这里，跟女二自己那几行对齐。
+                // 抽取时地点、时间、天气已经在循环前定好，穿着照样看得见这一轮的环境。
+                StoryField(OUTFIT, "穿着", "outfit"),
+                StoryField(STATE, "状态", "outfit_state"),
+                StoryField(SOCKS, "袜", "socks"),
+                StoryField(SHOES, "鞋", "shoes")
             )
         ),
         StorySection(
@@ -94,7 +100,7 @@ class StoryGenerator(
             )
         ),
         StorySection(
-            "场景与穿着",
+            "场景",
             listOf(
                 StoryField(WORLD, "题材", "world"),
                 StoryField(TIME, "时间", "time"),
@@ -102,10 +108,9 @@ class StoryGenerator(
                 StoryField(PLACE, "场景", "place"),
                 StoryField(WEATHER, "天气", "weather"),
                 StoryField(LIGHT, "光线", "light"),
-                StoryField(OUTFIT, "穿着", "outfit"),
-                StoryField(STATE, "状态", "outfit_state"),
-                StoryField(SOCKS, "袜", "socks"),
-                StoryField(SHOES, "鞋", "shoes")
+                // 画风原来跟道具挤在一个叫「其它」的段里。道具撤掉后它没伴了，
+                // 但它和题材一样是给整条定调的，并进这里比单开一段更贴。
+                StoryField(STYLE, "画风", "style")
             )
         ),
         StorySection(
@@ -120,13 +125,6 @@ class StoryGenerator(
                 StoryField(MOOD, "情绪", "mood"),
                 StoryField(DETAIL, "细节", "detail"),
                 StoryField(MARK, "痕迹", "mark")
-            )
-        ),
-        StorySection(
-            "其它",
-            listOf(
-                StoryField(PROP, "道具", "prop"),
-                StoryField(STYLE, "画风", "style")
             )
         )
     ).mapNotNull { section ->
@@ -154,9 +152,9 @@ class StoryGenerator(
 
     fun emptyPicks(): Map<String, StoryPick> = fields.associate {
         // 情绪是「想用才用」的一格，默认留空，别每次重抽都往句末塞一句。
-        it.key to if (it.key == MOOD || it.key == PROP || it.key == DETAIL ||
-            it.key == MARK
-        ) StoryPick(ignored = true) else StoryPick()
+        it.key to if (it.key == MOOD || it.key == DETAIL || it.key == MARK) {
+            StoryPick(ignored = true)
+        } else StoryPick()
     }
 
     /**
@@ -186,15 +184,37 @@ class StoryGenerator(
             }
         }
 
+        // 女二的衣服要按地点与天气挑，而她的字段在面板上排在场景之前。
+        // 先一步把时间、地点、天气定下来，后面每一格才看得见这一轮的环境。
+        if (only.isEmpty()) {
+            listOf(TIME, PLACE, WEATHER).forEach { key ->
+                val scene = field(key) ?: return@forEach
+                val p = next[key] ?: StoryPick()
+                if (key in held || p.ignored || p.locked) return@forEach
+                next[key] = p.copy(value = pickWeighted(key, allowed(key, next, forPick = true), next))
+            }
+        }
+
         for (field in fields) {
             if (field.key in held) continue
             val pick = next[field.key] ?: StoryPick()
+            // 独角戏里没有男人：那三格留空，免得后台抽一堆用不上的值。
+            if (next[CAST]?.value == "solo" &&
+                (field.key == MAN_LOOK || field.key == MAN_OUTFIT || field.key == MAN_STATE)
+            ) {
+                next[field.key] = pick.copy(value = "")
+                continue
+            }
             // 女二只在两女及以上档参与抽取，其他档位保持空。
             if (field.key.startsWith("w2_") && next[CAST]?.value !in setOf("mff", "ff")) {
                 next[field.key] = pick.copy(value = "")
                 continue
             }
             if ((field.key == AREOLA || field.key == NIPPLE) && !chestExposed(next)) {
+                next[field.key] = pick.copy(value = "")
+                continue
+            }
+            if ((field.key == "w2_areola" || field.key == "w2_nipple") && !chestExposed(next, W2)) {
                 next[field.key] = pick.copy(value = "")
                 continue
             }
@@ -220,7 +240,7 @@ class StoryGenerator(
             // 题材已在循环前先行抽定，避免重复抽取打乱随机流
             if (field.key == WORLD && only.isEmpty()) continue
             // 袜子经常不穿，给它留一条空着的路，不然每句都拖着一条丝袜。
-            if (field.key == SOCKS && random.nextInt(100) < SOCK_SKIP_PERCENT) {
+            if ((field.key == SOCKS || field.key == "w2_socks") && random.nextInt(100) < SOCK_SKIP_PERCENT) {
                 next[field.key] = pick.copy(value = "")
                 continue
             }
@@ -275,6 +295,7 @@ class StoryGenerator(
         // 只拦自动抽取：穿着整身衣服时不要自动写乳晕和乳头。
         // 面板（forPick）必须给全量候选，否则点开两格是空的，和别的字段不一样。
         if (!forPick && (key == AREOLA || key == NIPPLE) && !chestExposed(picks)) return emptyList()
+        if (!forPick && (key == "w2_areola" || key == "w2_nipple") && !chestExposed(picks, W2)) return emptyList()
         val words = if (forPick) library.pickablePool(field.pool) else library.pool(field.pool)
         if (words.isEmpty()) return emptyList()
 
@@ -282,7 +303,8 @@ class StoryGenerator(
         val cast = picks[CAST]?.value.orEmpty().ifEmpty { DEFAULT_CAST }
         val place = picks[PLACE]?.value.orEmpty()
         val group = placeGroup(place)
-        val outfit = picks[OUTFIT]?.value.orEmpty()
+        val activePrefix = if (key.startsWith(W2)) W2 else ""
+        val outfit = pickValue(picks, activePrefix, OUTFIT)
         val worldGroups = library.word("world", picks[WORLD]?.value.orEmpty())?.groups.orEmpty()
         // 年代：题材说这条是古代，电梯和超短裙就不该再出现。
         val eras: Set<String> = library.word("world", picks[WORLD]?.value.orEmpty())?.eras.orEmpty()
@@ -303,7 +325,7 @@ class StoryGenerator(
         // 现代/赛博世界里的衣服和种族不按年代卡：汉服、旗袍、JK、魅魔、精灵都是角色扮演的常规道具。
         val looseEra = ("modern" in eras || "cyber" in eras)
         fun eraOk(word: StoryWord): Boolean =
-            key == WORLD || (looseEra && (key == OUTFIT || key == SOCKS || key == SHOES || key == MAN_OUTFIT || key == ETHNICITY)) ||
+            key == WORLD || (looseEra && key in LOOSE_ERA_KEYS) ||
                 word.allowsEra(eras)
 
         fun passes(word: StoryWord, strict: Boolean): Boolean {
@@ -316,10 +338,17 @@ class StoryGenerator(
             // 雨天雪天这类词会把它不待见的组整个封掉（户外）。
             if (word.groups.any { it in scene.blocked }) return false
             if (word.avoid.isNotEmpty() && word.avoid.split("|").any { outfit.contains(it) }) return false
+            // 69、乳交、足交这类姿势里根本没在插，只有写明认领它的动作才能配。
+            // 这条必须排在「非严格模式直接放行」之前：兜底一旦绕过它，姿势选了乳交、
+            // 动作却配成普通抽插，唯一匹配的那条动作被互斥筛掉时尤其明显。
+            if (key == ACT && poseKeys.any { it in SPECIAL_POSES } &&
+                word.poses.none { it in poseKeys }
+            ) return false
             if (!strict) return true
             if (!scene.present.containsAll(word.requires)) return false
             if (key == MAN_STATE) {
                 val manOutfit = picks[MAN_OUTFIT]?.value.orEmpty()
+                if (manOutfit == "全裸" && word.text.contains("脱光")) return false
                 if (word.requiresWorn.isNotEmpty()) {
                     if (manOutfit.isEmpty() || manOutfit == "全裸") return false
                     // 「*」表示身上有一件能脱的衣服；只披浴巾、只穿内裤时没有皮带可解。
@@ -332,21 +361,17 @@ class StoryGenerator(
             if (key == ACT && poseKeys.isNotEmpty() && word.poses.isNotEmpty() &&
                 word.poses.none { it in poseKeys }
             ) return false
-            // 69、乳交、足交这类姿势里根本没在插，只有写明认领它的动作才能配。
-            if (key == ACT && poseKeys.any { it in SPECIAL_POSES } &&
-                word.poses.none { it in poseKeys }
-            ) return false
             // 内搭是「补一句」，不能把身上已经穿着的说成没穿。
-            if (key == SOCKS && word.removes.any { it in scene.worn }) return false
+            if ((key == SOCKS || key == "w2_socks") && word.removes.any { it in scene.worn }) return false
             // 「只穿围裙」这类排他表述，腿上什么都不许再加。
             // 这里不能只比 GARMENT_INNER：半截蕾丝袜、罗袜的 token 不在那张表里，
             // 会在「只围了一条围裙」的句子后面挂出一双袜子。凡是带 wears 的袜都算。
-            if (key == SOCKS && word.wears.isNotEmpty() &&
-                library.word("outfit", picks[OUTFIT]?.value.orEmpty())?.exclusive == true
+            if ((key == SOCKS || key == "w2_socks") && word.wears.isNotEmpty() &&
+                library.word("outfit", outfit)?.exclusive == true
             ) return false
             // 全裸开场时脚上也不能穿鞋（只能赤脚），但「只穿围裙」依然可以配高跟鞋。
-            if (key == SHOES && word.wears.isNotEmpty() &&
-                picks[OUTFIT]?.value.orEmpty().contains("全裸")
+            if ((key == SHOES || key == "w2_shoes") && word.wears.isNotEmpty() &&
+                outfit.contains("全裸")
             ) return false
             // 夜景类画风只在夜里出现。
             if (key == STYLE && word.times.isNotEmpty() && picks[TIME]?.value !in word.times) return false
@@ -367,7 +392,7 @@ class StoryGenerator(
         // 天气没有可选项就留空：兜底会把整池捞回来，室内又冒出「阁楼里 + 湿冷」。
         if (key == WEATHER) return emptyList()
         // 「状态」「男主穿脱」宁可留空也不要硬凑：身上没外衣时写「外套敞开着」就是错的。
-        if (key == STATE || key == MAN_STATE) return emptyList()
+        if (key == STATE || key == "w2_state" || key == MAN_STATE) return emptyList()
         // 物件对不上时放宽一层：宁可场景不完全贴合，也不留空。
         // 但人数和天气这两条不能放宽——单人句子里出现「让她转过身」是硬错。
         val loose = words.filter { passes(it, strict = false) }.map { it.text }
@@ -376,6 +401,12 @@ class StoryGenerator(
             it.allowsCast(cast) && eraOk(it) && it.allowsGroup(group) &&
                 it.groups.none { g -> g in scene.blocked }
         }.map { it.text }
+    }
+
+    /** 人在户外时，天气词前面那个「外面」是多余的。 */
+    private fun isOutdoor(picks: Map<String, StoryPick>): Boolean {
+        val place = library.word(PLACE, picks[PLACE]?.value.orEmpty()) ?: return false
+        return place.groups.any { it == "outdoor" || it == "alley" }
     }
 
     /**
@@ -388,15 +419,16 @@ class StoryGenerator(
         val present = mutableSetOf<String>()
         val worn = mutableSetOf<String>()
         val blocked = mutableSetOf<String>()
-        // 道具排在最后，但它同样是「在场」的东西：选了领带才谈得上拿领带蒙眼。
-        val propWord = library.word("prop", picks[PROP]?.value.orEmpty())
-        if (propWord != null) {
-            present += propWord.props
-            present += propWord.wears
-        }
+        // 他身上的东西也算在场：穿西装才有领带可以解下来蒙眼。只进 present，不进 worn——
+        // 进了 worn，她全裸开场、第三幕却会「身上只剩衬衫和西裤」。
+        val manOutfit = library.word("man_outfit", picks[MAN_OUTFIT]?.value.orEmpty())
+        if (manOutfit != null) present += manOutfit.wears
         val only = if (until.startsWith(W2)) W2 else ""
         for (field in fields) {
             if (field.key == until) break
+            // 男主身上那三格记的是他的衬衫西裤。算女主「穿着什么」时把它们算进去，
+            // 就会得到「她全裸」开场、第三幕却「身上只剩衬衫和西裤」。
+            if (field.key == MAN_LOOK || field.key == MAN_OUTFIT || field.key == MAN_STATE) continue
             if (only.isNotEmpty() && !field.key.startsWith(only)) continue
             val value = picks[field.key]?.value.orEmpty()
             if (value.isEmpty()) continue
@@ -411,10 +443,11 @@ class StoryGenerator(
         return Scene(present, worn, blocked)
     }
 
-    /** 「身穿」碰上自带动词的衣服会叠成「身穿只穿浴袍」「身穿全裸」。 */
+    /** 「身穿」碰上自带动词的衣服会叠成「身穿只穿浴袍」「身穿全裸」「身穿下半身只裹着浴巾」。 */
     private fun wornClause(text: String): String =
         if (text.startsWith("穿") || text.startsWith("只") || text.startsWith("全") ||
-            text.startsWith("浑身") || text.startsWith("身上")
+            text.startsWith("浑身") || text.startsWith("身上") || text.startsWith("下半身") ||
+            text.startsWith("上身") || text.startsWith("敞怀") || text.startsWith("披着")
         ) text else "身穿$text"
 
     private fun wearsAny(wanted: List<String>, worn: Set<String>): Boolean =
@@ -495,7 +528,8 @@ class StoryGenerator(
             val parts = mutableListOf<String>()
             val subject = if (!twoWomen) who else if ((index % 2 == 0) == leadFirst) "女一" else "女二"
             val other = if (subject == "女一") "女二" else "女一"
-            val pose = reword(poses.getOrNull(index).orEmpty(), subject)
+            // 姿势词末尾的「（老汉推车）」是给选词面板认体位用的分类标签，念在故事里就穿帮了。
+            val pose = reword(poses.getOrNull(index).orEmpty(), subject).replace(POSE_FAMILY_TAG, "")
             val act = acts.getOrNull(index).orEmpty()
             // 第二组起先来一句过渡，免得从躺着直接跳到骑乘。
             if (index > 0) {
@@ -511,9 +545,12 @@ class StoryGenerator(
             // 「顺势挺腰」只对插入类动作成立。口交、足交、夹着磨这类并进去就是病句，
             // 让它们用逗号直接接上。
             val penetrating = library.word("act", act)?.penetrating ?: true
-            val actText = if (twoWomen) attributeAct(act, subject, other) else act
+            val actText = if (twoWomen) attributeAct(act, subject, other, cast) else act
             if (pose.isNotEmpty() && actText.isNotEmpty()) {
-                parts += if (penetrating) "$pose，顺势挺腰$actText" else "$pose，$actText"
+                // 「顺势挺腰」只能接在纯动词短语前。「把她的腿压到胸前」「一手按着她的小腹」
+                // 本身就是完整分句，前面再塞一个动作就成了「顺势挺腰把她抱到台面上」。
+                val bareVerb = penetrating && VERB_LEAD_NONE.none { actText.startsWith(it) }
+                parts += if (bareVerb) "$pose，顺势挺腰$actText" else "$pose，$actText"
             } else if (pose.isNotEmpty()) {
                 parts += pose
             } else if (actText.isNotEmpty()) {
@@ -538,23 +575,23 @@ class StoryGenerator(
      * 另一种是单人口吻。前一种把人称换成女一女二，后一种补一句另一个人在做什么，
      * 免得第二个人整段只有外貌、没有动作。
      */
-    private fun attributeAct(act: String, subject: String, other: String): String {
+    private fun attributeAct(act: String, subject: String, other: String, cast: String = "mff"): String {
         if (act.isEmpty()) return act
         val lead = act.replace("她们", "两人").replace("她", subject)
         if ("另一人" in lead) {
             return lead.replace("另一人", other).replace("一人", subject)
         }
         if ("一人" in lead) return lead.replace("一人", subject)
-        val partner = partnerHalves.randomOrNull(random) ?: return lead
-        return "$lead，$other${partner.replace("她", subject)}"
-    }
-
-    /** 从双人动作条目里切出「另一个人那半句」，现成的旁位动作，不用另造池子。 */
-    private val partnerHalves: List<String> by lazy {
-        (library.pools["act"] ?: emptyList()).mapNotNull { word ->
-            val text = word.text
-            if ("另一人" in text) text.substringAfter("另一人").takeIf { it.isNotBlank() } else null
+        if (MULTI_PERSON_ACT_MARKERS.any { it in act }) {
+            return if ("两人" in lead && subject !in lead && other !in lead) {
+                lead.replaceFirst("两人", "${subject}和${other}")
+            } else {
+                lead
+            }
         }
+        val pool = if (cast == "ff") FF_PARTNER_HALVES else MFF_PARTNER_HALVES
+        val partner = pool.randomOrNull(random) ?: return lead
+        return "$lead，$other${partner.replace("她", subject)}"
     }
 
     /** 双女档把「她」换成「女一」；「她们」先换掉，免得变成「女一们」。 */
@@ -610,7 +647,10 @@ class StoryGenerator(
      * 直接接「女一」，补「的」会变成「女一的只剩丝袜」。
      */
     private fun midOwner(text: String, who: String): String {
-        if (who == "她" || text.isEmpty()) return text
+        if (who.isEmpty() || text.isEmpty()) return text
+        // 「她」后面不加「的」：「她的只剩丝袜了」「她的已经完全脱光」都读不通，
+        // 「她内裤被拉到膝盖」才是人话。女一女二是称呼不是代词，照旧分名词／状态两种前缀。
+        if (who == "她") return "$who$text"
         val stateLed = listOf("只剩", "全身", "半裸", "已经", "身上", "赤裸")
         return if (stateLed.any { text.startsWith(it) }) "$who$text" else "${who}的$text"
     }
@@ -656,7 +696,7 @@ class StoryGenerator(
      */
     private fun weightOf(key: String, text: String, picks: Map<String, StoryPick>): Int {
         var weight = if (isCommon(key, text)) COMMON_WEIGHT else 1
-        if (key != OUTFIT && key != SOCKS && key != SHOES) return weight
+        if (key !in WEIGHTED_WEAR_KEYS) return weight
         val word = library.word(field(key)?.pool.orEmpty(), text) ?: return weight
         val group = placeGroup(picks[PLACE]?.value.orEmpty())
         if (group.isNotEmpty() && group in word.groups) weight *= SCENE_WEIGHT
@@ -711,46 +751,64 @@ class StoryGenerator(
               // 开场就全裸的人没有衣服可脱，写「衣物已完全除尽」等于让她当场又脱一遍；
               // 这一点和「状态」同一口径：身上什么都没穿时那一格留空。
               val prefix = if (key.startsWith(W2)) W2 else ""
-              if (pickValue(picks, prefix, OUTFIT) == "全裸") return ""
+              // 「全裸，身上还挂着水珠」这类同样开场就没衣服，写「衣物已完全除尽」等于让她再脱一遍。
+              if (pickValue(picks, prefix, OUTFIT).startsWith("全裸")) return ""
               val mid = midWithSummary(picks, key)
               if (mid.isEmpty()) return ""
               val core = if (mid.contains("已经完全脱光")) "身上的衣物已完全除尽" else mid
               return midOwner(core, who)
           }
-          val midParts = mutableListOf<String>().apply {
-              midClause(MID, leadWord).takeIf { it.isNotEmpty() }?.let { add(it) }
-              if (twoWomen) midClause(W2_MID, "女二").takeIf { it.isNotEmpty() }?.let { add(it) }
+          // 他的穿脱也归这一段：入场时他还穿着整齐，到这时才被扯开。写在入场就会变成
+          // 「两人刚进屋，他皮带已经解开」，时间线对不上。全裸的人没有可解开的衣物，同女方一样空着。
+          val manState = picks[MAN_STATE]?.value.orEmpty().takeIf { s ->
+              val word = library.word("man_state", s)
+              !(picks[MAN_OUTFIT]?.value.orEmpty() == "全裸" &&
+                  (word?.requiresWorn?.isNotEmpty() == true || s.contains("脱光")))
+          }.orEmpty()
+          // 单人档场上只有她一个，补主语是累赘；一男一女时场上有两个人，
+          // 光写「内裤被拉到膝盖」得回头找主语，得补一个「她」。
+          val midLead = when {
+              twoWomen -> "女一"
+              cast == "solo" -> ""
+              else -> "她"
           }
-          val midText = if (midParts.isEmpty()) "" else "动情拉扯间" + midParts.joinToString("；")
+          val midParts = mutableListOf<String>().apply {
+              midClause(MID, midLead).takeIf { it.isNotEmpty() }?.let { add(it) }
+              if (twoWomen) midClause(W2_MID, "女二").takeIf { it.isNotEmpty() }?.let { add(it) }
+              // 两女档没有男人，这一句是直接拼进正文的，不像 {male} 那样由模板决定，
+              // 所以必须自己确认台上真有他，否则 ff 档会忽然冒出一个「他」。
+              if (manState.isNotEmpty() && story.male.isNotBlank()) add("他$manState")
+          }
+          // 过渡词只管时间，不写身体也不写衣服：她可能开局就全裸，单人档场上更没有第二个人，
+          // 任何提到「两个人」「衣裳」的说法都会撞上这两种情况。后面必须带停顿，
+          // 原来贴着下一句会读成「间内裤被拉到膝盖」。
+          // 不写「拉扯」：模型会当成两人互相推拽，凭空多出一组手部动作，还可能画成抗拒。
+          val midText = if (midParts.isEmpty()) "" else "不知不觉间，" + midParts.joinToString("；")
          val actsText = mergeChain(picks, leadWord).replace(SEP, "，")
 
         val values = mutableMapOf(
             "cast" to story.text,
+            // 这一句只说他是谁、穿什么。他的穿脱已经挪到「片刻之后」那一段，
+            // 入场就报「皮带已经解开」会把后面那整段戏提前说掉。
             "male" to run {
                 val look = picks[MAN_LOOK]?.value.orEmpty()
                 val outfit = picks[MAN_OUTFIT]?.value.orEmpty()
-                val state = picks[MAN_STATE]?.value.orEmpty().takeIf { s ->
-                    val word = library.word("man_state", s)
-                    !(outfit == "全裸" && word?.requiresWorn?.isNotEmpty() == true)
-                }.orEmpty()
-                if (look.isEmpty() && outfit.isEmpty() && state.isEmpty()) {
+                if (look.isEmpty() && outfit.isEmpty()) {
                     ""
                 } else {
                     val p1 = if (look.isNotEmpty()) {
                         when {
+                            look == "西装革履" -> "他$look"
+                            look in MAN_AURA_LOOKS -> "他是一名带着${look}的男子"
                             look.endsWith("男") -> "他是一名${look}子"
                             look.endsWith("哥") || look.endsWith("汉") ||
                                 look.endsWith("大叔") || look.endsWith("少年") -> "他是一名$look"
                             else -> "他是一名${look}的男子"
                         }
                     } else "男方"
-                    // 「衣服已经全部脱光」时再报一遍他穿什么，就是「身穿衬衫西裤，此时衣服已经全部脱光」。
-                    val stripped = state.contains("全部脱光")
                     val p2 = when {
-                        outfit == "全裸" -> "他浑身赤裸，未着寸缕" + if (state.isNotEmpty()) "，此时$state" else ""
-                        stripped && outfit.isNotEmpty() -> "他$state"
-                        outfit.isNotEmpty() -> "他" + wornClause(outfit) + if (state.isNotEmpty()) "，此时$state" else ""
-                        state.isNotEmpty() -> "他此时$state"
+                        outfit == "全裸" -> "他浑身赤裸，未着寸缕"
+                        outfit.isNotEmpty() -> "他" + wornClause(outfit)
                         else -> ""
                     }
                     if (p2.isNotEmpty()) "$p1。$p2。" else "$p1。"
@@ -765,8 +823,8 @@ class StoryGenerator(
              // 自己占一段，排在「开始」之后：它说的是后面整段戏的固定衣着状态，
              // 所以既不并进动作链，也不跟着动作链有没有内容。
              "outfit_mid" to midText,
-            // 身上什么都没穿的时候「状态」没有意义，直接留空。
-            "state" to picks[STATE]?.value.orEmpty().takeIf { stateScene.worn.isNotEmpty() }.orEmpty(),
+             // 身上什么都没穿的时候「状态」没有意义，直接留空。
+             "state" to picks[STATE]?.value.orEmpty().takeIf { stateApplies("", picks) }.orEmpty(),
              // 「此时正在回消息」是谁在回？补主语，双女档补「女一」。
              "chore" to picks[CHORE]?.value.orEmpty().let {
                  when {
@@ -779,14 +837,20 @@ class StoryGenerator(
             "escalate" to picks[ESCALATE]?.value.orEmpty().let { raw ->
                 if (raw.isEmpty()) ""
                 else if (cast == "solo") "她$raw"
-                else if (cast == "ff") raw
-                else "他忽然上前$raw"
+                else if (cast == "ff") {
+                    val cleaned = raw.replace("她们", "两人").replace("她", "女一")
+                    if (cleaned.startsWith("两人") || cleaned.startsWith("女")) cleaned
+                    else "女二忽然上前$cleaned"
+                } else "他忽然上前$raw"
             },
             // 姿势不再单独占位，和动作一起排进 {acts}
             // SFW 库没有 act 池，姿势不再并进动作链，必须自己占位；成人库仍是合并进 {acts}。
             "pose" to if (library.pool("act").isEmpty()) picks[POSE]?.value.orEmpty().replace(SEP, "，") else "",
-            "prop" to picks[PROP]?.value.orEmpty(),
-            "mark" to picks[MARK]?.value.orEmpty().replace(SEP, "，"),
+            "mark" to picks[MARK]?.value.orEmpty().replace(SEP, "，").let { raw ->
+                if (raw.isEmpty()) ""
+                else if (raw.startsWith("她") || raw.startsWith("女") || raw.startsWith("身上")) raw
+                else "${leadWord}身上留着$raw"
+            },
             // SEP 是多选在内部的连接符，直接进句子会变成「重心落在后脚|双手插兜站着」。
              "acts" to actsText,
             "female" to formatFemaleParagraph(picks),
@@ -794,7 +858,14 @@ class StoryGenerator(
              "wear" to formatWear(picks, who = leadWord),
             "her2" to formatHer(picks, "w2_", "女二"),
             "wear2" to formatWear(picks, "w2_", "女二"),
-            "weather" to picks[WEATHER]?.value.orEmpty().let { if (it.isEmpty()) "" else "，$it" },
+            "weather" to picks[WEATHER]?.value.orEmpty().let { raw ->
+                when {
+                    raw.isEmpty() -> ""
+                    // 人已经站在沙滩上，「在沙滩上，外面下着雨」里的「外面」是多余的。
+                    isOutdoor(picks) -> "，" + raw.removePrefix("外面")
+                    else -> "，$raw"
+                }
+            },
             "look_f" to look.ifEmpty { library.pool("hair").randomOrNull(random)?.text.orEmpty() },
             "look_m" to ""
         )
@@ -811,20 +882,33 @@ class StoryGenerator(
             values["look_m"] = library.pool("look_m").randomOrNull(random)?.text.orEmpty()
         }
         if ("{mood}" in template) {
-            values["mood"] = picks[MOOD]?.value.orEmpty().takeIf { it.isNotEmpty() }?.takeIf { text ->
-                val word = library.word("mood", text)
-                word != null && word.allowsGroup(group) && scene.present.containsAll(word.requires)
+            val rawMood = picks[MOOD]?.value.orEmpty()
+            val moodWord = library.word("mood", rawMood)
+            values["mood"] = rawMood.takeIf {
+                it.isNotEmpty() && moodWord != null &&
+                    moodWord.allowsGroup(group) &&
+                    scene.present.containsAll(moodWord.requires)
             }.orEmpty()
         }
 
         var out = template.replace("{world}", "")
-        // 道具没选的时候，句式里那两个动词短语要一起删掉，不然会留下「顺手拿起，」。
-        if (values["prop"].isNullOrEmpty()) {
-            out = out.replace("顺手拿起{prop}，", "").replace("拿着{prop}，", "")
-        }
-        // 痕迹没开的时候，模板里「，{mark}，」整段去掉，免得留下双逗号。
+        // 动作链独立成句：主戏以句号收尾，事后痕迹与情绪另起一句，不再一逗到底。
+        // 句号由这里补，不写死在模板里——动作链为空时模板会留下一个孤零零的句号，
+        // 后面那半句就被当成空段整段丢掉，情绪也就跟着消失了。
+        values["acts_dot"] = values["acts"].orEmpty()
+            .let { if (it.isEmpty()) "" else "$it。" }
+        // 道具分项已经撤掉，占位符只剩历史模板里还有。整句取道具的写法一并去掉，
+        // 存档里的老模板才不会留下一截「顺手拿起，」。
+        out = out.replace("{prop_tail}", "")
+            .replace("顺手拿起{prop}，", "").replace("拿着{prop}，", "")
+            .replace("顺手拿起，", "").replace("拿着，", "")
+        // 痕迹没开的时候，模板里那一段整块去掉，免得留下双逗号或「。，」。
         if (values["mark"].isNullOrEmpty()) {
-            out = out.replace("，{mark}，", "，")
+            out = out.replace("。{mark}，", "。").replace("，{mark}，", "，")
+        }
+        // 详情没开的时候同理，别留下「，。」收尾。
+        if ("{detail}" in out && picks[DETAIL]?.value.isNullOrEmpty() && !detail) {
+            out = out.replace("，{detail}，", "，").replace("，{detail}。", "。")
         }
         // 空占位连同它前面的连接词一起删，别留下「另一个身穿。」这种半句。
         if (values["outfit_b"].isNullOrEmpty()) out = out.replace("，另一个身穿{outfit_b}", "")
@@ -836,7 +920,7 @@ class StoryGenerator(
             "time", "cast", "her", "wear", "her2", "wear2", "weather",
             "female", "look_f", "look_m", "place_b", "place", "light",
             "outfit_b", "outfit", "socks", "shoes", "state", "outfit_mid", "chore", "male",
-            "escalate", "pose", "prop", "acts", "mark", "mood"
+            "escalate", "pose", "prop", "acts", "acts_dot", "mark", "mood"
         )
         for (name in order) {
             val token = "{$name}"
@@ -848,25 +932,26 @@ class StoryGenerator(
                 pickedDetail
             } else if (detail) {
                 library.pool("detail").filter {
-                    it.allowsGroup(group) &&
+                    it.allowsCast(cast) &&
+                        it.allowsGroup(group) &&
                         scene.present.containsAll(it.requires) &&
                         (it.needs.isEmpty() || out.contains(it.needs))
                 }.randomOrNull(random)?.text.orEmpty()
             } else {
                 ""
             }
-            out = out.replace("{detail}", detailText)
+            // 细节池里有不少句子以「她」开头。双女档不换人称，读者分不清说的是谁。
+            out = out.replace("{detail}", reword(detailText, leadWord))
         }
-         // 槽位空着的时候整段短语一起去掉，不能只留「顺手拿起，」这种半句。
-         if (picks[PROP]?.value.isNullOrEmpty()) {
-             out = out.replace("顺手拿起，", "").replace("拿着，", "")
-         }
          out = tidy(out)
          if ("女的" in out) {
              val femaleText = formatFemaleParagraph(picks)
              out = out.replace(Regex("女的[^。]*?。"), femaleText)
          }
          out = out.replace("。。", "。").replace("，，", "，").replace("；；", "；")
+             .replace("。，", "。").replace("，。", "。")
+         // 「女一」「女二」看着像场记板，但两个人都写成「她」时，读的人根本分不清
+         // 谁被按在镜子上。区分清楚比措辞自然重要，保留这两个称呼。
 
          // 情绪改由模板收尾（她{mood} / 她们{mood}），两个人的场景才说得清是谁。
 
@@ -876,10 +961,10 @@ class StoryGenerator(
         // 只给下游一个「这条要说话」的标记，台词内容交给技能按分镜写。
         if (dialogue) tail += "有中文台词"
         // 空段整段不出：没穿、没男主、没女二时不留空行。
-        out = out.split("\n").map { it.trim() }
-            .filter { it.isNotBlank() && it != "。" && it != "，" }
-            .joinToString("\n\n")
-        val body = if (out.endsWith("。")) out else "$out。"
+         out = out.split("\n").map { it.trim() }
+             .filter { it.isNotBlank() && it != "。" && it != "，" }
+             .joinToString("\n\n")
+         val body = if (out.endsWith("。")) out else "$out。"
         return if (tail.isEmpty()) body else "$body${tail.joinToString("，")}。"
     }
 
@@ -948,8 +1033,8 @@ class StoryGenerator(
      * 判据只看穿着那一句：全裸、上身赤裸、只穿内衣、衣襟敞开、衣裳半褪这类算露。
      * 遮住时两格不自动抽，但面板里照样能选。
      */
-    private fun chestExposed(picks: Map<String, StoryPick>): Boolean {
-        val outfit = picks[OUTFIT]?.value.orEmpty()
+    private fun chestExposed(picks: Map<String, StoryPick>, prefix: String = ""): Boolean {
+        val outfit = pickValue(picks, prefix, OUTFIT)
         if (outfit.isEmpty()) return true
         val bare = listOf("全裸", "赤裸", "内衣", "没穿", "敞开", "半褪", "只围", "只剩")
         return bare.any { it in outfit }
@@ -958,6 +1043,23 @@ class StoryGenerator(
     private fun pickValue(picks: Map<String, StoryPick>, prefix: String, key: String): String =
         picks[prefix + key]?.value.orEmpty()
 
+    /**
+     * 「外套搭在手臂上」「袖口卷起」只有在身上穿着衣服时才成立。
+     *
+     * 成人库的衣服词条都标了 wears，空着就是真的没穿；日常库的衣服是一条纯文本、
+     * 一件也没标 wears，按老判据会把日常档的穿着状态整格丢掉。
+     */
+    private fun stateApplies(prefix: String, picks: Map<String, StoryPick>): Boolean {
+        val outfit = pickValue(picks, prefix, OUTFIT)
+        if (outfit.isEmpty()) return false
+        // 有可数的衣服就以它为准：「披着狐裘大氅，里面全裸」也算穿了大氅。
+        if (sceneBefore(prefix + STATE, picks).worn.isNotEmpty()) return true
+        val word = library.word("outfit", outfit) ?: return false
+        // 标了 wears 却一件都没穿，说明身上是空的。
+        if (word.wears.isNotEmpty()) return false
+        return listOf("全裸", "赤裸", "一丝不挂", "未着寸缕").none { outfit.contains(it) }
+    }
+
     /** 人物句：「她是一名二十五岁、气质冷艳的韩国女子，……」 */
     private fun formatHer(
         picks: Map<String, StoryPick>,
@@ -965,7 +1067,7 @@ class StoryGenerator(
         who: String = "她"
     ): String {
         val ethnicity = pickValue(picks, prefix, ETHNICITY)
-        val region = pickValue(picks, prefix, REGION)
+        val region = pickValue(picks, prefix, REGION).removeSuffix("面孔")
         val age = pickValue(picks, prefix, AGE)
         val look = pickValue(picks, prefix, LOOK)
         val skin = pickValue(picks, prefix, SKIN)
@@ -979,9 +1081,18 @@ class StoryGenerator(
         val accent = pickValue(picks, prefix, ACCENT)
         val glasses = pickValue(picks, prefix, GLASSES)
 
+        if (prefix.isNotEmpty() &&
+            listOf(ethnicity, region, age, look, skin, build, hair, hairColor, bustSize, bustShape, areola, nipple, accent, glasses)
+                .all { it.isEmpty() }
+        ) return ""
+
         var race = ethnicity.ifEmpty { "女子" }
-        val femaleRaces = setOf("魅魔", "海妖", "狐妖", "猫妖", "狼女", "蛇女", "兔耳娘", "雪女", "花妖", "龙女", "牛娘", "鹿娘", "羊娘", "虎娘", "蛛娘", "精灵", "暗精灵", "半精灵", "妖精", "花精", "吸血鬼", "天使", "堕天使", "女武神", "美人鱼", "妖怪", "亡灵", "幽灵", "机械人形")
-        if (race in femaleRaces) race = "女$race"
+        val femaleRaces = setOf(
+            "魅魔", "海妖", "狐妖", "猫妖", "狼女", "蛇女", "兔耳娘", "雪女", "花妖", "龙女",
+            "牛娘", "鹿娘", "羊娘", "虎娘", "蛛娘", "精灵", "暗精灵", "半精灵", "妖精", "花精",
+            "吸血鬼", "天使", "堕天使", "女武神", "美人鱼"
+        )
+        if (race in femaleRaces && !race.contains("女")) race = "女$race"
         else if (race in setOf("人类", "欧美人", "东亚人", "混血长相")) race = "女子"
 
         val raceWord = when {
@@ -1023,16 +1134,27 @@ class StoryGenerator(
             details += when {
                 "水珠" in skin || "汗光" in skin || "红晕" in skin || "淡红" in skin -> skin
                 "皮" in skin || "肤" in skin -> skin
+                skin.startsWith("带") || skin.startsWith("有") -> "${skin}的肌肤"
                 else -> "${skin}肌肤"
             }
         }
         val bustBits = mutableListOf<String>()
         if (bustSize.isNotEmpty()) bustBits += if (bustSize.endsWith("罩")) "${bustSize}杯" else bustSize
-        if (bustShape.isNotEmpty()) bustBits += if ("胸" in bustShape || "乳" in bustShape) bustShape else "胸型$bustShape"
+        if (bustShape.isNotEmpty()) {
+            bustBits += when {
+                "胸" in bustShape || "乳" in bustShape -> bustShape
+                bustShape == "晃动" -> "胸口随动作微晃"
+                bustShape in BUST_CLAUSE_SHAPES -> bustShape
+                else -> "胸型$bustShape"
+            }
+        }
         if (areola.isNotEmpty()) bustBits += areola
-        if (nipple.isNotEmpty()) bustBits += nipple
+        if (nipple.isNotEmpty()) {
+            bustBits += if ("乳头" in nipple || "乳晕" in nipple) nipple else "乳头$nipple"
+        }
         if (bustBits.isNotEmpty()) details += bustBits.joinToString("、")
 
+        val hairIsClause = hair in HAIR_CLAUSE_WORDS || hair.endsWith("的头发")
         val hairText = when {
             hair.isEmpty() && hairColor.isEmpty() -> ""
             hairColor.isEmpty() -> hair
@@ -1040,24 +1162,27 @@ class StoryGenerator(
             // 「扎着马尾」这类是动词短语，颜色当前缀会成「紫红色扎着马尾」。
             hair.startsWith("扎") || hair.startsWith("盘") || hair.startsWith("编") ||
                 hair.startsWith("剪") -> "$hair，一头${hairColor}头发"
+            hairIsClause -> "一头${hairColor}头发，$hair"
             else -> "$hairColor$hair"
         }
         if (hairText.isNotEmpty()) {
             // 「盘发，一头冷棕色头发」自己已经带了量词和动作，再加「留着一头」就是两个一头。
-            details += if (hairText.startsWith("留") || hairText.startsWith("扎") ||
+            details += if (hairIsClause || hairText.startsWith("留") || hairText.startsWith("扎") ||
                 hairText.startsWith("散") || hairText.startsWith("一头") ||
                 hairText.startsWith("盘") || hairText.startsWith("编") || hairText.startsWith("剪")
             ) hairText else "留着一头$hairText"
         }
 
-        // 眼镜和配饰合成一句「戴着眼镜和耳环」；带动作的状态句（摘下眼镜叼在嘴边）单独写。
+        // 眼镜和配饰合成一句「戴着眼镜和耳环」；带动作的状态句（摘下眼镜叼在嘴边）或 SFW 说话神态单独写。
         fun isState(text: String): Boolean =
-            text.startsWith("没戴") || text.startsWith("摘下") ||
+            library.profile == "sfw" ||
+                text.startsWith("没戴") || text.startsWith("摘下") ||
                 text.startsWith("眼镜") || text.startsWith("墨镜") ||
                 text.startsWith("一边") || text.startsWith("镜片") ||
                 text.startsWith("有") || text.startsWith("耳后") ||
                 text.startsWith("嘴唇") || text.startsWith("指甲") ||
-                text.startsWith("锁骨") || text.startsWith("舌")
+                text.startsWith("锁骨") || text.startsWith("舌") ||
+                ACCENT_HABIT_KEYWORDS.any { it in text }
 
         fun stem(text: String): String =
             text.removePrefix("戴着").removePrefix("戴").removePrefix("有")
@@ -1089,9 +1214,11 @@ class StoryGenerator(
         val socks = pickValue(picks, prefix, SOCKS)
         val shoes = pickValue(picks, prefix, SHOES)
         val state = pickValue(picks, prefix, STATE)
+            .takeIf { stateApplies(prefix, picks) }
+            .orEmpty()
         val clothes = mutableListOf<String>()
         if (outfit.isNotEmpty()) {
-            if (outfit == "全裸") {
+            if (outfit.startsWith("全裸")) {
                 clothes += "浑身赤裸未着寸缕"
             } else {
                 var c = wornClause(outfit)
@@ -1165,8 +1292,22 @@ class StoryGenerator(
 
         /** 肛门那组，单列一个池，默认关着。 */
 
-        /** 这些姿势里没有插入，动作必须写明认领它们才配得上。 */
-        private val SPECIAL_POSES = setOf("69", "乳交", "足交", "腋交", "股间", "素股", "颜骑", "枕头")
+         /** 这些姿势里没有插入，动作必须写明认领它们才配得上。 */
+         private val SPECIAL_POSES = setOf("69", "乳交", "足交", "腋交", "股间", "素股", "颜骑", "枕头")
+
+         /** 姿势词尾的体位分类标签，例如「（老汉推车）」。面板要它，正文不要。 */
+         private val POSE_FAMILY_TAG = Regex("（[^）]*）$")
+
+         /**
+          * 以这些字开头的动作已经是完整分句，前面接不上「顺势挺腰」。
+          *
+          * 「顺势挺腰把她的腿压到胸前」读不通：挺腰是一个动作，把腿压到胸前是另一个，
+          * 中间靠「顺势」粘着，主语还是同一个人。这类直接用逗号并列。
+          */
+         private val VERB_LEAD_NONE = listOf(
+             "把", "一手", "双手", "抓着", "按着", "压低", "边插", "在穴口", "贴在她", "让她",
+             "从", "用", "整根插进", "后穴", "指尖", "手指先"
+         )
         const val INTER = "inter"
         const val FINISH = "finish"
         const val MOOD = "mood"
@@ -1203,5 +1344,61 @@ class StoryGenerator(
 
         /** 只算贴身衣物，穿着这些的时候谈不上「状态」。 */
         private val PURE_INNER = setOf("内衣", "内裤", "丝袜", "袜", "鞋", "高跟鞋")
+
+        /** 现代/赛博题材下放宽年代校验的分项（女一与女二对齐）。 */
+        private val LOOSE_ERA_KEYS = setOf(
+            OUTFIT, SOCKS, SHOES, MAN_OUTFIT, ETHNICITY,
+            "w2_outfit", "w2_socks", "w2_shoes", "w2_ethnicity"
+        )
+
+        /** 参与场景/年代偏好加权的穿着分项（女一与女二对齐）。 */
+        private val WEIGHTED_WEAR_KEYS = setOf(
+            OUTFIT, SOCKS, SHOES, "w2_outfit", "w2_socks", "w2_shoes"
+        )
+
+        /** 动作本身已写明多人配合的标志词，不再重复追加旁位半句。 */
+        private val MULTI_PERSON_ACT_MARKERS = listOf(
+            "两人", "轮流", "一左一右", "同时", "一起", "互相", "双头"
+        )
+
+        /** 一男两女档：单人口吻主戏时，另一位女性的配合动作（语法完整且契合三人场）。 */
+        private val MFF_PARTNER_HALVES = listOf(
+            "在一旁抚摸着她的乳房",
+            "从侧面贴上来吻着她的脖颈",
+            "跪在一旁含着他的阴茎根部配合吞吐",
+            "趴在她身侧，手指探向两人的交合处抚弄",
+            "在旁边张开双腿自己揉着阴蒂",
+            "从背后搂住她，跟着节奏一起晃动"
+        )
+
+        /** 两女百合档：单人口吻主戏时，另一位女性的配合动作（绝不含男方/阴茎）。 */
+        private val FF_PARTNER_HALVES = listOf(
+            "在一旁轻揉着她的乳房",
+            "贴在她身侧吻着她的耳垂与脖颈",
+            "趴在她身上，用手指轻轻捻弄她的乳头",
+            "从身后环住她的腰，隔着肌肤磨蹭",
+            "跪在她身旁，手指探入她的腿间抽送",
+            "俯身凑过去与她舌吻，手掌按在她小腹上"
+        )
+
+        /** 男主外形中属于气质/氛围名词、需补「带着…的男子」的词。 */
+        private val MAN_AURA_LOOKS = setOf("少年感", "精英感", "混血感", "禁欲系", "体育生气质")
+
+        /** 胸型格中自成描述短语、不前置「胸型」的词。 */
+        private val BUST_CLAUSE_SHAPES = setOf(
+            "从侧面能看见弧度", "用手挡住却没挡住", "深乳沟", "晃动"
+        )
+
+        /** 发型格中属于状态/动作短语、不能直接写成「留着一头＋发色＋该词」的词。 */
+        private val HAIR_CLAUSE_WORDS = setOf(
+            "刘海遮住眼睛", "内扣", "外翻", "短发利落", "长发及腰",
+            "发梢微湿", "几缕碎发贴在脸颊", "碎发别在耳后"
+        )
+
+        /** 配饰/神态格中属于说话习惯或神态动作、不能前置「戴着」的关键词。 */
+        private val ACCENT_HABIT_KEYWORDS = listOf(
+            "说话", "尾音", "笑", "回答", "声音", "语气", "吐字", "开口",
+            "呼吸", "眼神", "眨眼", "目光", "看人", "低头", "抿唇"
+        )
     }
 }
