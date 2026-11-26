@@ -345,6 +345,8 @@ object PromptOptimizer {
         .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .callTimeout((timeoutSec + 10).toLong(), TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .retryOnConnectionFailure(true)
         .build()
 

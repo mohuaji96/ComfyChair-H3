@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,7 +59,13 @@ fun OptimizeHistorySheet(
     val shown = if (onlyFavorites) rows.filter { it.favorite } else rows
     val formatter = remember { SimpleDateFormat("MM-dd HH:mm", Locale.CHINA) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()

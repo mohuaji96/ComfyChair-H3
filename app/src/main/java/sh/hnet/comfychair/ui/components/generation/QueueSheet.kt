@@ -118,7 +118,13 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
     val waitingOther = current?.pending?.filterNot { it in own }.orEmpty()
     val lastFailure = queueState.lastFailure
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(SheetValue.Hidden)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberBottomSheetState(SheetValue.Hidden),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),

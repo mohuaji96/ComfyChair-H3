@@ -1,0 +1,5 @@
+v0.9.8.8382.625-h3
+- Universal dialogs, confirmation prompts and form sheets standardize on white floating cards and 28dp corners.
+- Bottom drawers for queue, assets, prompt optimizer and metadata unify on clean white surfaces.
+- Restoring default settings resets the active theme to default Glacier Blue and clears relay cursors.
+- External AI prompt optimizer requests disallow automatic redirects to protect API keys.

@@ -181,7 +181,11 @@ fun H3SamplingPreviewStrip(
 
     if (zoomed && frame != null) {
         Dialog(onDismissRequest = { zoomed = false }) {
-            Surface(shape = RoundedCornerShape(16.dp)) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 3.dp
+            ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // 放大不等于变清楚：避免拉伸到全屏导致插值模糊，同时保持真实宽高比。
                     val density = LocalDensity.current

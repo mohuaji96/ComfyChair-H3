@@ -151,6 +151,9 @@ fun H3SourcePickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
     ) {
         Column(

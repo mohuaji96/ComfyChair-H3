@@ -145,6 +145,11 @@ fun ConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         icon = icon?.let { { DialogIcon(it, destructive) } },
         title = { Text(title) },
         text = {
@@ -190,6 +195,11 @@ fun FormDialog(
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         properties = DialogProperties(dismissOnBackPress = !busy, dismissOnClickOutside = !busy),
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = { Text(title) },
         text = {
             // Scrolls when the keyboard leaves too little room
@@ -356,6 +366,11 @@ fun InfoDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         icon = { DialogIcon(icon, error) },
         title = { Text(title) },
         text = {
@@ -416,6 +431,11 @@ fun <T> ChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = { Text(title) },
         text = {
             Column {
@@ -511,6 +531,11 @@ fun ActionDialog(
             dismissOnBackPress = onDismissRequest != null && !busy,
             dismissOnClickOutside = onDismissRequest != null && !busy
         ),
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         icon = { DialogIcon(icon, error) },
         title = { Text(title) },
         text = { Text(text) },

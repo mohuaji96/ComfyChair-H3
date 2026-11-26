@@ -313,6 +313,7 @@ object AppSettings {
     /** Every app setting back to its default (restoring defaults); servers are stored elsewhere and stay. */
     fun clearAll(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        _themeFlow.value = "glacier_blue"
     }
 }
 
