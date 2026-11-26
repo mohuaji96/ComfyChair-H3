@@ -270,7 +270,8 @@ class BackupManager(private val context: Context) {
             put("disabledWorkflows", JSONArray(prefs.getStringSet("disabled_workflows", null).orEmpty().sorted()))
             put("promptSpellCheckEnabled", prefs.getBoolean("prompt_spell_check", false))
             put("h3PreviewEnabled", prefs.getBoolean("h3_preview_enabled", true))
-            put("relayNotifyEnabled", prefs.getBoolean("relay_notify_enabled", false))
+            put("relayNotifyEnabled", AppSettings.isRelayNotifyEnabled(context))
+            put("themeId", AppSettings.getThemeId(context))
         }
     }
 
@@ -447,10 +448,13 @@ class BackupManager(private val context: Context) {
             editor.putBoolean("h3_preview_enabled", json.optBoolean("h3PreviewEnabled", true))
         }
         if (json.has("relayNotifyEnabled")) {
-            editor.putBoolean("relay_notify_enabled", json.optBoolean("relayNotifyEnabled", false))
+            editor.putBoolean("relay_notify", json.optBoolean("relayNotifyEnabled", false))
         }
+        val restoredThemeId = json.optString("themeId").takeIf { json.has("themeId") && it.isNotBlank() }
 
         editor.apply()
+        // Keep the live Compose theme flow in sync with the restored preference.
+        restoredThemeId?.let { AppSettings.setThemeId(context, it) }
     }
 
     private fun restoreScreenPreferencesV4(json: JSONObject, serverIdMapping: Map<String, String>) {
@@ -926,8 +930,8 @@ class BackupManager(private val context: Context) {
     }
 
     private val h3ExtensionPrefNames = listOf(
-        "PromptProviderPrefs",
-        "PromptTemplatesPrefs",
+        "PromptProviders",
+        "PromptTemplates",
         "h3_studio_draft",
         "h3_presets",
         "h3_choices",
@@ -962,7 +966,14 @@ class BackupManager(private val context: Context) {
 
     private fun restoreH3Extensions(ext: JSONObject) {
         for (prefName in h3ExtensionPrefNames) {
-            val obj = ext.optJSONObject(prefName) ?: continue
+            // Accept preference aliases written by earlier backup builds, but always restore
+            // into the real stores used by the current app.
+            val legacyName = when (prefName) {
+                "PromptProviders" -> "PromptProviderPrefs"
+                "PromptTemplates" -> "PromptTemplatesPrefs"
+                else -> null
+            }
+            val obj = ext.optJSONObject(prefName) ?: legacyName?.let { ext.optJSONObject(it) } ?: continue
             val editor = context.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit()
             val keys = obj.keys()
             while (keys.hasNext()) {

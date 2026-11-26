@@ -23,10 +23,23 @@ class ServerStorage(context: Context) {
         val json = prefs.getString(KEY_SERVERS_JSON, null) ?: return emptyList()
         return try {
             val array = JSONArray(json)
-            (0 until array.length()).mapNotNull { i ->
-                Server.fromJson(array.getJSONObject(i))
+            buildList {
+                for (i in 0 until array.length()) {
+                    val entry = array.optJSONObject(i)
+                    val server = entry?.let { value -> runCatching { Server.fromJson(value) }.getOrNull() }
+                    if (server != null) {
+                        add(server)
+                    } else {
+                        // Keep the original JSON untouched so a damaged entry can be diagnosed;
+                        // one malformed record must not hide every other valid server.
+                        sh.hnet.comfychair.util.DebugLogger.w(
+                            "ServerStorage", "Skipping malformed server entry at index $i"
+                        )
+                    }
+                }
             }
         } catch (e: Exception) {
+            sh.hnet.comfychair.util.DebugLogger.e("ServerStorage", "Server list JSON is unreadable: ${e.javaClass.simpleName}")
             emptyList()
         }
     }

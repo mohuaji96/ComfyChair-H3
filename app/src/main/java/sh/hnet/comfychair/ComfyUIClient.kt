@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.JsonReader
+import java.io.File
+import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
@@ -63,6 +66,8 @@ class ComfyUIClient(
 ) {
     companion object {
         private const val TAG = "API"
+        private const val MAX_IN_MEMORY_IMAGE_BYTES = 64L * 1024L * 1024L
+        private const val MAX_IN_MEMORY_VIDEO_BYTES = 128L * 1024L * 1024L
         private const val STALL_TIMEOUT_MS = 30_000L          // 30 seconds without progress = stalled
         private const val STALL_CHECK_INTERVAL_MS = 5_000L    // Check every 5 seconds
     }
@@ -936,6 +941,7 @@ class ComfyUIClient(
     fun submitPrompt(
         workflowJson: String,
         front: Boolean = false,
+        requestId: String? = null,
         callback: (success: Boolean, promptId: String?, errorMessage: String?, failureType: ConnectionFailure, skippedOutputs: List<String>) -> Unit
     ) {
         DebugLogger.i(TAG, "Submitting prompt${if (front) " (front of queue)" else ""}")
@@ -948,7 +954,7 @@ class ComfyUIClient(
         val url = "$baseUrl/prompt"
 
         // Both accepted shapes ({"nodes":{…}} and a bare node map) end up as {"prompt": …}.
-        val promptRequest = runCatching { PromptBody.build(workflowJson, clientId, front) }.getOrElse {
+        val promptRequest = runCatching { PromptBody.build(workflowJson, clientId, front, requestId) }.getOrElse {
             callback(false, null, it.message ?: "工作流 JSON 无效", ConnectionFailure.NETWORK, emptyList())
             return
         }
@@ -961,19 +967,27 @@ class ComfyUIClient(
             .post(requestBody)
             .build()
 
-        httpClient.newCall(request).enqueue(object : okhttp3.Callback {
+        httpClient.newBuilder().retryOnConnectionFailure(false).build().newCall(request).enqueue(object : okhttp3.Callback {
             override fun onFailure(call: okhttp3.Call, e: IOException) {
                 DebugLogger.e(TAG, "Submit failed: ${Obfuscator.error(e)}")
-                callback(false, null, "Failed to submit prompt: ${e.message}", ConnectionFailure.NETWORK, emptyList())
+                callback(false, null, "Submission result unknown. Check the server queue/history before retrying.", ConnectionFailure.NETWORK, emptyList())
             }
 
             override fun onResponse(call: okhttp3.Call, response: Response) {
                 response.use {
-                    val responseBody = response.body.string()
+                    val responseBody = try { response.body.string() } catch (e: IOException) {
+                        callback(false, null, "Submission result unknown. Check the server queue/history before retrying.", ConnectionFailure.NETWORK, emptyList())
+                        return
+                    }
                     if (response.isSuccessful) {
                         try {
                             val json = JSONObject(responseBody)
-                            val promptId = json.optString("prompt_id")
+                            val promptId = json.optString("prompt_id").trim()
+                            if (promptId.isEmpty() || promptId.equals("null", ignoreCase = true)) {
+                                DebugLogger.e(TAG, "Submit response was successful but did not contain a valid prompt_id")
+                                callback(false, null, "Server accepted no identifiable prompt_id; submission result is unknown. Check the server queue before retrying.", ConnectionFailure.NETWORK, emptyList())
+                                return
+                            }
                             DebugLogger.i(TAG, "Prompt submitted (promptId: ${Obfuscator.promptId(promptId)})")
                             runCatching { sh.hnet.comfychair.workflow.NodeTypeIndex.record(promptId, workflowJson) }
                             val skippedOutputs = NodeErrors.describe(json.optJSONObject("node_errors"))
@@ -981,7 +995,7 @@ class ComfyUIClient(
                             callback(true, promptId, null, ConnectionFailure.NONE, skippedOutputs)
                         } catch (e: Exception) {
                             DebugLogger.e(TAG, "Failed to parse submit response: ${Obfuscator.error(e)}")
-                            callback(false, null, "Failed to parse response: ${e.message}", ConnectionFailure.NETWORK, emptyList())
+                            callback(false, null, "Submission result unknown. Check the server queue/history before retrying.", ConnectionFailure.NETWORK, emptyList())
                         }
                     } else {
                         // Handle authentication errors with clean messages (avoid raw HTML)
@@ -1101,6 +1115,92 @@ class ComfyUIClient(
     }
 
     /**
+     * Find a prompt that may have been accepted when the POST response was lost. This only scans
+     * the current running/pending queue and returns an ID when exactly one entry matches both the
+     * persistent client_id and canonical workflow fingerprint.
+     */
+    fun findQueuedPromptId(
+        expectedClientId: String,
+        expectedFingerprint: String,
+        expectedRequestId: String,
+        callback: (promptId: String?, queueReadSucceeded: Boolean) -> Unit
+    ) {
+        fetchQueue { queueJson ->
+            if (queueJson == null) {
+                callback(null, false)
+                return@fetchQueue
+            }
+            val matches = mutableListOf<String>()
+            for (key in listOf("queue_running", "queue_pending")) {
+                val entries = queueJson.optJSONArray(key) ?: continue
+                for (index in 0 until entries.length()) {
+                    val entry = entries.optJSONArray(index) ?: continue
+                    val promptId = entry.optString(1).takeIf { it.isNotBlank() } ?: continue
+                    val prompt = entry.optJSONObject(2) ?: continue
+                    val extra = entry.optJSONObject(3)
+                    val owner = extra?.optString("client_id")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: prompt.optJSONObject("extra_data")?.optString("client_id")
+                    if (owner != expectedClientId || extra?.optString("comfychair_request_id") != expectedRequestId) continue
+                    if (PromptBody.fingerprint(prompt) == expectedFingerprint) matches += promptId
+                }
+            }
+            callback(matches.singleOrNull(), true)
+        }
+    }
+
+    /**
+     * Reconcile a submit whose response was lost against recent ComfyUI history. This is a
+     * bounded fallback after the live queue scan; it only returns an ID for one exact client and
+     * workflow-fingerprint match, never for an ambiguous set of similar jobs.
+     */
+    fun findHistoricalPromptId(
+        expectedClientId: String,
+        expectedFingerprint: String,
+        expectedRequestId: String,
+        callback: (promptId: String?, historyReadSucceeded: Boolean) -> Unit
+    ) {
+        val baseUrl = getBaseUrl() ?: run {
+            callback(null, false)
+            return
+        }
+        val request = Request.Builder().url("$baseUrl/history?max_items=100").get().build()
+        httpClient.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) { callback(null, false) }
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                response.use {
+                    if (!response.isSuccessful) {
+                        callback(null, false)
+                        return
+                    }
+                    val matches = runCatching {
+                        val history = JSONObject(response.body.string())
+                        history.keys().asSequence().mapNotNull { promptId ->
+                            val item = history.optJSONObject(promptId) ?: return@mapNotNull null
+                            val promptField = item.opt("prompt")
+                            val prompt: JSONObject
+                            val extra: JSONObject?
+                            if (promptField is JSONArray) {
+                                prompt = promptField.optJSONObject(1) ?: return@mapNotNull null
+                                extra = promptField.optJSONObject(2)
+                            } else {
+                                prompt = promptField as? JSONObject ?: return@mapNotNull null
+                                extra = item.optJSONObject("extra_data")
+                            }
+                            val owner = extra?.optString("client_id")
+                                ?.takeIf { it.isNotBlank() }
+                                ?: prompt.optJSONObject("extra_data")?.optString("client_id")
+                            if (owner == expectedClientId && extra?.optString("comfychair_request_id") == expectedRequestId && PromptBody.fingerprint(prompt) == expectedFingerprint) promptId else null
+                        }.toList()
+                    }.getOrNull()
+                    if (matches == null) callback(null, false)
+                    else callback(matches.singleOrNull(), true)
+                }
+            }
+        })
+    }
+
+    /**
      * Fetch the current queue status from the ComfyUI server
      * Returns both pending and running queue entries
      *
@@ -1164,7 +1264,8 @@ class ComfyUIClient(
     private fun downloadWithStallDetection(
         call: okhttp3.Call,
         body: ResponseBody,
-        logTag: String
+        logTag: String,
+        maxBytes: Long = MAX_IN_MEMORY_VIDEO_BYTES
     ): DownloadResult {
         val trackedBody = ProgressTrackingResponseBody(body)
         val wasStalled = AtomicBoolean(false)
@@ -1181,14 +1282,40 @@ class ComfyUIClient(
             }
         }
 
+        val tooLarge = AtomicBoolean(false)
         val bytes = try {
-            trackedBody.bytes()
+            val declaredLength = trackedBody.contentLength()
+            if (declaredLength > maxBytes) {
+                tooLarge.set(true)
+                call.cancel()
+                null
+            } else {
+                val initialCapacity = if (declaredLength in 1..(1024L * 1024L)) declaredLength.toInt() else 64 * 1024
+                val output = ByteArrayOutputStream(initialCapacity)
+                trackedBody.byteStream().use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > maxBytes) {
+                            tooLarge.set(true)
+                            call.cancel()
+                            break
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                }
+                if (tooLarge.get()) null else output.toByteArray()
+            }
         } catch (e: IOException) {
             DebugLogger.d(TAG, "$logTag download interrupted: ${Obfuscator.error(e)}")
             null
         } finally {
             watchdogJob.cancel()
         }
+        if (tooLarge.get()) DebugLogger.w(TAG, "$logTag exceeds the in-memory download limit ($maxBytes bytes); use disk-first cache mode")
 
         val failureType = when {
             bytes != null -> ConnectionFailure.NONE
@@ -1245,7 +1372,7 @@ class ComfyUIClient(
             override fun onResponse(call: okhttp3.Call, response: Response) {
                 response.use {
                     if (response.isSuccessful) {
-                        val result = downloadWithStallDetection(call, response.body, "Image")
+                        val result = downloadWithStallDetection(call, response.body, "Image", MAX_IN_MEMORY_IMAGE_BYTES)
                         val bitmap = result.bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                         callback(bitmap, result.failureType)
                     } else {
@@ -1357,10 +1484,76 @@ class ComfyUIClient(
             override fun onResponse(call: okhttp3.Call, response: Response) {
                 response.use {
                     if (response.isSuccessful) {
-                        val result = downloadWithStallDetection(call, response.body, "Video")
+                        val result = downloadWithStallDetection(call, response.body, "Video", MAX_IN_MEMORY_VIDEO_BYTES)
                         callback(result.bytes, result.failureType)
                     } else {
                         callback(null, ConnectionFailure.NETWORK)
+                    }
+                }
+            }
+        })
+    }
+
+    /**
+     * Stream a generated video directly to a temporary file. Disk-first gallery paths use this
+     * instead of materializing the entire video in a ByteArray. The caller owns the temp file and
+     * must atomically move it into its cache after validating the container.
+     */
+    fun fetchVideoToFile(
+        filename: String,
+        subfolder: String = "",
+        type: String = "output",
+        destination: File,
+        callback: (file: File?, failureType: ConnectionFailure) -> Unit
+    ) {
+        val baseUrl = getBaseUrl() ?: run {
+            callback(null, ConnectionFailure.NETWORK)
+            return
+        }
+        val url = "$baseUrl/view?filename=$filename&subfolder=$subfolder&type=$type"
+        val request = Request.Builder().url(url).get().build()
+        val call = transferClient.newCall(request)
+        call.enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) {
+                destination.delete()
+                callback(null, if (call.isCanceled()) ConnectionFailure.STALLED else ConnectionFailure.NETWORK)
+            }
+
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                response.use {
+                    if (!response.isSuccessful) {
+                        destination.delete()
+                        callback(null, ConnectionFailure.NETWORK)
+                        return
+                    }
+                    val tracked = ProgressTrackingResponseBody(response.body)
+                    val stalled = AtomicBoolean(false)
+                    val watchdog = clientScope.launch {
+                        while (isActive) {
+                            delay(STALL_CHECK_INTERVAL_MS)
+                            if (System.currentTimeMillis() - tracked.lastProgressTime > STALL_TIMEOUT_MS) {
+                                stalled.set(true)
+                                call.cancel()
+                                break
+                            }
+                        }
+                    }
+                    val written = runCatching {
+                        destination.parentFile?.mkdirs()
+                        FileOutputStream(destination).use { output ->
+                            tracked.byteStream().use { input -> input.copyTo(output, 128 * 1024) }
+                            output.flush()
+                            output.fd.sync()
+                        }
+                        val expectedLength = tracked.contentLength()
+                        destination.length() > 12L && (expectedLength < 0L || destination.length() == expectedLength)
+                    }.getOrDefault(false)
+                    watchdog.cancel()
+                    if (written && !stalled.get()) {
+                        callback(destination, ConnectionFailure.NONE)
+                    } else {
+                        destination.delete()
+                        callback(null, if (stalled.get()) ConnectionFailure.STALLED else ConnectionFailure.NETWORK)
                     }
                 }
             }

@@ -1,0 +1,8 @@
+v0.9.8.8382.621-h3
+- Prompt optimization uses the template you picked.
+- A submit without a prompt id no longer counts as success.
+- Credential migration verifies the new store before deleting old data.
+- Backups add theme, relay notify, providers and templates.
+- Cache and video downloads write to disk first, so an interruption leaves no broken file.
+- One corrupted server entry no longer hides the list.
+- No key means an unsigned build, never a debug-signed release.

@@ -137,7 +137,7 @@ object PromptOptimizer {
             append("先完整读完下面的工作规则，再处理最后一节的输入。规则优先于你的默认习惯。\n\n")
             append("=== BEGIN RULES ===\n")
             // Rules come from the template library now; the provider field is a legacy fallback.
-            append((rules ?: provider.systemPrompt).trimEnd())
+            append((rules?.takeIf { it.isNotBlank() } ?: provider.systemPrompt).trimEnd())
             append("\n=== END RULES ===\n\n")
             append(languageDirective(provider.english))
             append("\n\n=== 待优化输入 ===\n")
@@ -145,9 +145,9 @@ object PromptOptimizer {
         }
     }
 
-    private fun bodyFor(provider: ApiProvider, input: String, forTest: Boolean): String {
+    internal fun bodyFor(provider: ApiProvider, input: String, forTest: Boolean, rules: String? = null): String {
         val system = systemFor(provider, forTest)
-        val user = userFor(provider, input, forTest)
+        val user = userFor(provider, input, forTest, rules)
         val maxTokens = if (forTest) TEST_MAX_TOKENS else provider.maxTokens
         return when (provider.format) {
             ApiFormat.OPENAI_CHAT -> JSONObject().apply {
@@ -348,12 +348,12 @@ object PromptOptimizer {
         .retryOnConnectionFailure(true)
         .build()
 
-    private fun execute(provider: ApiProvider, apiKey: String, input: String, forTest: Boolean): Outcome {
+    private fun execute(provider: ApiProvider, apiKey: String, input: String, forTest: Boolean, rules: String? = null): Outcome {
         if (provider.baseUrl.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_url))
         if (provider.model.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_model))
 
         val started = System.currentTimeMillis()
-        val body = bodyFor(provider, input, forTest)
+        val body = bodyFor(provider, input, forTest, rules)
         val request = requestFor(provider, apiKey, body)
         val timeout = provider.timeoutSec
 
@@ -416,7 +416,7 @@ object PromptOptimizer {
     }
 
     fun optimize(provider: ApiProvider, apiKey: String, input: String, rules: String? = null): Outcome =
-        execute(provider, apiKey, input, forTest = false)
+        execute(provider, apiKey, input, forTest = false, rules = rules)
 
     /** Cheap round-trip that proves URL + key + model name all work. */
     fun test(provider: ApiProvider, apiKey: String): Outcome =

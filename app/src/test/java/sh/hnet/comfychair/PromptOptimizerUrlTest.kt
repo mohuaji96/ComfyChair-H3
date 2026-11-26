@@ -1,6 +1,8 @@
 package sh.hnet.comfychair
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.json.JSONObject
 import org.junit.Test
 import sh.hnet.comfychair.model.ApiFormat
 import sh.hnet.comfychair.model.ApiProvider
@@ -125,4 +127,18 @@ class PromptOptimizerUrlTest {
     fun `empty url produces no endpoint`() {
         assertEquals("", PromptOptimizer.endpointFor(provider("   ", ApiFormat.OPENAI_CHAT)))
     }
+
+    @Test
+    fun `active template rules are included in the final request body`() {
+        val provider = provider("https://api.example.com", ApiFormat.OPENAI_CHAT)
+            .copy(systemPrompt = "LEGACY PROVIDER RULE")
+        val body = JSONObject(
+            PromptOptimizer.bodyFor(provider, "test input", forTest = false, rules = "ACTIVE TEMPLATE RULE")
+        )
+        val messages = body.getJSONArray("messages")
+        val userContent = messages.getJSONObject(messages.length() - 1).getString("content")
+        assertTrue(userContent.contains("ACTIVE TEMPLATE RULE"))
+        assertTrue(!userContent.contains("LEGACY PROVIDER RULE"))
+    }
+
 }

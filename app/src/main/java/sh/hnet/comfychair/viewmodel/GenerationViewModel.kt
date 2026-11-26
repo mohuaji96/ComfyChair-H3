@@ -625,10 +625,11 @@ class GenerationViewModel : ViewModel() {
         ownerId: String,
         contentType: ContentType = ContentType.IMAGE,
         front: Boolean = false,
+        requestId: String? = null,
         onResult: (success: Boolean, promptId: String?, errorMessage: String?) -> Unit
     ) {
         DebugLogger.i(TAG, "Starting generation (owner: $ownerId, type: $contentType${if (front) ", front" else ""})")
-        comfyUIClient ?: run {
+        val initialClient = comfyUIClient ?: run {
             DebugLogger.e(TAG, "Cannot start generation: client not initialized")
             onResult(false, null, applicationContext?.getString(R.string.error_client_not_initialized) ?: "Client not initialized")
             return
@@ -647,8 +648,8 @@ class GenerationViewModel : ViewModel() {
         // Ensure connection before starting - will try to reconnect if needed
         // Dialog is shown by ensureConnection if reconnection fails
         ConnectionManager.ensureConnection(context) { connected ->
-            if (connected) {
-                submitWorkflow(workflowJson, front, onResult)
+            if (connected && comfyUIClient === initialClient && ConnectionManager.clientOrNull === initialClient) {
+                submitWorkflow(workflowJson, front, ownerId, contentType, requestId, onResult)
             } else {
                 // Connection failed - dialog already shown by ensureConnection
                 // Don't show Toast (no error message) to avoid duplicate notifications
@@ -691,14 +692,21 @@ class GenerationViewModel : ViewModel() {
     private fun submitWorkflow(
         workflowJson: String,
         front: Boolean = false,
+        submittedOwnerId: String,
+        submittedContentType: ContentType,
+        requestId: String?,
         onResult: (success: Boolean, promptId: String?, errorMessage: String?) -> Unit
     ) {
-        val client = comfyUIClient ?: return
+        val client = comfyUIClient ?: run { onResult(false, null, null); return }
 
         DebugLogger.d(TAG, "Submitting workflow to server")
         ConnectionManager.ensureWebSocket()
         val mainHandler = Handler(Looper.getMainLooper())
-        client.submitPrompt(workflowJson, front) { success, promptId, errorMessage, failureType, skippedOutputs ->
+        client.submitPrompt(workflowJson, front, requestId) { success, promptId, errorMessage, failureType, skippedOutputs ->
+            if (client !== comfyUIClient || client !== ConnectionManager.clientOrNull) {
+                mainHandler.post { onResult(false, null, "Server changed; check the original server queue before retrying.") }
+                return@submitPrompt
+            }
             if (success && promptId != null) {
                 DebugLogger.i(TAG, "Workflow submitted successfully (promptId: ${Obfuscator.promptId(promptId)})")
 
@@ -716,8 +724,8 @@ class GenerationViewModel : ViewModel() {
                 }
 
                 // Register job with JobRegistry for queue tracking
-                generationOwnerId?.let { ownerId ->
-                    JobRegistry.registerJob(promptId, ownerId, generationContentType)
+                submittedOwnerId.let { ownerId ->
+                    JobRegistry.registerJob(promptId, ownerId, submittedContentType)
                     // Save JobRegistry state for persistence
                     applicationContext?.let { ctx -> JobRegistry.saveState(ctx) }
                 }
@@ -747,8 +755,8 @@ class GenerationViewModel : ViewModel() {
                         promptId = promptId,
                         progress = 0,
                         maxProgress = 100,
-                        ownerId = generationOwnerId,
-                        contentType = generationContentType,
+                        ownerId = submittedOwnerId,
+                        contentType = submittedContentType,
                         stage = sh.hnet.comfychair.workflow.ProgressStage.PREPARE,
                         startedAt = System.currentTimeMillis()
                     )
@@ -764,6 +772,7 @@ class GenerationViewModel : ViewModel() {
                         applicationContext?.let { ctx ->
                             ConnectionManager.showConnectionAlert(ctx, ConnectionFailure.AUTHENTICATION)
                         }
+                        onResult(false, null, errorMessage)
                     }
                 } else {
                     mainHandler.post { onResult(false, null, errorMessage) }

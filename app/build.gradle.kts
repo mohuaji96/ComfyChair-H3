@@ -13,8 +13,20 @@ plugins {
  * hand. Checking it here turns a typo into a build error instead of a version that has to be
  * skipped afterwards.
  */
-val appVersionCode = 380
-val appVersionName = "0.9.8.8382.620-h3"
+val appVersionCode = 381
+val appVersionName = "0.9.8.8382.621-h3"
+
+// Hoisted out of the android block: verifyReleaseSigning needs the same answer, and a val declared
+// inside android {} is not visible to the task registrations below it.
+val releaseKeyProperties = Properties().apply {
+    val candidates = listOfNotNull(
+        System.getenv("COMFYCHAIR_KEYSTORE_PROPERTIES")?.let { File(it) },
+        rootProject.projectDir.parentFile?.resolve("signing/keystore.properties"),
+        rootProject.projectDir.resolve("signing/keystore.properties")
+    )
+    candidates.firstOrNull { it.exists() }?.reader(Charsets.UTF_8)?.use { load(it) }
+}
+val hasReleaseKey = releaseKeyProperties.getProperty("storeFile") != null
 require(!appVersionCode.toString().contains('4')) {
     "versionCode $appVersionCode 含 4，请跳到下一个数字"
 }
@@ -41,16 +53,6 @@ android {
         localeFilters += listOf("en", "zh")
     }
 
-    val releaseKey = Properties().apply {
-        val candidates = listOfNotNull(
-            System.getenv("COMFYCHAIR_KEYSTORE_PROPERTIES")?.let { File(it) },
-            rootProject.projectDir.parentFile?.resolve("signing/keystore.properties"),
-            rootProject.projectDir.resolve("signing/keystore.properties")
-        )
-        candidates.firstOrNull { it.exists() }?.reader(Charsets.UTF_8)?.use { load(it) }
-    }
-    val hasReleaseKey = releaseKey.getProperty("storeFile") != null
-
     signingConfigs {
         getByName("debug") {
             val bundled = file("../debug-signing/debug.keystore")
@@ -63,10 +65,10 @@ android {
         }
         if (hasReleaseKey) {
             create("releaseKey") {
-                storeFile = file(releaseKey.getProperty("storeFile"))
-                storePassword = releaseKey.getProperty("storePassword")
-                keyAlias = releaseKey.getProperty("keyAlias")
-                keyPassword = releaseKey.getProperty("keyPassword")
+                storeFile = file(releaseKeyProperties.getProperty("storeFile"))
+                storePassword = releaseKeyProperties.getProperty("storePassword")
+                keyAlias = releaseKeyProperties.getProperty("keyAlias")
+                keyPassword = releaseKeyProperties.getProperty("keyPassword")
             }
         }
     }
@@ -78,11 +80,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = if (hasReleaseKey) {
-                signingConfigs.getByName("releaseKey")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Never publish a release variant signed with the debug key. When no release key is
+            // configured the variant remains unsigned; the verification task below blocks the
+            // normal release assemble task unless the caller explicitly opts into unsigned output.
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("releaseKey") else null
         }
     }
     compileOptions {
@@ -112,6 +113,22 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
+}
+
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    doLast {
+        val allowUnsigned = providers.gradleProperty("allowUnsignedRelease").orNull == "true"
+        if (!hasReleaseKey && !allowUnsigned) {
+            throw GradleException(
+                "Release signing key is not configured. Set COMFYCHAIR_KEYSTORE_PROPERTIES, " +
+                    "or pass -PallowUnsignedRelease=true only for an explicitly unsigned test artifact."
+            )
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease") dependsOn(verifyReleaseSigning)
 }
 
 val verifyAssets = tasks.register("verifyAssets") {

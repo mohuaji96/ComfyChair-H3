@@ -23,6 +23,7 @@ import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.util.DebugLogger
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FileInputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.PriorityBlockingQueue
 import kotlin.coroutines.resume
@@ -340,6 +341,34 @@ object MediaCache {
         }
     }
 
+    /** Write a cache entry to a sibling temp file and atomically replace the old entry. */
+    private fun writeAtomically(target: File, write: (FileOutputStream) -> Unit) {
+        val parent = target.parentFile ?: throw IllegalStateException("Cache target has no parent")
+        if (!parent.exists() && !parent.mkdirs()) throw java.io.IOException("Cannot create cache directory")
+        val temp = File.createTempFile("${target.name}.", ".tmp", parent)
+        try {
+            FileOutputStream(temp).use { out ->
+                write(out)
+                out.flush()
+                out.fd.sync()
+            }
+            try {
+                java.nio.file.Files.move(
+                    temp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(
+                    temp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
+    }
+
     /**
      * Write a bitmap to disk cache. Only used when the original bytes were never in hand; a
      * re-encode turns a 400 KB JPEG into a 1.5 MB PNG for no visible gain.
@@ -347,8 +376,8 @@ object MediaCache {
     private fun writeBitmapToDisk(context: Context, key: MediaCacheKey, bitmap: Bitmap) {
         try {
             val file = File(getDiskCacheDir(context), "${key.keyString}.png")
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            writeAtomically(file) { out ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) { "PNG compression failed" }
             }
             file.setLastModified(System.currentTimeMillis())
             LocalCachePolicy.clearTombstone(context, key.keyString)
@@ -366,13 +395,14 @@ object MediaCache {
                 bytes.size > 12 && String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "webp"
                 else -> "png"
             }
+            require(bytes.isNotEmpty()) { "Empty image response" }
             val dir = getDiskCacheDir(context)
-            // Drop whichever container this key held before, so only one copy stays on disk.
+            val file = File(dir, "${key.keyString}.$ext")
+            writeAtomically(file) { out -> out.write(bytes) }
+            // Remove the previous format only after the replacement is complete.
             for (other in IMAGE_EXTS) {
                 if (other != ext) File(dir, "${key.keyString}.$other").delete()
             }
-            val file = File(dir, "${key.keyString}.$ext")
-            file.writeBytes(bytes)
             file.setLastModified(System.currentTimeMillis())
             LocalCachePolicy.clearTombstone(context, key.keyString)
             maybeEnforceDiskLimit(context)
@@ -388,6 +418,11 @@ object MediaCache {
         return try {
             val file = localFile(context, key, true)
             if (file != null) {
+                if (!hasSupportedVideoHeader(file)) {
+                    DebugLogger.w(TAG, "Discarding invalid video cache entry: ${key.keyString}")
+                    file.delete()
+                    return null
+                }
                 touchDiskAccess(file)
                 file.readBytes()
             } else null
@@ -406,17 +441,85 @@ object MediaCache {
      */
     private fun writeVideoToDisk(context: Context, key: MediaCacheKey, bytes: ByteArray) {
         try {
+            require(bytes.size >= 12) { "Video response is too small to be a valid container" }
             val file = videoCacheFile(context, key, isMp4 = !looksLikeWebm(bytes))
-            // The other container may be left over from a previous download of the same key.
+            writeAtomically(file) { out -> out.write(bytes) }
+            // The other container may be left over from a previous download; remove it only
+            // after the new file has been fully written and atomically installed.
             val stale = localFile(context, key, true)
             if (stale != null && stale.absolutePath != file.absolutePath) stale.delete()
-            file.writeBytes(bytes)
             file.setLastModified(System.currentTimeMillis())
             LocalCachePolicy.clearTombstone(context, key.keyString)
             maybeEnforceDiskLimit(context)
         } catch (_: Exception) {
             // Ignore write failures
         }
+    }
+
+    private fun looksLikeWebm(file: File): Boolean = runCatching {
+        FileInputStream(file).use { input ->
+            val header = ByteArray(4)
+            input.read(header) == 4 && header[0] == 0x1A.toByte() && header[1] == 0x45.toByte() &&
+                header[2] == 0xDF.toByte() && header[3] == 0xA3.toByte()
+        }
+    }.getOrDefault(false)
+
+    private fun hasSupportedVideoHeader(file: File): Boolean = runCatching {
+        FileInputStream(file).use { input ->
+            val header = ByteArray(12)
+            if (input.read(header) != 12) return@use false
+            val webm = header[0] == 0x1A.toByte() && header[1] == 0x45.toByte() &&
+                header[2] == 0xDF.toByte() && header[3] == 0xA3.toByte()
+            val mp4 = String(header, 4, 4, Charsets.US_ASCII) == "ftyp"
+            val gif = String(header, 0, 6, Charsets.US_ASCII) in setOf("GIF87a", "GIF89a")
+            webm || mp4 || gif
+        }
+    }.getOrDefault(false)
+
+    /** Download a video into a temp file, validate it, then atomically install it in disk cache. */
+    private suspend fun ensureVideoFileOnDisk(
+        context: Context,
+        key: MediaCacheKey,
+        subfolder: String,
+        type: String,
+        client: ComfyUIClient
+    ): File? {
+        localFile(context, key, true)?.takeIf { hasSupportedVideoHeader(it) }?.let { return it }
+        localFile(context, key, true)?.delete()
+        val temp = File.createTempFile("video_${key.keyString.hashCode()}_", ".part", context.cacheDir)
+        val downloaded = suspendCancellableCoroutine<File?> { continuation ->
+            client.fetchVideoToFile(key.filename, subfolder, type, temp) { file, failure ->
+                if (continuation.isActive) continuation.resume(file) else file?.delete()
+                if (file == null) DebugLogger.w(TAG, "Video file download failed: $failure")
+            }
+        } ?: run { temp.delete(); return null }
+        if (!hasSupportedVideoHeader(downloaded)) {
+            downloaded.delete()
+            DebugLogger.w(TAG, "Downloaded video has an unsupported or incomplete container header")
+            return null
+        }
+        val target = videoCacheFile(context, key, isMp4 = !looksLikeWebm(downloaded))
+        return runCatching {
+            writeAtomically(target) { output -> FileInputStream(downloaded).use { it.copyTo(output, 128 * 1024) } }
+            val stale = localFile(context, key, true)
+            if (stale != null && stale.absolutePath != target.absolutePath) stale.delete()
+            target.setLastModified(System.currentTimeMillis())
+            LocalCachePolicy.clearTombstone(context, key.keyString)
+            maybeEnforceDiskLimit(context)
+            target
+        }.onFailure { DebugLogger.w(TAG, "Atomic video cache install failed: ${it.javaClass.simpleName}") }
+            .getOrNull()
+            .also { downloaded.delete() }
+    }
+
+    /** Ensure a playable cached copy exists and return its size without loading it into RAM. */
+    suspend fun ensureVideoCached(key: MediaCacheKey, subfolder: String, type: String): Long? {
+        val context = applicationContext ?: return null
+        if (isMemoryFirstMode) return fetchVideoBytes(key, subfolder, type)?.size?.toLong()
+        val existing = localFile(context, key, true)?.takeIf { hasSupportedVideoHeader(it) }
+        if (existing != null) return existing.length()
+        val client = comfyUIClient ?: return null
+        return withContext(Dispatchers.IO) { ensureVideoFileOnDisk(context, key, subfolder, type, client)?.length() }
     }
 
     // Cache of video URIs (lightweight - just stores Uri references)
@@ -796,13 +899,12 @@ object MediaCache {
                     }
                 } else {
                     // For video, check if we have cached video and extract thumbnail
-                    if (existsInDiskCache(context, key, true)) {
-                        val videoBytes = readVideoBytesFromDisk(context, key)
-                        if (videoBytes != null) {
+                    localFile(context, key, true)?.let { videoFile ->
+                        if (hasSupportedVideoHeader(videoFile)) {
                             DebugLogger.d(TAG, "fetchBitmap: $keyStr video from disk cache -> HIT")
-                            val (_, thumbnail) = extractVideoData(keyStr, videoBytes, context)
+                            val (_, thumbnail) = extractVideoDataFromFile(videoFile)
                             return@withContext thumbnail
-                        }
+                        } else videoFile.delete()
                     }
                 }
 
@@ -923,18 +1025,9 @@ object MediaCache {
     ): Bitmap? {
         val keyStr = key.keyString
 
-        // Fetch video bytes
-        val videoBytes = suspendCancellableCoroutine<ByteArray?> { continuation ->
-            client.fetchVideo(key.filename, subfolder, type) { bytes, _ ->
-                continuation.resume(bytes)
-            }
-        } ?: return null
-
-        // Write video to disk cache
-        writeVideoToDisk(context, key, videoBytes)
-
-        // Extract and return thumbnail (don't cache dimensions in memory for disk-first)
-        val (_, thumbnail) = extractVideoData(keyStr, videoBytes, context)
+        val videoFile = ensureVideoFileOnDisk(context, key, subfolder, type, client) ?: return null
+        // Extract directly from the cached file; do not read the full video into a ByteArray.
+        val (_, thumbnail) = extractVideoDataFromFile(videoFile)
         return thumbnail
     }
 
@@ -1092,15 +1185,11 @@ object MediaCache {
                     return@withContext null
                 }
 
-                DebugLogger.d(TAG, "fetchVideoBytes: ${key.keyString} -> fetching from server")
-                val bytes = suspendCancellableCoroutine { continuation ->
-                    client.fetchVideo(key.filename, subfolder, type) { videoBytes, _ ->
-                        continuation.resume(videoBytes)
-                    }
-                }
-
-                bytes?.let { writeVideoToDisk(context, key, it) }
-                bytes
+                DebugLogger.d(TAG, "fetchVideoBytes: ${key.keyString} -> streaming to disk cache")
+                val file = ensureVideoFileOnDisk(context, key, subfolder, type, client) ?: return@withContext null
+                // This API promises bytes to share/export callers; the network transfer itself is
+                // streamed to disk first so it does not also hold a second full copy in memory.
+                runCatching { file.readBytes() }.getOrNull()
             }
         }
     }
@@ -1210,19 +1299,32 @@ object MediaCache {
         context: Context
     ): Uri? {
         val keyStr = key.keyString
-
-        // Ensure bytes are cached
-        val bytes = fetchVideoBytes(key, subfolder, type) ?: return null
-
-        // Extract and cache dimensions/thumbnail if not already cached
-        if (!videoDimensionsCache.containsKey(keyStr)) {
-            withContext(Dispatchers.IO) {
-                val (dimensions, thumbnail) = extractVideoData(keyStr, bytes, context)
-                dimensions?.let { videoDimensionsCache[keyStr] = it }
-                thumbnail?.let { bitmapCache.put(keyStr, it, PriorityLruCache.PRIORITY_DEFAULT) }
+        if (isMemoryFirstMode) {
+            // Privacy/memory-first mode intentionally retains the complete video in RAM.
+            val bytes = fetchVideoBytes(key, subfolder, type) ?: return null
+            if (!videoDimensionsCache.containsKey(keyStr)) {
+                withContext(Dispatchers.IO) {
+                    val (dimensions, thumbnail) = extractVideoData(keyStr, bytes, context)
+                    dimensions?.let { videoDimensionsCache[keyStr] = it }
+                    thumbnail?.let { bitmapCache.put(keyStr, it, PriorityLruCache.PRIORITY_DEFAULT) }
+                }
+            }
+        } else {
+            // Disk-first mode streams the network response to disk and extracts metadata from the
+            // cached file, avoiding a full video ByteArray during gallery prefetch/playback.
+            val file = localFile(context, key, true)?.takeIf { hasSupportedVideoHeader(it) }
+                ?: run {
+                    val client = comfyUIClient ?: return null
+                    ensureVideoFileOnDisk(context, key, subfolder, type, client)
+                } ?: return null
+            if (!videoDimensionsCache.containsKey(keyStr)) {
+                withContext(Dispatchers.IO) {
+                    val (dimensions, thumbnail) = extractVideoDataFromFile(file)
+                    dimensions?.let { videoDimensionsCache[keyStr] = it }
+                    thumbnail?.let { bitmapCache.put(keyStr, it, PriorityLruCache.PRIORITY_DEFAULT) }
+                }
             }
         }
-
         return getVideoUri(key, context)
     }
 
@@ -1529,26 +1631,36 @@ object MediaCache {
      * @param context Android context for cache directory access
      */
     private fun extractVideoData(keyStr: String, videoBytes: ByteArray, context: Context): Pair<VideoDimensions?, Bitmap?> {
-        // Use key hash + thread ID for unique temp filename to prevent race conditions
-        @Suppress("DEPRECATION")
-        val uniqueId = "${keyStr.hashCode()}_${Thread.currentThread().id}"
-        val tempFile = File(context.cacheDir, "temp_meta_$uniqueId.mp4")
+        // Memory-first callers still supply bytes; write a temporary file and share the file-based
+        // extractor used by disk-first mode.
+        val tempFile = File.createTempFile("temp_meta_${keyStr.hashCode()}_", ".video", context.cacheDir)
         return try {
-            tempFile.writeBytes(videoBytes)
-            val retriever = MediaMetadataRetriever()
-            retriever.setDataSource(tempFile.absolutePath)
-            val thumbnail = retriever.getFrameAtTime(0)
-            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
-                ?: thumbnail?.width ?: 0
-            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
-                ?: thumbnail?.height ?: 0
-            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-            retriever.release()
-            Pair(VideoDimensions(width, height, durationMs), thumbnail)
+            writeAtomically(tempFile) { out -> out.write(videoBytes) }
+            extractVideoDataFromFile(tempFile)
         } catch (_: Exception) {
             Pair(null, null)
         } finally {
             tempFile.delete()
+        }
+    }
+
+    private fun extractVideoDataFromFile(file: File): Pair<VideoDimensions?, Bitmap?> {
+        return try {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val thumbnail = retriever.getFrameAtTime(0)
+                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+                    ?: thumbnail?.width ?: 0
+                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+                    ?: thumbnail?.height ?: 0
+                val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                Pair(VideoDimensions(width, height, durationMs), thumbnail)
+            } finally {
+                retriever.release()
+            }
+        } catch (_: Exception) {
+            Pair(null, null)
         }
     }
 

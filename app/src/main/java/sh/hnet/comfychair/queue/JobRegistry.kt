@@ -354,12 +354,21 @@ object JobRegistry {
     fun markFailed(promptId: String, failure: JobFailure? = null) {
         val currentState = _queueState.value
         val job = currentState.ownJobs[promptId]
+        // Cleanup is unconditional: a delayed failure event may arrive after ownJobs was pruned.
+        descriptions.remove(promptId)
+        startTimes.remove(promptId)
+        startTimesMillis.remove(promptId)
+        missedSnapshots.remove(promptId)
 
         if (job != null) {
             DebugLogger.w(TAG, "Job failed: ${Obfuscator.promptId(promptId)} (owner: ${job.ownerId})")
 
-            // Remove the failed job
+            // Remove the failed job and all per-job transient metadata.
             val newJobs = currentState.ownJobs - promptId
+            descriptions.remove(promptId)
+            startTimes.remove(promptId)
+            startTimesMillis.remove(promptId)
+            missedSnapshots.remove(promptId)
 
             // Clear executing state if this was the executing job
             val isCurrentlyExecuting = currentState.executingPromptId == promptId
@@ -399,6 +408,7 @@ object JobRegistry {
         descriptions.remove(promptId)
         startTimes.remove(promptId)
         startTimesMillis.remove(promptId)
+        missedSnapshots.remove(promptId)
     }
 
     /**
@@ -608,6 +618,10 @@ object JobRegistry {
     @Synchronized
     fun clear() {
         DebugLogger.i(TAG, "Clearing all job state")
+        descriptions.clear()
+        startTimes.clear()
+        startTimesMillis.clear()
+        missedSnapshots.clear()
         _queueState.value = QueueState()
     }
 

@@ -40,10 +40,29 @@ class PromptBodyTest {
     }
 
     @Test
+    fun repeatedWorkflowHasSameFingerprintButDifferentSubmissionTokens() {
+        val workflow = H3PlanBareMap.of(payload())
+        val first = PromptBody.build(workflow, "client-1", requestId = "request-1")
+        val second = PromptBody.build(workflow, "client-1", requestId = "request-2")
+        assertEquals("request-1", first.getJSONObject("extra_data").getString("comfychair_request_id"))
+        assertEquals("request-2", second.getJSONObject("extra_data").getString("comfychair_request_id"))
+        assertEquals(PromptBody.fingerprint(first.getJSONObject("prompt")), PromptBody.fingerprint(second.getJSONObject("prompt")))
+        assertFalse(first.getJSONObject("prompt").has("extra_data"))
+    }
+
+    @Test
     fun emptySubmissionIsRejectedBeforeTheRequest() {
         val failed = runCatching { PromptBody.build("{\"nodes\":{}}", "c") }
         assertTrue(failed.isFailure)
     }
+
+    @Test
+    fun fingerprintIsIndependentOfObjectKeyOrder() {
+        val first = JSONObject("""{"b":2,"a":{"y":true,"x":1}}""")
+        val second = JSONObject("""{"a":{"x":1,"y":true},"b":2}""")
+        assertEquals(PromptBody.fingerprint(first), PromptBody.fingerprint(second))
+    }
+
 }
 
 /** Minimal helper so the test does not depend on Android-only classes. */

@@ -75,10 +75,9 @@ class CredentialStorage(context: Context) {
         private val codec = SecretCodec(::keystoreKey)
 
         /**
-         * The credentials of EncryptedSharedPreferences moved into this storage, once per install: the entries the
-         * library decrypts, and entries in clear its old fallback may have left in the same file (by their names; the
-         * library's own names are Base64, never one of ours). Whatever can't be read is dropped: those servers ask for
-         * their credentials again. The old file and the library's master key are deleted either way.
+         * Migrate legacy credentials transactionally. The old encrypted preferences and master
+         * key are removed only after every readable credential is present and verified in the
+         * new Keystore-backed store. A failed migration is safe to retry on the next launch.
          */
         @Suppress("DEPRECATION")
         private fun migrateLegacy(context: Context, prefs: SharedPreferences) {
@@ -86,37 +85,85 @@ class CredentialStorage(context: Context) {
             synchronized(this) {
                 if (migrated) return
                 val file = File(context.applicationInfo.dataDir, "shared_prefs/$LEGACY_PREFS_NAME.xml")
-                if (file.exists()) {
-                    val ours: (Map.Entry<String, Any?>) -> Boolean = { (key, value) -> value is String && PREFIXES.any { key.startsWith(it) } }
-                    val decrypted = runCatching {
-                        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-                        EncryptedSharedPreferences.create(
-                            context,
-                            LEGACY_PREFS_NAME,
-                            masterKey,
-                            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                        ).all.filter(ours)
-                    }.onFailure { DebugLogger.w(TAG, "Old credentials unreadable: ${Obfuscator.error(it)}") }.getOrNull().orEmpty()
-                    val inClear = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE).all.filter(ours)
-                    val entries = inClear + decrypted
-                    var moved = 0
-                    val editor = prefs.edit()
-                    entries.forEach { (key, value) ->
-                        if (prefs.contains(key)) return@forEach
-                        codec.seal(key, value as String)?.let {
-                            editor.putString(key, it)
-                            moved++
-                        }
-                    }
-                    editor.commit()
-                    context.deleteSharedPreferences(LEGACY_PREFS_NAME)
-                    runCatching { KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(LEGACY_MASTER_KEY_ALIAS) }
-                    DebugLogger.i(TAG, "Moved $moved of ${entries.size} credential entries from the old storage")
+                if (!file.exists()) {
+                    migrated = true
+                    return
                 }
+
+                val ours: (Map.Entry<String, Any?>) -> Boolean = { (key, value) ->
+                    value is String && PREFIXES.any { key.startsWith(it) }
+                }
+                var encryptedReadSucceeded = false
+                val decrypted = runCatching {
+                    val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+                    EncryptedSharedPreferences.create(
+                        context,
+                        LEGACY_PREFS_NAME,
+                        masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    ).all.filter(ours).also { encryptedReadSucceeded = true }
+                }.onFailure {
+                    DebugLogger.w(TAG, "Old encrypted credentials could not be read; preserving legacy storage: ${Obfuscator.error(it)}")
+                }.getOrNull() ?: emptyMap()
+
+                val inClear = runCatching {
+                    context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE).all.filter(ours)
+                }.getOrElse {
+                    DebugLogger.w(TAG, "Old clear fallback could not be read; preserving legacy storage: ${Obfuscator.error(it)}")
+                    return
+                }
+                val entries = (inClear + decrypted).mapValues { it.value as String }
+                if (!encryptedReadSucceeded) {
+                    // The EncryptedSharedPreferences reader failed. Do not destroy its source file,
+                    // even if the old clear fallback happened to be readable.
+                    return
+                }
+
+                val editor = prefs.edit()
+                val expected = linkedMapOf<String, String>()
+                for ((key, value) in entries) {
+                    if (prefs.contains(key)) {
+                        val existing = prefs.getString(key, null)?.let { codec.open(key, it) }
+                        if (existing != value) {
+                            DebugLogger.w(TAG, "Credential migration conflict for ${key.substringBefore('_')}; preserving legacy storage")
+                            return
+                        }
+                        expected[key] = value
+                        continue
+                    }
+                    val sealed = codec.seal(key, value) ?: run {
+                        DebugLogger.w(TAG, "Credential migration paused: Keystore unavailable; preserving legacy storage")
+                        return
+                    }
+                    editor.putString(key, sealed)
+                    expected[key] = value
+                }
+
+                if (!editor.commit()) {
+                    DebugLogger.w(TAG, "Credential migration commit failed; preserving legacy storage")
+                    return
+                }
+                val verified = expected.all { (key, value) ->
+                    prefs.getString(key, null)?.let { codec.open(key, it) } == value
+                }
+                if (!verified) {
+                    DebugLogger.w(TAG, "Credential migration verification failed; preserving legacy storage")
+                    return
+                }
+
+                if (!context.deleteSharedPreferences(LEGACY_PREFS_NAME)) {
+                    DebugLogger.w(TAG, "Legacy preference cleanup failed; retaining legacy key")
+                    return
+                }
+                runCatching {
+                    KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(LEGACY_MASTER_KEY_ALIAS)
+                }
+                DebugLogger.i(TAG, "Verified migration of ${expected.size} credential entries from legacy storage")
                 migrated = true
             }
         }
+
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
