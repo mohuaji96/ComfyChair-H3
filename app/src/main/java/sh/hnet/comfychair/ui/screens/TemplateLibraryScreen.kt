@@ -132,7 +132,7 @@ fun TemplateLibraryScreen(
             Text(
                 it,
                 fontSize = 11.5.sp,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.padding(top = 12.dp)
             )
         }

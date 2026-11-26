@@ -440,7 +440,7 @@ private fun BackupContentsRow(icon: ImageVector, title: String, supporting: Stri
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics(mergeDescendants = true) {}
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
         Column {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             supporting?.let {

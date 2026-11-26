@@ -34,6 +34,7 @@ import sh.hnet.comfychair.R
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.queue.JobRegistry
+import sh.hnet.comfychair.ui.theme.LocalSemanticColors
 
 /**
  * The queue pill's state only. The drawer itself lives in the generation package
@@ -95,8 +96,8 @@ fun QueueIndicatorPill(
                 // hand, and a button that changes shape once the queue empties reads as another control.
                 else -> {
                     val dot = when {
-                        ownCount > 0 -> MaterialTheme.colorScheme.primary
-                        otherCount > 0 -> Color(0xFFE28822)
+                        ownCount > 0 -> MaterialTheme.colorScheme.onPrimaryContainer
+                        otherCount > 0 -> LocalSemanticColors.current.warning
                         // Nothing running, nothing waiting: the dot is only there to keep the row steady
                         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     }

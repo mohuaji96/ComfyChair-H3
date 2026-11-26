@@ -31,7 +31,7 @@ fun ExpandableTooltip(
         Text(
             text = tooltip ?: "",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp)
         )
     }

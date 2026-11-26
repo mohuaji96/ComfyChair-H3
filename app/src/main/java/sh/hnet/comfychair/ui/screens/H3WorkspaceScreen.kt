@@ -7,8 +7,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -21,7 +23,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,6 +39,7 @@ import sh.hnet.comfychair.ui.components.GenerationProgressBar
 import sh.hnet.comfychair.ui.components.ServerStatusLamp
 import sh.hnet.comfychair.workflow.H3WorkflowAdapter
 import sh.hnet.comfychair.workflow.ProgressStage
+import sh.hnet.comfychair.ui.theme.LocalSemanticColors
 
 /**
  * A workflow the adapter recognises as H3 plus the modes it can actually run.
@@ -255,14 +261,44 @@ fun H3WorkspaceScreen(
             }
         }
 
-        TabRow(selectedTabIndex = tabIndex) {
+        // 胶囊分段：选中实心主色，未选中性灰字，整体收在一层浅容器里。
+        // 原来整段下划线在两个标题之间几乎没有区分度，05/06/08 下更是两个标题同一个颜色。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(percent = 50))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
             tabs.forEachIndexed { index, item ->
-                Tab(
-                    selected = index == tabIndex,
-                    onClick = { tabIndex = index },
-                    modifier = Modifier.heightIn(min = 40.dp),
-                    text = { Text(stringResource(item.labelRes), style = MaterialTheme.typography.labelLarge) }
-                )
+                val selected = index == tabIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 40.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                        )
+                        .selectable(
+                            selected = selected,
+                            role = Role.Tab,
+                            onClick = { tabIndex = index }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(item.labelRes),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -315,7 +351,7 @@ fun H3WorkspaceScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (entry.id == selected?.id) {
-                                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                                        Text("✓", color = MaterialTheme.colorScheme.onPrimaryContainer)
                                     }
                                 }
                                 val subtitle = when {
@@ -353,7 +389,7 @@ private fun BoundWorkflowRow(
             .clickable(onClick = onSwitch),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
+        // 不用 tonalElevation：它按 surfaceTint（= 品牌色）给表面染色，五套主题下会变成一条彩色带。
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
@@ -365,7 +401,7 @@ private fun BoundWorkflowRow(
                     Box(
                         Modifier
                             .size(7.dp)
-                            .background(Color(0xFF2E7D32), CircleShape)
+                            .background(LocalSemanticColors.current.success, CircleShape)
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
@@ -397,13 +433,13 @@ private fun BoundWorkflowRow(
                         stringResource(R.string.h3_switch),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(Modifier.width(2.dp))
                     Text(
                         "▾",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

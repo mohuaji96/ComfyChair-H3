@@ -101,6 +101,7 @@ import sh.hnet.comfychair.ui.screens.WhatsNewSettingsScreen
 import sh.hnet.comfychair.ui.screens.WorkflowDetailPage
 import sh.hnet.comfychair.ui.screens.ServerImportScreen
 import sh.hnet.comfychair.ui.screens.WorkflowsSettingsScreen
+import sh.hnet.comfychair.ui.screens.settings.AppearanceSettingsPage
 import sh.hnet.comfychair.ui.screens.settings.BackupSettingsPage
 import sh.hnet.comfychair.ui.screens.settings.CacheSettingsPage
 import sh.hnet.comfychair.ui.screens.settings.ConnectionSettingsPage
@@ -525,6 +526,7 @@ fun MainNavHost(
                                 }
                                 // The app's and the data's topic pages
                                 val back: () -> Unit = { navController.popBackStack() }
+                                composable(SettingsRoute.Appearance.route) { AppearanceSettingsPage(back) }
                                 composable(SettingsRoute.Connection.route) { ConnectionSettingsPage(settingsViewModel, back) }
                                 composable(SettingsRoute.Generation.route) { GenerationSettingsPage(settingsViewModel, back) }
                                 composable(SettingsRoute.MediaPrivacy.route) { MediaPrivacySettingsPage(settingsViewModel, back) }

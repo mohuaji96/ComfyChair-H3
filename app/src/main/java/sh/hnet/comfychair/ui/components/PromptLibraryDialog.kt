@@ -276,7 +276,7 @@ private fun PresetRow(
                     Icon(
                         if (preset.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarOutline,
                         contentDescription = stringResource(R.string.prompt_preset_toggle_favorite),
-                        tint = if (preset.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (preset.isFavorite) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },

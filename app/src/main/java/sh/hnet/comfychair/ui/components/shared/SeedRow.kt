@@ -68,7 +68,7 @@ fun SeedRow(
             border = BorderStroke(
                 1.dp,
                 if (randomSeed) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.outline
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
             Icon(
@@ -98,7 +98,7 @@ fun SeedRow(
             border = BorderStroke(
                 1.dp,
                 if (randomSeed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                else MaterialTheme.colorScheme.outline
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
             Icon(

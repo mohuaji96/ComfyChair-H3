@@ -69,7 +69,7 @@ fun TooltipLabel(
                 contentDescription = stringResource(R.string.content_description_show_help),
                 modifier = Modifier.size(16.dp),
                 tint = if (expanded) {
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 }

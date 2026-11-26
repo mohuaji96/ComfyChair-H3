@@ -399,4 +399,15 @@
     <string name="h3_interp_toggle">插帧增强</string>
     <string name="h3_presets_title">参数预设</string>
     <string name="h3_second_pass_note">保留二采模型、Latent 放大模型及原有工作流参数映射。</string>
+    <string name="title_settings_appearance">外观与主题</string>
+    <string name="desc_settings_appearance">切换应用全局配色主题</string>
+    <string name="desc_settings_appearance_note">全局采用 Material 3 Expressive 规范，五套浅色主题即时生效并持久保存。</string>
+    <string name="theme_dynamic_name">跟随系统壁纸</string>
+    <string name="theme_dynamic_note">取系统壁纸配色，不计入五套固定主题</string>
+    <string name="theme_fixed_note">固定浅色主题，不受壁纸影响</string>
+    <string name="theme_label_background">背景</string>
+    <string name="theme_label_container">浅底</string>
+    <string name="theme_label_primary">主动作</string>
+    <string name="theme_preview_button">按钮</string>
+    <string name="theme_preview_selected">选中</string>
 </resources>

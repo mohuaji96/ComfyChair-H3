@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
@@ -35,6 +36,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
@@ -58,6 +60,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.ui.theme.LocalAppElevations
 import sh.hnet.comfychair.ui.components.shared.ModelDropdown
 import sh.hnet.comfychair.ui.components.shared.ChoiceMenu
 import androidx.compose.animation.core.animateFloatAsState
@@ -1173,7 +1176,7 @@ fun H3StudioContent(
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = when {
-                                draft.continuationInject -> MaterialTheme.colorScheme.primary
+                                draft.continuationInject -> MaterialTheme.colorScheme.onPrimaryContainer
                                 mismatch -> MaterialTheme.colorScheme.error
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -1187,7 +1190,14 @@ fun H3StudioContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(112.dp)
-                                .padding(bottom = 4.dp)
+                                .padding(bottom = 4.dp),
+                            // 浅灰填充 + 焦点主色边界（任务书 §6 提示词编辑框那一行）
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            )
                         )
                         IconButton(
                             onClick = { showFullscreenPrompt = true },
@@ -2261,7 +2271,12 @@ fun H3StudioContent(
 
         // 底部固定条：只剩摘要和生成。切换模板与编辑结构都是低频动作，已移入高级设置，
         // 但模板名必须留在这里——按下生成的那一刻要看得见这条命是哪个模板跑的。
-        Surface(tonalElevation = 3.dp) {
+        // 白面 + 一道轻阴影分界。原来用 tonalElevation，等于把品牌色染进这条底栏，
+        // 05/06/08 下会看到一条米色、蓝色、紫色带子，跟导航之间断层。
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = LocalAppElevations.current.floating
+        ) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 // Feedback sits next to the button that produced it: a failed preflight used to
                 // appear at the top of the page, which a scrolled-down user never saw.
@@ -2273,7 +2288,7 @@ fun H3StudioContent(
                     color = if (MESSAGE_ERROR_WORDS.any { message.contains(it) }) {
                         MaterialTheme.colorScheme.error
                     } else {
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme.colorScheme.onPrimaryContainer
                     },
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
@@ -2353,7 +2368,7 @@ fun H3StudioContent(
                             style = MaterialTheme.typography.labelSmall,
                             color = if (failure != null || (spec.warnings.isNotEmpty() && !ownJobExecuting &&
                                 queueState.totalQueueSize == 0)
-                            ) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            ) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -3007,16 +3022,29 @@ private fun H3Card(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        // 单层分离：只用 1.5dp 轻阴影，不再同时压一条灰描边——两者叠在一起边缘会显脏。
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = LocalAppElevations.current.card,
+            pressedElevation = LocalAppElevations.current.card,
+            focusedElevation = LocalAppElevations.current.card,
+            hoveredElevation = LocalAppElevations.current.card,
+            draggedElevation = LocalAppElevations.current.card
+        )
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                     if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 trailing?.invoke()
@@ -3218,7 +3246,7 @@ private fun H3PanelRow(
             Text(
                 value,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -3276,10 +3304,13 @@ private fun H3PanelTile(
             )
         }
         Spacer(Modifier.height(3.dp))
+        // 关键参数值按 20sp 拉一级：四宫格里最先被看的就是这四个数。
         Text(
             value,
-            style = MaterialTheme.typography.titleMedium,
+            fontSize = 20.sp,
+            lineHeight = 24.sp,
             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -3322,10 +3353,11 @@ private fun H3Group(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
+            // 卡内一层：比白卡略深一档即可，不再叠描边；否则「卡 + 组 + 边」三层边线挤在一起。
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -3877,14 +3909,29 @@ private fun H3FrameSlot(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 10f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                 .clickable(enabled = enabled) { if (file.isBlank()) onPick() },
             contentAlignment = Alignment.Center
         ) {
-            if (file.isBlank()) Text("+ " + stringResource(R.string.h3_choose), style = MaterialTheme.typography.labelMedium)
-            else H3LocalOrRemotePreview(workflowId, file, revision, Modifier.fillMaxSize(), ContentScale.Crop)
+            if (file.isBlank()) {
+                // 空态给一个看得懂的落点：图形 + 文字，而不是一个灰块加「+ 选择」。
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Outlined.AddPhotoAlternate,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.h3_choose),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else H3LocalOrRemotePreview(workflowId, file, revision, Modifier.fillMaxSize(), ContentScale.Crop)
         }
     }
 }
@@ -3948,6 +3995,7 @@ private fun H3RefTile(
         ) {
             Text(
                 stringResource(R.string.h3_last_frame_short), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
             )
         }
@@ -3961,28 +4009,47 @@ private fun H3RefAddTile(
     busy: Boolean = false,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     // Three states, three labels. "上限" used to double as "busy", which told the user they had
     // run out of slots while six were still free.
-    val label = when {
-        busy -> "…"
-        enabled -> "+"
-        else -> stringResource(R.string.h3_cap)
-    }
     Box(
         modifier
             .aspectRatio(1f)
             .clip(shape)
+            .background(if (enabled) MaterialTheme.colorScheme.surfaceContainerLow else Color.Transparent)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .clickable(enabled = enabled && !busy, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleLarge,
-            color = if (busy) MaterialTheme.colorScheme.onSurfaceVariant
-            else MaterialTheme.colorScheme.onSurface
-        )
+        // 与首尾帧空态同一套落点：图形在上、文字在下，空位不再只是一个「+」。
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            when {
+                busy -> Text(
+                    "…",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                enabled -> Icon(
+                    Icons.Outlined.AddPhotoAlternate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                    modifier = Modifier.size(22.dp)
+                )
+                else -> Text(
+                    stringResource(R.string.h3_cap),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (enabled) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    stringResource(R.string.h3_choose),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -4018,7 +4085,7 @@ private fun H3AudioSection(
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, softWrap = false,
                 color = if (files.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(if (expanded) "  \u25be" else "  \u25b8", style = MaterialTheme.typography.labelSmall)
         }
@@ -4029,7 +4096,7 @@ private fun H3AudioSection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("A${index + 1}", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(Modifier.width(8.dp))
                     Text(file, style = MaterialTheme.typography.labelSmall, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -4076,7 +4143,7 @@ private fun H3RefEmptyTile(enabled: Boolean, onClick: () -> Unit) {
             Text(
                 "+",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(Modifier.height(2.dp))
             Text(
@@ -4390,7 +4457,7 @@ private fun H3ContinuationSlot(
             Text(
                 stringResource(R.string.h3_tail_link),
                 style = MaterialTheme.typography.labelMedium,
-                color = if (attached) MaterialTheme.colorScheme.primary
+                color = if (attached) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurface
             )
             // Only when something is attached: colour already says "empty", and a permanent
@@ -4400,7 +4467,7 @@ private fun H3ContinuationSlot(
                 Text(
                     stringResource(R.string.h3_tail_attached_badge),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
@@ -4562,7 +4629,7 @@ private fun H3ContinuationSlot(
         if (auto && queuedCount > 0) Text(
             stringResource(R.string.h3_relay_queued_n, queuedCount),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.padding(top = 4.dp)
         )
     }

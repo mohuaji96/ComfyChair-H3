@@ -1,0 +1,8 @@
+v0.9.8.8382.619-h3
+- Material 3 Expressive and Soft UI adopted across app
+- 5 light themes: Obsidian White, Champagne, Glacier Blue, Silver, Purple
+- Appearance & Themes in Settings with live preview & instant switch
+- Disabled dynamic wallpaper overrides to keep pure light surfaces
+- Standardized shapes & subtle elevations with refined card corners
+- Enhanced bottom bar floating feel with pure surface & divider line
+- Preserved all existing A2 layouts, workflows & data bindings

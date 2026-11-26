@@ -96,7 +96,7 @@ fun HideResultButton(onHide: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
         modifier = modifier
     ) {
         IconButton(onClick = onHide) {

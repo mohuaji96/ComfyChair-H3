@@ -449,7 +449,7 @@ private fun SectionHeader(title: String, expanded: Boolean, onCollapse: (() -> U
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.weight(1f)
         )
         if (onCollapse != null && expanded) {

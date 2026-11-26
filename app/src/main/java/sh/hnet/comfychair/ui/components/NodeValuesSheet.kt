@@ -225,7 +225,7 @@ private fun LinkedValues(values: List<LinkedValue>, onOpenNode: (String) -> Unit
         Text(
             stringResource(R.string.title_node_values_linked),
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
@@ -258,7 +258,7 @@ private fun LinkedInputs(inputs: List<Pair<String, String>>, fieldNames: Map<Str
         Text(
             stringResource(R.string.title_from_generation_screen),
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
@@ -388,7 +388,7 @@ private fun InputEditor(
                 Text(
                     stringResource(R.string.label_value_changed, original),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)

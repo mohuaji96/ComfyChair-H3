@@ -112,7 +112,7 @@ fun H3SamplingPreviewStrip(
         val foldLabel = if (visible) stringResource(R.string.smp_fold_visible, stepText)
         else stringResource(R.string.smp_fold_hidden)
         Surface(
-            tonalElevation = 2.dp,
+            shadowElevation = 2.dp,
             shape = RoundedCornerShape(10.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier
@@ -141,7 +141,7 @@ fun H3SamplingPreviewStrip(
     }
 
     Surface(
-        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -170,7 +170,7 @@ fun H3SamplingPreviewStrip(
             }
             if (onTogglePreview != null) {
                 IconButton(onClick = { onTogglePreview(false) }) {
-                    EyeGlyph(open = true, tint = MaterialTheme.colorScheme.primary)
+                    EyeGlyph(open = true, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
             IconButton(onClick = { collapsed = true }) {

@@ -218,7 +218,7 @@ fun SettingsNavRow(
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -243,7 +243,7 @@ fun SettingsButtonRow(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                contentColor = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                contentColor = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer
             ),
             border = BorderStroke(
                 1.dp,
@@ -324,7 +324,7 @@ fun SettingsItemRow(
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -413,7 +413,7 @@ fun SettingsSelectField(
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -460,7 +460,7 @@ fun StatusPill(text: String, tone: StatusTone) {
     val dot = when (tone) {
         StatusTone.OK -> MaterialTheme.colorScheme.tertiary
         StatusTone.WARN -> MaterialTheme.colorScheme.secondary
-        StatusTone.OFF -> MaterialTheme.colorScheme.outline
+        StatusTone.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
         StatusTone.BAD -> MaterialTheme.colorScheme.error
     }
     Surface(

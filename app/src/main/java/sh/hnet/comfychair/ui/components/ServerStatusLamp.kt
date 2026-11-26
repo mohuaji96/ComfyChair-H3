@@ -32,6 +32,7 @@ import sh.hnet.comfychair.R
 import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.connection.ConnectionState
 import sh.hnet.comfychair.storage.AppSettings
+import sh.hnet.comfychair.ui.theme.LocalSemanticColors
 
 /**
  * One lamp per page, always in the same place: left of the page's own icons.
@@ -40,9 +41,7 @@ import sh.hnet.comfychair.storage.AppSettings
  * would push the title. Yellow and red add one short phrase because "still reading" and "offline"
  * are the two states where doing nothing looks like a bug.
  */
-private val LAMP_READY = Color(0xFF4A8C5A)
-private val LAMP_LOADING = Color(0xFFCE962E)
-private val LAMP_OFFLINE = Color(0xFFC14A3C)
+// 灯色改由跨主题语义 Token 提供（任务书 §4）：成功 / 警告 / 错误，不随品牌主色漂移。
 
 private enum class LampState { READY, LOADING, OFFLINE, PROBLEM }
 
@@ -67,11 +66,12 @@ fun ServerStatusLamp(modifier: Modifier = Modifier) {
         connecting -> LampState.LOADING
         else -> LampState.OFFLINE
     }
+    val semantic = LocalSemanticColors.current
     val color = when (state) {
-        LampState.READY -> LAMP_READY
-        LampState.LOADING -> LAMP_LOADING
-        LampState.OFFLINE -> LAMP_OFFLINE
-        LampState.PROBLEM -> LAMP_OFFLINE
+        LampState.READY -> semantic.success
+        LampState.LOADING -> semantic.warning
+        LampState.OFFLINE -> semantic.error
+        LampState.PROBLEM -> semantic.error
     }
     val label = when (state) {
         LampState.READY -> null

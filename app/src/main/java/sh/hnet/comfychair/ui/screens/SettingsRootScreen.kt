@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Polyline
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -31,6 +32,8 @@ import sh.hnet.comfychair.connection.ConnectionManager
 import sh.hnet.comfychair.navigation.SettingsRoute
 import sh.hnet.comfychair.storage.MediaStorageMode
 import sh.hnet.comfychair.storage.ServerStorage
+import sh.hnet.comfychair.storage.AppSettings
+import sh.hnet.comfychair.ui.theme.AppTheme
 import sh.hnet.comfychair.ui.components.settings.SettingsGroup
 import sh.hnet.comfychair.ui.components.settings.SettingsNavigationRow
 import sh.hnet.comfychair.ui.components.settings.SettingsPage
@@ -82,7 +85,23 @@ fun SettingsRootScreen(
                 }
             }
         }
+        val liveThemeId by AppSettings.themeFlow.collectAsState()
+        val themeId = liveThemeId ?: remember { AppSettings.getThemeId(context) }
+        val isZh = context.resources.configuration.locales[0].language.startsWith("zh")
+        val themeSummary = if (AppTheme.isDynamic(themeId)) {
+            stringResource(R.string.theme_dynamic_name)
+        } else {
+            val theme = AppTheme.fromId(themeId)
+            "${theme.number} " + if (isZh) theme.displayNameZh else theme.displayNameEn
+        }
+
         SettingsGroup(stringResource(R.string.title_settings_group_app)) {
+            row { shapes ->
+                SettingsNavigationRow(
+                    shapes, Icons.Rounded.Palette, stringResource(R.string.title_settings_appearance),
+                    supporting = themeSummary
+                ) { onOpenPage(SettingsRoute.Appearance) }
+            }
             row { shapes ->
                 SettingsNavigationRow(
                     shapes, Icons.Rounded.Wifi, stringResource(R.string.title_settings_connection),

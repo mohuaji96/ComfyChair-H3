@@ -52,6 +52,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
@@ -517,6 +518,13 @@ fun GalleryScreen(
                         // user cannot see is not a surprise worth keeping.
                         if (uiState.isSelectionMode) galleryViewModel.clearSelection()
                     },
+                    // 默认选中底走 secondaryContainer，那是中性灰，换主题看不出来。
+                    // 显式绑到主题浅底与深色前景，五套主题下选中的那个一眼可辨。
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
                     label = {
                         Text(
                             stringResource(option.labelRes),
@@ -966,7 +974,12 @@ private fun CacheManagementSheet(
                                 text = if (gb <= 0L) stringResource(R.string.cache_limit_unlimited)
                                 else "${gb}GB"
                             )
-                        }
+                        },
+                        // 与图库顶部分类筛选同一套：选中跟随主题色，不再落到中性灰。
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     )
                 }
             }

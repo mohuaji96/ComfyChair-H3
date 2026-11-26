@@ -9,6 +9,8 @@ import sh.hnet.comfychair.model.ContentProfile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +41,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +91,7 @@ import sh.hnet.comfychair.viewmodel.PromptOptimizerViewModel
 import sh.hnet.comfychair.viewmodel.TagComposerViewModel
 import sh.hnet.comfychair.workflow.TagComposerEngine
 import sh.hnet.comfychair.workflow.TagPick
+import sh.hnet.comfychair.ui.theme.LocalSemanticColors
 
 private data class SlotRef(val categoryId: String, val slotId: String)
 
@@ -268,23 +272,36 @@ fun TagComposerScreen(onOpenStory: () -> Unit = {}, viewModel: TagComposerViewMo
                 }
 
                 sections.forEach { (group, cats) ->
+                    // 一组圈进一层浅底容器：字段行、顺序、折叠与点击语义全部原样，
+                    // 只是让「人物 / 身体」这些段落在页面上有个归属边界（任务书 §2 的层级）。
                     item(key = "section-" + group.id) {
-                        SectionHeader(
-                            label = group.label,
-                            locked = group.id in viewModel.lockedGroups,
-                            onToggleLock = { viewModel.toggleSectionLock(group.id) },
-                            onReroll = { viewModel.randomizeSection(group.id) }
-                        )
-                    }
-                    items(cats, key = { it.id }) { category ->
-                        CategoryRow(
-                            category = category,
-                            picks = picks,
-                            skipped = category.id in skipped,
-                            held = group.id in viewModel.lockedGroups,
-                            onLabelClick = { viewModel.randomizeCategory(category.id) },
-                            onSlotClick = { slot -> editing = SlotRef(category.id, slot.id) }
-                        )
+                        // 分组用平面白底、20dp 圆角、无投影、无描边：与页面的浅灰背景拉出表面，
+                        // 又不至于每段都变成一张带边线的卡片。
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            SectionHeader(
+                                label = group.label,
+                                locked = group.id in viewModel.lockedGroups,
+                                onToggleLock = { viewModel.toggleSectionLock(group.id) },
+                                onReroll = { viewModel.randomizeSection(group.id) }
+                            )
+                            cats.forEach { category ->
+                                CategoryRow(
+                                    category = category,
+                                    picks = picks,
+                                    skipped = category.id in skipped,
+                                    held = group.id in viewModel.lockedGroups,
+                                    onLabelClick = { viewModel.randomizeCategory(category.id) },
+                                    onSlotClick = { slot -> editing = SlotRef(category.id, slot.id) }
+                                )
+                            }
+                        }
                     }
                 }
                 if (ungrouped.isNotEmpty()) {
@@ -425,59 +442,77 @@ private fun ComposerHeader(
     onStory: () -> Unit,
     onStatusLamp: @Composable () -> Unit
 ) {
-    Row(
+    // Put actions on the title row and let the metadata use the full width below it.
+    // This prevents the version/count line from breaking into a narrow multi-line stack.
+    Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.tc_title), style = MaterialTheme.typography.titleMedium)
-            // 两个组合页的顶端写成同一副样子：数量、版本一行，操作提示一行。
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.tc_header_counts, groupCount, tagCount) +
-                    if (version.isBlank()) "" else " · $version",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                stringResource(R.string.tc_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                softWrap = false
             )
-            Text(
-                stringResource(R.string.tc_header_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        TextButton(onClick = onStory) { Text(stringResource(R.string.tc_story)) }
-        // Queue pill, same as the generation tabs: a run started elsewhere stays watchable here.
-        sh.hnet.comfychair.ui.components.QueueIndicatorPill(modifier = Modifier.padding(horizontal = 4.dp))
-        onStatusLamp()
-        val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
-        IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
-            Icon(
-                androidx.compose.material.icons.Icons.Outlined.Settings,
-                contentDescription = stringResource(R.string.tc_settings)
-            )
-        }
-        Box {
-            IconButton(onClick = { onMenuOpenChange(true) }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.tc_library_menu))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.tc_import_merge)) },
-                    onClick = { onMenuOpenChange(false); onImportMerge() }
+            TextButton(
+                onClick = onStory,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 5.dp),
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.tc_import_replace)) },
-                    onClick = { onMenuOpenChange(false); onImportReplace() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.tc_export_library)) },
-                    onClick = { onMenuOpenChange(false); onExport() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.tc_reset_library)) },
-                    onClick = { onMenuOpenChange(false); onReset() }
+            ) { Text(stringResource(R.string.tc_story), style = MaterialTheme.typography.labelLarge, maxLines = 1) }
+            sh.hnet.comfychair.ui.components.QueueIndicatorPill(modifier = Modifier.padding(horizontal = 2.dp))
+            onStatusLamp()
+            val navigate = sh.hnet.comfychair.ui.navigation.LocalScreenNavigator.current
+            IconButton(onClick = { navigate(sh.hnet.comfychair.navigation.MainRoute.Settings) }) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Outlined.Settings,
+                    contentDescription = stringResource(R.string.tc_settings)
                 )
             }
+            Box {
+                IconButton(onClick = { onMenuOpenChange(true) }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.tc_library_menu))
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tc_import_merge)) },
+                        onClick = { onMenuOpenChange(false); onImportMerge() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tc_import_replace)) },
+                        onClick = { onMenuOpenChange(false); onImportReplace() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tc_export_library)) },
+                        onClick = { onMenuOpenChange(false); onExport() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tc_reset_library)) },
+                        onClick = { onMenuOpenChange(false); onReset() }
+                    )
+                }
+            }
         }
+        Text(
+            stringResource(R.string.tc_header_counts, groupCount, tagCount) +
+                if (version.isBlank()) "" else " · $version",
+            style = MaterialTheme.typography.labelSmall,
+            lineHeight = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            stringResource(R.string.tc_header_hint),
+            style = MaterialTheme.typography.labelSmall,
+            lineHeight = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -507,9 +542,7 @@ private fun ModeSwitch(mode: String, sfw: Boolean, onSelect: (String) -> Unit) {
 }
 
 // 淡绿是「当前在 SFW 档」的唯一标识，两处共用：单人/多人选项框与模式药丸。
-// 不跟着主题色走——主题一换就看不出档位了，这个标识的意义就没了。
-private val SfwFill = Color(0xFFDCEFDF)
-private val SfwInk = Color(0xFF2F6B46)
+// 取语义 Token 的「安全/成功」那一组，既不看品牌主色，也不会随主题换掉档位含义。
 
 /**
  * Three switches, one of them a pair.
@@ -539,24 +572,25 @@ private fun GuardPill(
     )
     val ageLabel = if (sfw) "SFW" else stringResource(R.string.tc_guard_adult)
     val state = (if (sfw) "" else "$strictLabel · ") + "$repeatLabel · " + ageLabel
+    val semantic = LocalSemanticColors.current
     Box {
         Surface(
             color = when {
-                sfw -> SfwFill
+                sfw -> semantic.successContainer
                 open -> MaterialTheme.colorScheme.secondaryContainer
                 else -> MaterialTheme.colorScheme.surface
             },
             shape = MaterialTheme.shapes.small,
             border = BorderStroke(
                 1.dp,
-                if (sfw) SfwInk.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant
+                if (sfw) semantic.success.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant
             ),
             modifier = Modifier.clickable { open = true }
         ) {
             Text(
                 text = "$state ▾",
                 style = MaterialTheme.typography.labelMedium,
-                color = if (sfw) SfwInk else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (sfw) semantic.success else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
             )
         }
@@ -624,7 +658,7 @@ private fun GuardRow(
                 style = MaterialTheme.typography.bodyMedium,
                 // The unlit half of the mode pair is still tappable, so it is dimmed rather than
                 // greyed out like a disabled control.
-                color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant
                 else MaterialTheme.colorScheme.onSurface
             )
             Text(
@@ -775,7 +809,7 @@ private fun SfwIntroDialog(onDismiss: () -> Unit) {
 @Composable
 private fun SfwIntroLine(head: String, body: String) {
     Row(verticalAlignment = Alignment.Top) {
-        Text("•", style = MaterialTheme.typography.bodySmall, color = SfwInk)
+        Text("•", style = MaterialTheme.typography.bodySmall, color = LocalSemanticColors.current.success)
         Spacer(Modifier.width(6.dp))
         Column {
             Text(
@@ -854,23 +888,29 @@ private fun ModeButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val semantic = LocalSemanticColors.current
     Surface(
         color = when {
-            active && sfw -> SfwFill
-            active -> MaterialTheme.colorScheme.secondaryContainer
-            sfw -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-            else -> MaterialTheme.colorScheme.surfaceVariant
+            active && sfw -> semantic.successContainer
+            active -> MaterialTheme.colorScheme.primaryContainer
+            sfw -> MaterialTheme.colorScheme.surfaceContainerLow
+            else -> MaterialTheme.colorScheme.surfaceContainerLow
         },
         shape = MaterialTheme.shapes.small,
-        border = if (active && sfw) BorderStroke(1.dp, SfwInk.copy(alpha = 0.35f)) else null,
+        border = when {
+            active && sfw -> BorderStroke(1.dp, semantic.success.copy(alpha = 0.35f))
+            active -> BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+            else -> BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant)
+        },
         modifier = modifier.clickable(onClick = onClick)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
             color = when {
-                active && sfw -> SfwInk
-                active -> MaterialTheme.colorScheme.onSecondaryContainer
+                active && sfw -> semantic.success
+                active -> MaterialTheme.colorScheme.onPrimaryContainer
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             },
             textAlign = TextAlign.Center,
@@ -901,23 +941,25 @@ private fun SectionHeader(
         Text(
             if (locked) "▪" else "▸",
             style = MaterialTheme.typography.labelMedium,
-            color = if (locked) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outline
+            color = if (locked) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.width(5.dp))
+        // 组标题加一级字重（12sp SemiBold），与下面的字段行拉开层次；字距收窄，中文不需要撑开。
         Text(
             label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 1.2.sp,
-            color = if (locked) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.4.sp,
+            color = if (locked) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSurface
         )
         Spacer(Modifier.weight(1f))
         Text(
             stringResource(if (locked) R.string.tc_locked else R.string.tc_lock),
             style = MaterialTheme.typography.labelSmall,
-            color = if (locked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            color = if (locked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onToggleLock)
@@ -927,7 +969,7 @@ private fun SectionHeader(
         Text(
             stringResource(R.string.tc_reroll_section),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onReroll)
@@ -956,7 +998,7 @@ private fun CategoryRow(
         Text(
             text = category.label,
             style = MaterialTheme.typography.labelLarge,
-            color = if (skipped) MaterialTheme.colorScheme.outline
+            color = if (skipped) LocalSemanticColors.current.ignored
             else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -975,7 +1017,7 @@ private fun CategoryRow(
                  Text(
                      stringResource(R.string.tc_skipped),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = LocalSemanticColors.current.ignored,
                     modifier = Modifier.padding(top = 5.dp)
                 )
             } else {
@@ -1002,25 +1044,28 @@ private fun SlotPill(pick: TagPick, label: String?, held: Boolean = false, onCli
         pick.value.isEmpty() -> stringResource(R.string.tc_unselected)
         else -> pick.value
     }
-    // 段锁用整段淡底 + 描边，单格锁仍是实心琥珀，两层状态互不吃掉。
+    // 四种状态各自落到自己的语义色上，不再共用一档灰：
+    // 已选走主题容器（换主题就能看出选中），锁定走固定琥珀（不随品牌色漂移），忽略走中性灰，未选留空。
+    val semantic = LocalSemanticColors.current
     val tint: Color = when {
-        pick.ignored -> MaterialTheme.colorScheme.surfaceVariant
-        pick.locked -> MaterialTheme.colorScheme.tertiaryContainer
-        held -> MaterialTheme.colorScheme.surfaceVariant
+        pick.ignored -> semantic.ignoredContainer
+        pick.locked -> semantic.lockedContainer
+        held -> MaterialTheme.colorScheme.surfaceContainer
         pick.value.isEmpty() -> Color.Transparent
-        else -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
     }
-    val textColor = if (pick.value.isEmpty() || pick.ignored) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
+    val textColor: Color = when {
+        pick.ignored -> semantic.ignored
+        pick.locked -> semantic.locked
+        pick.value.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (label != null) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 modifier = Modifier
                     .clickable(onClick = onClick)
@@ -1094,22 +1139,31 @@ private fun ComposerBottomBar(
                 Text(
                     it,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Spacer(Modifier.height(4.dp))
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 次操作给一层中性浅填充：只靠描边在浅背景上太虚，跟右侧主按钮的落差也就跟着糊了。
+                val secondary = ButtonDefaults.outlinedButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+                val secondaryBorder = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant)
                 OutlinedButton(
                     onClick = onCopy,
                     modifier = Modifier.weight(1f).height(44.dp),
                     enabled = composed.isNotBlank(),
-                     shape = RoundedCornerShape(13.dp)
+                     shape = RoundedCornerShape(13.dp),
+                    colors = secondary,
+                    border = secondaryBorder
                  ) { Text(stringResource(R.string.tc_copy)) }
                  OutlinedButton(
                      onClick = onRandomize,
                      modifier = Modifier.weight(1f).height(44.dp),
-                     shape = RoundedCornerShape(13.dp)
+                     shape = RoundedCornerShape(13.dp),
+                     colors = secondary,
+                     border = secondaryBorder
                  ) { Text(stringResource(R.string.tc_randomize)) }
                  Button(
                      onClick = onOptimize,

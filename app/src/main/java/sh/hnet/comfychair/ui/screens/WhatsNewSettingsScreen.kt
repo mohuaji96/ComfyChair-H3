@@ -88,7 +88,7 @@ private fun NotesSection(section: Changelog.Section) {
             Text(
                 text = it,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .padding(start = 6.dp, top = 4.dp)
                     .semantics { heading() }

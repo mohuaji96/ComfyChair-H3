@@ -159,14 +159,14 @@ private fun HistoryRow(
             Text(
                 "  " + record.templateName,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(Modifier.weight(1f))
             Text(
                 if (record.favorite) "★" else "☆",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (record.favorite) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
+                color = if (record.favorite) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .clickable(onClick = onToggleFavorite)
                     .padding(horizontal = 10.dp)
@@ -174,7 +174,7 @@ private fun HistoryRow(
             Text(
                 stringResource(R.string.common_delete),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable(onClick = onDelete)
             )
         }

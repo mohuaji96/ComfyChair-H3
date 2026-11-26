@@ -25,6 +25,30 @@ object AppSettings {
     private const val DEFAULT_EDGE_ROUTER = "hermite"
     private const val KEY_PROMPT_SPELL_CHECK = "prompt_spell_check"
     private const val KEY_H3_PREVIEW_ENABLED = "h3_preview_enabled"
+    private const val KEY_THEME_ID = "theme_id"
+
+    private val _themeFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val themeFlow: kotlinx.coroutines.flow.StateFlow<String?> = _themeFlow
+
+    fun getThemeId(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val storedId = prefs.getString(KEY_THEME_ID, "glacier_blue") ?: "glacier_blue"
+        // 07 曜石银已由石墨青柠替换；迁移旧 ID，保留用户原来的主题选择。
+        val normalizedId = if (storedId == "obsidian_silver") "graphite_lime" else storedId
+        if (normalizedId != storedId) {
+            prefs.edit().putString(KEY_THEME_ID, normalizedId).apply()
+        }
+        return normalizedId
+    }
+
+    fun setThemeId(context: Context, themeId: String) {
+        val normalizedId = if (themeId == "obsidian_silver") "graphite_lime" else themeId
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_THEME_ID, normalizedId)
+            .apply()
+        _themeFlow.value = normalizedId
+    }
 
     /** Whether any app setting was ever stored (a fresh install, or one whose data was cleared, has none). */
     fun hasAnyValue(context: Context): Boolean =

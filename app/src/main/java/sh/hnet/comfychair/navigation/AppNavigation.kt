@@ -37,6 +37,7 @@ sealed class SettingsRoute(val route: String) {
     data object ServerImport : SettingsRoute("server_workflow_import")
 
     // App
+    data object Appearance : SettingsRoute("appearance_settings")
     data object Connection : SettingsRoute("connection_settings")
     data object Generation : SettingsRoute("generation_settings")
     data object MediaPrivacy : SettingsRoute("media_privacy_settings")

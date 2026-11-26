@@ -70,7 +70,7 @@ fun PromptPresetDropdown(
                     else R.drawable.ic_prompt_library_outline
                 ),
                 contentDescription = stringResource(R.string.button_prompt_presets),
-                tint = if (activePresetId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = if (activePresetId != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

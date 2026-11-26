@@ -399,4 +399,15 @@
     <string name="h3_interp_toggle">Frame Interpolation</string>
     <string name="h3_presets_title">Presets</string>
     <string name="h3_second_pass_note">Second pass and latent upscaler models are preserved.</string>
+    <string name="title_settings_appearance">Appearance &amp; Themes</string>
+    <string name="desc_settings_appearance">Switch global app theme</string>
+    <string name="desc_settings_appearance_note">Material 3 Expressive design system with 5 light themes, applied instantly.</string>
+    <string name="theme_dynamic_name">Follow system wallpaper</string>
+    <string name="theme_dynamic_note">Uses system wallpaper colors, not one of the five themes</string>
+    <string name="theme_fixed_note">Fixed light theme, unaffected by wallpaper</string>
+    <string name="theme_label_background">Background</string>
+    <string name="theme_label_container">Container</string>
+    <string name="theme_label_primary">Primary</string>
+    <string name="theme_preview_button">Button</string>
+    <string name="theme_preview_selected">Selected</string>
 </resources>

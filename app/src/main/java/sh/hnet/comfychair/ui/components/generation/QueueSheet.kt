@@ -369,7 +369,7 @@ private fun SectionHeader(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onPrimaryContainer,
         modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
     )
 }

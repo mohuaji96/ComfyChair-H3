@@ -298,12 +298,12 @@ private fun SizeRatioRow(
  */
 @Composable
 private fun SizeRatioChip(ratio: SizeRatio, selected: Boolean, onClick: () -> Unit) {
-    val content = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier
             .size(width = SizeRatioChipWidth, height = SizeRatioChipHeight)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
             .border(
                 width = 1.dp,
                 color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant,

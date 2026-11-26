@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.ui.components.dialogs.ConfirmDialog
@@ -91,11 +92,20 @@ fun SettingsPage(
     Column(Modifier.fillMaxSize()) {
         val titleText: @Composable () -> Unit = { Text(title) }
         val subtitleText: (@Composable () -> Unit)? = subtitle?.let { { Text(it) } }
+        // 顶栏与页面同色：原来顶栏白、页面浅灰，中间一道色阶看着像两条界面拼的。
+        // 高度显式给值，不依赖组件默认，省下的空间留给列表。
+        val barColors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+            scrolledContainerColor = MaterialTheme.colorScheme.background
+        )
         if (onNavigateBack == null) {
             LargeFlexibleTopAppBar(
                 title = titleText,
                 subtitle = subtitleText,
+                expandedHeight = 124.dp,
+                collapsedHeight = 56.dp,
                 windowInsets = WindowInsets(0, 0, 0, 0),
+                colors = barColors,
                 scrollBehavior = scrollBehavior
             )
         } else {
@@ -105,7 +115,10 @@ fun SettingsPage(
                 navigationIcon = {
                     TooltipIconButton(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.content_description_back), onNavigateBack)
                 },
+                expandedHeight = 96.dp,
+                collapsedHeight = 56.dp,
                 windowInsets = WindowInsets(0, 0, 0, 0),
+                colors = barColors,
                 scrollBehavior = scrollBehavior
             )
         }
@@ -116,8 +129,8 @@ fun SettingsPage(
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
                     .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(top = 4.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 content = content
             )
         }
@@ -148,7 +161,10 @@ fun SettingsGroup(title: String? = null, subordinate: Boolean = false, content: 
             Text(
                 text = it,
                 style = if (subordinate) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-                color = if (subordinate) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                // 分组标题原来是主题蓝，换主题会变色、还显弱。改成中性：主标题用主文字色加半粗，
+                // 次级标题用加深后的次级色，两者都靠字重和色阶区分，不靠染色。
+                color = if (subordinate) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (subordinate) FontWeight.Medium else FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 16.dp, bottom = if (subordinate) 6.dp else 8.dp)
             )
         }
@@ -205,7 +221,9 @@ fun SettingsDescription(text: String) {
  */
 @Composable
 private fun rowColors(highlightSelected: Boolean = false): ListItemColors {
-    val base = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    // 行底改纯白：原来用 surfaceContainer（#EFF2F5），和页面底色 #F4F6F8 只差 2%，
+    // 整屏没有一块白色，看着就灰蒙蒙。白卡片浮在浅灰页面上，分组边界一眼就出来。
+    val base = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surface)
     if (highlightSelected) return base
     return ListItemDefaults.segmentedColors(
         containerColor = base.containerColor,
@@ -241,8 +259,8 @@ private fun RowNote(text: String, icon: ImageVector?) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.padding(top = 2.dp)
     ) {
-        icon?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) }
-        Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        icon?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp)) }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
     }
 }
 
@@ -295,7 +313,7 @@ fun SettingsNavigationRow(
         },
         supportingContent = supporting?.let { { Text(it) } }
     ) {
-        Text(title)
+        Text(title, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -321,7 +339,7 @@ fun SettingsSwitchRow(
         trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         supportingContent = supporting?.let { { Text(it) } }
     ) {
-        Text(title)
+        Text(title, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -358,7 +376,7 @@ fun SettingsRadioRow(
             }
         }
     ) {
-        Text(title)
+        Text(title, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -388,7 +406,7 @@ fun SettingsActionButton(
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-        Text(title)
+        Text(title, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -470,7 +488,7 @@ fun SettingsLinkRow(
         trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
         supportingContent = supporting?.let { { Text(it) } }
     ) {
-        Text(title)
+        Text(title, fontWeight = FontWeight.Medium)
     }
 }
 

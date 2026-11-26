@@ -1,0 +1,8 @@
+v0.9.8.8382.620-h3
+- Settings top bar matches the page, white band removed
+- Top bar height reduced, content shows up sooner
+- Settings rows are white cards, no longer merge with the page
+- Group headers neutral and semibold, no theme tint
+- Row titles semibold, text reads stronger
+- Secondary text darkened app wide, 7.68 contrast on white
+- Tighter group spacing and page padding

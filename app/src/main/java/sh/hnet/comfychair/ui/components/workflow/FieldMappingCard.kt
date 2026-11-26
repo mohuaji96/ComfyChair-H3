@@ -187,7 +187,7 @@ private fun PickCard(fieldName: String?, onCancel: () -> Unit, modifier: Modifie
 @Composable
 private fun MatchText(field: FieldMappingState) {
     val (text, color) = when {
-        field.selectedCandidate != null -> field.selectedCandidate!!.nodeName to MaterialTheme.colorScheme.primary
+        field.selectedCandidate != null -> field.selectedCandidate!!.nodeName to MaterialTheme.colorScheme.onPrimaryContainer
         field.candidates.isEmpty() -> stringResource(R.string.msg_no_matching_nodes) to
             if (field.isRequiredField) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
         else -> stringResource(R.string.label_not_chosen) to MaterialTheme.colorScheme.onSurfaceVariant
@@ -232,7 +232,7 @@ fun AllFieldsSheet(
                         Text(
                             stringResource(titleRes),
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                         )
                     }
@@ -251,7 +251,7 @@ fun AllFieldsSheet(
                 Text(
                     stringResource(R.string.section_custom_fields),
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier
                         .padding(top = 16.dp, bottom = 8.dp)
                         .semantics { heading() }
@@ -266,7 +266,7 @@ fun AllFieldsSheet(
                                 shapes = groupShapes(index, customFields.size),
                                 colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                                 supportingContent = { Text(field.targets.joinToString(", ", transform = targetLabel)) },
-                                leadingContent = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                leadingContent = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer) },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(field.name)
@@ -310,7 +310,7 @@ private fun FieldRow(
         supportingContent = { MatchText(field) },
         leadingContent = {
             when {
-                field.isMapped -> Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                field.isMapped -> Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 field.isRequiredField -> Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 else -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }

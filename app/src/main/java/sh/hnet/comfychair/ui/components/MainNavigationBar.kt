@@ -16,13 +16,22 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.ShortNavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +45,7 @@ import sh.hnet.comfychair.ui.navigation.OutputTab
 import sh.hnet.comfychair.ui.navigation.mainRouteOf
 import sh.hnet.comfychair.ui.navigation.navigateToScreen
 import sh.hnet.comfychair.ui.navigation.outputTab
+import sh.hnet.comfychair.ui.theme.LocalAppElevations
 
 /**
  * Five-tab bottom navigation: 生图 | 视频 | H3 | 提示词 | 图库.
@@ -58,8 +68,22 @@ fun MainNavigationBar(
     val currentRoute = mainRouteOf(navBackStackEntry?.destination?.route)
     val currentTab = currentRoute?.outputTab
     val promptSelected = currentRoute == MainRoute.TagComposer || currentRoute == MainRoute.StoryComposer
+    val elevations = LocalAppElevations.current
 
-    ShortNavigationBar {
+    // 浮岛视觉：占位高度不变，只把内容收进一个圆角容器里（任务书 §6 底栏那一行）。
+    // 外边距留在父容器上，底栏组件本身仍按原来的尺寸测量，避免影响五个页签的等权排布。
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .shadow(elevations.floating, RoundedCornerShape(28.dp), clip = false)
+            .clip(RoundedCornerShape(28.dp))
+    ) {
+    ShortNavigationBar(
+        // 白底：默认 surfaceContainer 偏灰，五套主题下都显得导航是另一层灰带。
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
         TabItem(
             selected = currentTab == OutputTab.IMAGE,
             label = stringResource(R.string.nav_tab_image),
@@ -112,6 +136,7 @@ fun MainNavigationBar(
             onReselect = { onReopen(MainRoute.Gallery) }
         )
     }
+    }
 }
 
 /** A tab tapped again: its first source (Text), as the source switch shows it; nothing when that's already shown. */
@@ -141,6 +166,16 @@ private fun TabItem(
     ShortNavigationBarItem(
         selected = selected,
         onClick = { if (!selected) onClick() else onReselect?.invoke() },
+        // 选中态显式落到主题容器色上：06 浅蓝、08 浅紫、05 暖杏一眼可辨，01/07 保持中性。
+        // 不显式指定时组件会用默认的 secondaryContainer，五套主题下都退成灰的。
+        colors = ShortNavigationBarItemDefaults.colors().copy(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedTextColorTopIconPosition = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedTextColorStartIconPosition = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedIndicatorColor = MaterialTheme.colorScheme.primaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
         icon = {
             BadgedBox(
                 badge = {

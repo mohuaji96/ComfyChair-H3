@@ -82,8 +82,8 @@ private fun groups(blocks: List<LicenseText.Block>): List<Pair<LicenseText.Block
 private fun LicenseHeading(heading: LicenseText.Block.Heading) {
     val (style, color) = when (heading.level) {
         1 -> MaterialTheme.typography.titleLarge to MaterialTheme.colorScheme.onSurface
-        2 -> MaterialTheme.typography.titleMedium to MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.typography.titleSmall to MaterialTheme.colorScheme.primary
+        2 -> MaterialTheme.typography.titleMedium to MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.typography.titleSmall to MaterialTheme.colorScheme.onPrimaryContainer
     }
     Text(
         heading.text,
@@ -131,7 +131,7 @@ private fun LicenseItem(text: String) {
         return
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 12.dp)) {
-        Text(marker.groupValues[1], style = style, color = MaterialTheme.colorScheme.primary)
+        Text(marker.groupValues[1], style = style, color = MaterialTheme.colorScheme.onPrimaryContainer)
         Text(text.substring(marker.range.last + 1), style = style)
     }
 }
