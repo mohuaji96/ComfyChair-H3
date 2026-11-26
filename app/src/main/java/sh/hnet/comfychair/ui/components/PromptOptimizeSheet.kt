@@ -207,24 +207,56 @@ fun PromptOptimizeSheet(
                     }
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    when {
-                        provider == null -> stringResource(R.string.opt_need_provider)
-                        !provider.isUsable -> stringResource(R.string.opt_provider_incomplete)
-                        state.hasResult -> "${state.elapsedMs} ms · ${
-                            if (state.english) stringResource(R.string.opt_lang_english) else stringResource(R.string.opt_lang_chinese)
-                        }"
-                        else -> stringResource(R.string.opt_output_lang, if (provider.english) stringResource(R.string.opt_lang_english) else stringResource(R.string.opt_lang_chinese))
-                    },
+                 Text(
+                     when {
+                         provider == null -> stringResource(R.string.opt_need_provider)
+                         !provider.isUsable -> stringResource(R.string.opt_provider_incomplete)
+                         state.hasResult && !state.running -> if (state.promptTokens > 0) {
+                             stringResource(
+                                 R.string.opt_summary_usage,
+                                 formatSeconds(state.elapsedMs),
+                                 state.promptTokens,
+                                 state.completionTokens
+                             )
+                         } else {
+                             stringResource(R.string.opt_summary_plain, formatSeconds(state.elapsedMs))
+                         }
+                         else -> stringResource(R.string.opt_output_lang, if (provider.english) stringResource(R.string.opt_lang_english) else stringResource(R.string.opt_lang_chinese))
+                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
             }
 
+            if (state.thinkingRejected) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.opt_fallback_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             if (state.running) {
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(
+                            R.string.opt_progress,
+                            formatSeconds(state.elapsedMs),
+                            state.result.length
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { viewModel.cancelOptimize() }) {
+                        Text(stringResource(R.string.opt_stop), color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
 
             state.error?.let { error ->
@@ -293,20 +325,20 @@ fun PromptOptimizeSheet(
                     if (onApply != null) {
                         OutlinedButton(
                             onClick = { onCopy(resultDraft) },
-                            enabled = resultDraft.isNotBlank(),
+                            enabled = !state.running && resultDraft.isNotBlank(),
                             modifier = Modifier.weight(1f)
                         ) { Text(stringResource(R.string.common_copy)) }
                         Button(
                             onClick = { onApply(resultDraft) },
-                            enabled = resultDraft.isNotBlank(),
+                            enabled = !state.running && resultDraft.isNotBlank(),
                             modifier = Modifier.weight(1f)
                         ) { Text(stringResource(R.string.opt_apply)) }
                     } else {
                         Button(
                             onClick = { onCopy(resultDraft) },
-                            enabled = resultDraft.isNotBlank(),
+                            enabled = !state.running && resultDraft.isNotBlank(),
                             modifier = Modifier.weight(1f)
-                        ) { Text("复制") }
+                        ) { Text(stringResource(R.string.common_copy)) }
                     }
                 }
             }
@@ -336,3 +368,7 @@ fun PromptOptimizeSheet(
         )
     }
 }
+
+/** 58374 -> "58.4": the unit lives in the string so both languages can word it. */
+private fun formatSeconds(ms: Long): String =
+    String.format(java.util.Locale.US, "%.1f", ms / 1000.0)

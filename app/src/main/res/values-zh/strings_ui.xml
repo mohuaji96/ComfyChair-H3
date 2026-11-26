@@ -6,7 +6,6 @@
     <!-- Settings root -->
     <string name="settings_prompt_optimize_title">提示词优化</string>
     <string name="settings_prompt_optimize_sub">API 供应商、密钥与系统提示词模板</string>
-
     <string name="po_no_provider">还没有供应商。先加一个，优化才能用。</string>
     <string name="po_add_provider">添加供应商</string>
     <string name="po_current">当前使用</string>
@@ -26,7 +25,6 @@
     <string name="po_temp_low">0 忠于原标签</string>
     <string name="po_temp_high">1 自由改写</string>
     <string name="po_format_openai_compat">OpenAI 兼容</string>
-
     <string name="po_providers_title">API 供应商</string>
     <string name="po_add_short">＋ 添加</string>
     <string name="po_new_provider">新建供应商</string>
@@ -41,7 +39,6 @@
     <string name="po_move_down">下移</string>
     <string name="po_note_section">说明</string>
     <string name="po_list_note">每个供应商的地址、Key、模型各自保存，切换不会丢。删掉正在用的一个时，会自动换到剩下的第一个。</string>
-
     <string name="common_delete">删除</string>
     <string name="common_cancel">取消</string>
     <string name="common_done">完成</string>
@@ -84,7 +81,6 @@
     <string name="po_hint_openai_responses">OpenAI 新一代 Responses 接口</string>
     <string name="po_hint_anthropic">Claude 官方接口</string>
     <string name="po_hint_gemini">Google Gemini 官方接口</string>
-
     <string name="common_copy">复制</string>
     <string name="opt_title">优化提示词</string>
     <string name="opt_history">历史 %1$d/%2$d</string>
@@ -105,7 +101,6 @@
     <string name="opt_result_hint">可以直接改，比如删掉模型自己加的人或道具。</string>
     <string name="opt_again">再来一次</string>
     <string name="opt_apply">填入提示词</string>
-
     <string name="hist_title">优化历史</string>
     <string name="hist_clear">清空</string>
     <string name="hist_all">全部 %1$d</string>
@@ -121,7 +116,6 @@
     <string name="common_save">保存</string>
     <string name="tpl_name">名称</string>
     <string name="tpl_body_stats">%1$d 行 · %2$d 字</string>
-
     <string name="app_notif_permission_denied">未授予通知权限：锁屏保活仍然有效，但看不到连拍进度</string>
     <string name="settings_h3_preview_title">H3 采样预览</string>
     <string name="settings_h3_preview_sub">边跑边看当前去噪画面；关掉后不额外占用显卡算力。上面总开关关掉时这里也不生效</string>
@@ -137,10 +131,8 @@
     <string name="relay_action_pause">暂停</string>
     <string name="relay_channel_name">完整连拍</string>
     <string name="relay_channel_desc">连拍进度与暂停</string>
-
     <string name="wm_not_h3">不是已识别的 H3 工作流</string>
     <string name="wm_h3_ambiguous">存在多个 H3 核心节点，请在专业编辑器中确认执行分支</string>
-
     <string name="tpl_builtin_long_name">完整版</string>
     <string name="tpl_builtin_long_blurb">最细 · 难稿稳，少返工</string>
     <string name="tpl_builtin_lite_name">精简版</string>
@@ -148,7 +140,6 @@
     <string name="tpl_custom_default">自定义</string>
     <string name="tpl_custom_first">自定义 1</string>
     <string name="tpl_copy_suffix">%1$s·副本</string>
-
     <string name="curtain_hidden">结果已隐藏</string>
     <string name="curtain_restore">点此恢复</string>
     <string name="curtain_hide">隐藏结果</string>
@@ -157,11 +148,23 @@
     <string name="vm_provider_incomplete">供应商还缺 API URL 或模型名，去设置里补一下</string>
     <string name="vm_prompt_empty">提示词是空的</string>
     <string name="vm_fill_url_model">先填 API URL 和模型名</string>
-
     <string name="queue_offline">离线</string>
     <string name="pf_bad_json">提交内容不是合法 JSON：%1$s</string>
     <string name="pf_unresolved">模板变量 %1$s 未解析，拒绝提交</string>
     <string name="pf_not_in_options">“%1$s” 不在服务器合法选项中（共 %2$d 项）</string>
-
     <string name="err_unexpected">出了点问题</string>
+    <string name="opt_progress">已用时 %1$s 秒 · 已收 %2$d 字</string>
+    <string name="opt_stop">停止</string>
+    <string name="opt_summary_plain">%1$s 秒</string>
+    <string name="opt_summary_usage">%1$s 秒 · 输入 %2$d · 输出 %3$d</string>
+    <string name="opt_task_title">提示词优化</string>
+    <string name="opt_task_running">正在优化 · 已跑 %1$s</string>
+    <string name="opt_task_section">本机任务</string>
+    <string name="opt_chip_running">优化中 · %1$s</string>
+    <string name="opt_done_toast">提示词已优化，已存入历史</string>
+    <string name="opt_failed_toast">优化失败：%1$s</string>
+    <string name="po_field_thinking">深度思考</string>
+    <string name="po_thinking_hint">关：直接出稿。开：模型先推敲一遍再写——同样的输入实测 74 秒，关掉只要 11 秒，而且思考会吃掉输出额度。</string>
+    <string name="po_thinking_limited">该服务商只能降低推敲强度，无法完全关闭</string>
+    <string name="opt_fallback_note">该模型不接受思考设置，已去掉这个参数重试</string>
 </resources>

@@ -1,0 +1,8 @@
+v0.9.8.8382.626-h3
+- Fixed rewrites taking nearly a minute: reasoning is off by default, 58 s to 11 s.
+- Fixed empty output when reasoning ate the token budget.
+- Fixed errors on providers sent the wrong thinking field.
+- Fixed the action bar overlapping the tab bar, and faint input borders.
+- Added a Deep thinking switch, off by default, adapted per provider.
+- Added live text with a stop button.
+- Added a queue task card, an entry timer, and a completion notice.

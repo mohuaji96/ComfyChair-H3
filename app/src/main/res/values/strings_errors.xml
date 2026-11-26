@@ -51,4 +51,5 @@
     <string name="poe_dns_failed">Cannot resolve the host, check the API URL</string>
     <string name="poe_tls_error">HTTPS certificate error: %1$s</string>
     <string name="poe_request_failed">Request failed: %1$s</string>
+    <string name="poe_context_too_long">Input is longer than this model accepts — shorten the source text or pick a model with a larger context</string>
 </resources>

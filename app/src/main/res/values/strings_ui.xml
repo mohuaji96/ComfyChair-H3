@@ -6,7 +6,6 @@
     <!-- Settings root -->
     <string name="settings_prompt_optimize_title">Prompt optimization</string>
     <string name="settings_prompt_optimize_sub">API providers, keys and system templates</string>
-
     <string name="po_no_provider">No provider yet. Add one before optimizing.</string>
     <string name="po_add_provider">Add provider</string>
     <string name="po_current">Currently used</string>
@@ -26,7 +25,6 @@
     <string name="po_temp_low">0 stays close to the tags</string>
     <string name="po_temp_high">1 rewrites freely</string>
     <string name="po_format_openai_compat">OpenAI compatible</string>
-
     <string name="po_providers_title">API providers</string>
     <string name="po_add_short">+ Add</string>
     <string name="po_new_provider">New provider</string>
@@ -41,7 +39,6 @@
     <string name="po_move_down">Move down</string>
     <string name="po_note_section">Notes</string>
     <string name="po_list_note">Each provider keeps its own endpoint, key and model; switching does not lose them. Deleting the one in use falls back to the first remaining.</string>
-
     <string name="common_delete">Delete</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_done">Done</string>
@@ -84,7 +81,6 @@
     <string name="po_hint_openai_responses">OpenAI Responses API</string>
     <string name="po_hint_anthropic">Official Claude API</string>
     <string name="po_hint_gemini">Official Google Gemini API</string>
-
     <string name="common_copy">Copy</string>
     <string name="opt_title">Optimize prompt</string>
     <string name="opt_history">History %1$d/%2$d</string>
@@ -105,7 +101,6 @@
     <string name="opt_result_hint">Edit it freely, for example drop people or props the model added on its own.</string>
     <string name="opt_again">Try again</string>
     <string name="opt_apply">Use as prompt</string>
-
     <string name="hist_title">Optimization history</string>
     <string name="hist_clear">Clear</string>
     <string name="hist_all">All %1$d</string>
@@ -121,7 +116,6 @@
     <string name="common_save">Save</string>
     <string name="tpl_name">Name</string>
     <string name="tpl_body_stats">%1$d lines · %2$d chars</string>
-
     <string name="app_notif_permission_denied">Notification permission not granted: keep-alive still works, but relay progress stays hidden</string>
     <string name="settings_h3_preview_title">H3 sampling preview</string>
     <string name="settings_h3_preview_sub">Watch the denoising frames as a run proceeds; switching it off saves no GPU time. Inactive while the master switch above is off.</string>
@@ -137,10 +131,8 @@
     <string name="relay_action_pause">Pause</string>
     <string name="relay_channel_name">Full relay</string>
     <string name="relay_channel_desc">Relay progress and pause</string>
-
     <string name="wm_not_h3">Not a recognised H3 workflow</string>
     <string name="wm_h3_ambiguous">More than one H3 core node: confirm the executing branch in the professional editor</string>
-
     <string name="tpl_builtin_long_name">Full</string>
     <string name="tpl_builtin_long_blurb">Most thorough · steadier on hard drafts, fewer retries</string>
     <string name="tpl_builtin_lite_name">Lite</string>
@@ -148,7 +140,6 @@
     <string name="tpl_custom_default">Custom</string>
     <string name="tpl_custom_first">Custom 1</string>
     <string name="tpl_copy_suffix">%1$s·copy</string>
-
     <string name="curtain_hidden">Result hidden</string>
     <string name="curtain_restore">Tap to restore</string>
     <string name="curtain_hide">Hide result</string>
@@ -157,11 +148,23 @@
     <string name="vm_provider_incomplete">The provider still needs an API URL or a model name. Fill those in under settings.</string>
     <string name="vm_prompt_empty">The prompt is empty</string>
     <string name="vm_fill_url_model">Fill in the API URL and model name first</string>
-
     <string name="queue_offline">Offline</string>
     <string name="pf_bad_json">Submitted content is not valid JSON: %1$s</string>
     <string name="pf_unresolved">Template variable %1$s was not resolved, submission refused</string>
     <string name="pf_not_in_options">%1$s is not one of the %2$d legal options on the server</string>
-
     <string name="err_unexpected">Unexpected error</string>
+    <string name="opt_progress">Elapsed %1$s s · received %2$d chars</string>
+    <string name="opt_stop">Stop</string>
+    <string name="opt_summary_plain">%1$s s</string>
+    <string name="opt_summary_usage">%1$s s · in %2$d · out %3$d</string>
+    <string name="opt_task_title">Prompt rewrite</string>
+    <string name="opt_task_running">Rewriting · running %1$s</string>
+    <string name="opt_task_section">On this device</string>
+    <string name="opt_chip_running">Optimizing · %1$s</string>
+    <string name="opt_done_toast">Prompt rewritten and saved to history</string>
+    <string name="opt_failed_toast">Rewrite failed: %1$s</string>
+    <string name="po_field_thinking">Deep thinking</string>
+    <string name="po_thinking_hint">Off: written straight away. On: the model reasons first — the same input took 74 s instead of 11 s, and the reasoning can eat the whole token budget.</string>
+    <string name="po_thinking_limited">This provider can only lower the reasoning, not switch it off</string>
+    <string name="opt_fallback_note">This model did not accept the thinking setting, so the request was repeated without it</string>
 </resources>

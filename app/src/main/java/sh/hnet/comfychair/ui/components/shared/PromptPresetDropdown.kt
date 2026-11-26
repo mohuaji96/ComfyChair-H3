@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.ui.components.shared
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -21,12 +22,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -36,8 +41,10 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.PromptPreset
+import sh.hnet.comfychair.task.OptimizeRunner
 
 /**
  * The prompt library menu (Expressive grouped menu, like the workflow menu): favorites with the one in use checked, then
@@ -59,7 +66,10 @@ fun PromptPresetDropdown(
     var expanded by remember { mutableStateOf(false) }
     val close = { expanded = false }
 
-    Box(modifier = modifier) {
+    val optimizeTask by OptimizeRunner.task.collectAsState()
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box {
         IconButton(onClick = { expanded = true }) {
             // The open notebook replaced the plain bookmark in both cases: at 24 dp the star perched on
             // the bookmark's edge read as noise, while a page with a spark says "saved prompts" and
@@ -167,5 +177,28 @@ fun PromptPresetDropdown(
                 }
             }
         }
+        }
+
+        // A rewrite keeps running after the sheet closes; without this the only sign of life
+        // was the queue sheet, which nobody opens at that moment.
+        optimizeTask?.let { task ->
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text(
+                    stringResource(R.string.opt_chip_running, shortElapsed(task.elapsedMs)),
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
     }
+}
+
+/** 23000 ms -> "00:23"; the chip is a glance, so no decimals. */
+private fun shortElapsed(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    return "%02d:%02d".format(total / 60, total % 60)
 }

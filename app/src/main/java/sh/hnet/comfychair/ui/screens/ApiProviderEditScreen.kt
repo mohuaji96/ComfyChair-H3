@@ -108,6 +108,7 @@ fun ApiProviderEditScreen(
     var timeoutSec by remember(provider.id) { mutableStateOf(provider.timeoutSec.toString()) }
     var keyDraft by remember(provider.id) { mutableStateOf("") }
     var keyVisible by remember { mutableStateOf(false) }
+    var thinking by remember(provider.id) { mutableStateOf(provider.thinking) }
     var advancedOpen by remember { mutableStateOf(false) }
     var formatOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -122,7 +123,8 @@ fun ApiProviderEditScreen(
             ?.coerceIn(64, 32_000) ?: ApiProvider.DEFAULT_MAX_TOKENS,
         timeoutSec = timeoutSec.toIntOrNull()
             ?.coerceIn(ApiProvider.MIN_TIMEOUT_SEC, ApiProvider.MAX_TIMEOUT_SEC)
-            ?: ApiProvider.DEFAULT_TIMEOUT_SEC
+            ?: ApiProvider.DEFAULT_TIMEOUT_SEC,
+        thinking = thinking
     )
 
     fun push() { viewModel.upsert(snapshot()) }
@@ -245,6 +247,37 @@ fun ApiProviderEditScreen(
                     )
                 }
             }
+        }
+
+        Spacer(Modifier.height(9.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.po_field_thinking), fontSize = 13.sp)
+                Text(
+                    stringResource(R.string.po_thinking_hint),
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Say so up front: turning this off on these hosts only lowers the effort, and
+                // an unexplained "still slow" is worse than a warning.
+                if (!thinking && PromptOptimizer.thinkingCannotDisable(
+                        provider.copy(baseUrl = baseUrl, model = model)
+                    )
+                ) {
+                    Text(
+                        stringResource(R.string.po_thinking_limited),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
+            Switch(
+                checked = thinking,
+                onCheckedChange = { on -> thinking = on; push() }
+            )
         }
 
         Spacer(Modifier.height(9.dp))

@@ -30,7 +30,18 @@ object PromptOptimizer {
     private val VERSION_RE = Regex("/v\\d+(?:beta|alpha|preview)?$", RegexOption.IGNORE_CASE)
 
     sealed class Outcome {
-        data class Ok(val text: String, val elapsedMs: Long) : Outcome()
+        /**
+         * [promptTokens] and [completionTokens] come from the endpoint's own usage report when it
+         * sends one, so the screen can show what a run really cost. Zero means "not reported".
+         */
+        data class Ok(
+            val text: String,
+            val elapsedMs: Long,
+            val promptTokens: Int = 0,
+            val completionTokens: Int = 0,
+            /** The endpoint refused the thinking flag, so the call was repeated without it. */
+            val thinkingRejected: Boolean = false
+        ) : Outcome()
         /**
          * [message] is safe to show and is finished by the screen, so it reads in the active
          * language; [detail] keeps the raw body for the log; [hint] is an optional extra line
@@ -39,7 +50,8 @@ object PromptOptimizer {
         data class Error(
             val message: LocalizedText,
             val detail: String? = null,
-            val hint: LocalizedText? = null
+            val hint: LocalizedText? = null,
+            val code: Int = 0
         ) : Outcome()
     }
 
@@ -145,10 +157,17 @@ object PromptOptimizer {
         }
     }
 
-    internal fun bodyFor(provider: ApiProvider, input: String, forTest: Boolean, rules: String? = null): String {
+    internal fun bodyFor(
+        provider: ApiProvider,
+        input: String,
+        forTest: Boolean,
+        rules: String? = null,
+        stream: Boolean = false,
+        withThinking: Boolean = true
+    ): String {
         val system = systemFor(provider, forTest)
         val user = userFor(provider, input, forTest, rules)
-        val maxTokens = if (forTest) TEST_MAX_TOKENS else provider.maxTokens
+        val maxTokens = if (forTest) TEST_MAX_TOKENS else ApiProvider.effectiveMaxTokens(provider)
         return when (provider.format) {
             ApiFormat.OPENAI_CHAT -> JSONObject().apply {
                 put("model", provider.model.trim())
@@ -160,7 +179,12 @@ object PromptOptimizer {
                 })
                 put("temperature", provider.temperature.toDouble())
                 put("max_tokens", maxTokens)
-                put("stream", false)
+                put("stream", stream)
+                // Mistral answers 400 to this field; every other compatible route wants it.
+                if (stream && !isMistral(provider)) {
+                    put("stream_options", JSONObject().put("include_usage", true))
+                }
+                if (withThinking) applyThinking(this, provider)
             }.toString()
 
             ApiFormat.OPENAI_RESPONSES -> JSONObject().apply {
@@ -169,6 +193,8 @@ object PromptOptimizer {
                 put("input", user)
                 put("temperature", provider.temperature.toDouble())
                 put("max_output_tokens", maxTokens)
+                if (stream) put("stream", true)
+                if (withThinking) applyThinking(this, provider)
             }.toString()
 
             ApiFormat.ANTHROPIC -> JSONObject().apply {
@@ -176,6 +202,7 @@ object PromptOptimizer {
                 if (system.isNotBlank()) put("system", system)
                 put("max_tokens", maxTokens)
                 put("temperature", provider.temperature.toDouble())
+                if (stream) put("stream", true)
                 put("messages", JSONArray().apply {
                     put(JSONObject().put("role", "user").put("content", user))
                 })
@@ -196,14 +223,133 @@ object PromptOptimizer {
                 put("generationConfig", JSONObject().apply {
                     put("temperature", provider.temperature.toDouble())
                     put("maxOutputTokens", maxTokens)
+                    if (withThinking) applyGeminiThinking(this, provider)
                 })
             }.toString()
         }
     }
 
-    private fun requestFor(provider: ApiProvider, apiKey: String, body: String): Request {
+    // ---------------------------------------------------------------- thinking switch
+
+    /** The host alone, so a vendor is recognised even when the user pasted a full endpoint. */
+    private fun hostOf(provider: ApiProvider): String {
+        var value = provider.baseUrl.trim().lowercase()
+        value = value.removePrefix("https://").removePrefix("http://")
+        return value.substringBefore('/').substringBefore(':')
+    }
+
+    /**
+     * How a vendor spells "do not think". Every one of them invented its own field, so the
+     * host decides the syntax and the model name only breaks ties inside one host.
+     *
+     * The host always wins: the same model is served by Zhipu directly, by NVIDIA, and by
+     * OpenRouter, and only the endpoint knows which field it will accept.
+     */
+    private enum class Style { NONE, THINKING_TYPE, OPENROUTER, EFFORT, ENABLE_THINKING, THINKING_MODE }
+
+    private fun styleOf(provider: ApiProvider): Style {
+        val host = hostOf(provider)
+        return when {
+            host.contains("openrouter") -> Style.OPENROUTER
+            host.contains("bigmodel") || host.contains("zhipu") -> Style.THINKING_TYPE
+            host.contains("volces") -> Style.THINKING_TYPE
+            host.contains("deepseek") -> Style.THINKING_TYPE
+            host.contains("moonshot") -> Style.THINKING_TYPE
+            host.contains("xiaomimimo") -> Style.THINKING_TYPE
+            host.contains("dashscope") || host.contains("aliyuncs") -> Style.EFFORT
+            host.contains("nvidia") -> Style.EFFORT
+            host.contains("groq") -> Style.EFFORT
+            host.contains("siliconflow") -> Style.ENABLE_THINKING
+            host.contains("modelscope") -> Style.ENABLE_THINKING
+            host.contains("aiping") -> Style.ENABLE_THINKING
+            host.contains("intern-ai") -> Style.THINKING_MODE
+            host.contains("mistral") -> Style.NONE
+            else -> Style.NONE
+        }
+    }
+
+    /** True when this provider understands a thinking flag at all. */
+    internal fun thinkingSupported(provider: ApiProvider): Boolean =
+        styleOf(provider) != Style.NONE ||
+            (provider.format == ApiFormat.GEMINI && provider.model.lowercase().contains("gemini"))
+
+    /**
+     * True when switching thinking off only lowers it. The screen says so, otherwise the user
+     * turns it off, still waits, and concludes the switch is broken.
+     */
+    fun thinkingCannotDisable(provider: ApiProvider): Boolean {
+        val host = hostOf(provider)
+        val model = provider.model.lowercase()
+        return (host.contains("nvidia") && !model.contains("deepseek-v4")) ||
+            (host.contains("groq") && !model.contains("qwen"))
+    }
+
+    private fun isMistral(provider: ApiProvider): Boolean = hostOf(provider).contains("mistral")
+
+    /**
+     * The effort string for the vendors that grade reasoning instead of toggling it.
+     *
+     * NVIDIA and Groq cannot stop a reasoning model, only slow it down, so their "off" is the
+     * lowest level they accept rather than a true disable.
+     */
+    private fun effortFor(provider: ApiProvider, on: Boolean): String {
+        val host = hostOf(provider)
+        val model = provider.model.lowercase()
+        if (on) return if (host.contains("groq")) "medium" else "high"
+        if (host.contains("nvidia") && !model.contains("deepseek-v4")) return "low"
+        if (host.contains("groq") && !model.contains("qwen")) return "low"
+        return "none"
+    }
+
+    /** Writes the flag for the recognised vendors; unknown hosts are left untouched on purpose. */
+    private fun applyThinking(body: JSONObject, provider: ApiProvider) {
+        val on = provider.thinking
+        when (styleOf(provider)) {
+            Style.NONE -> Unit
+            Style.OPENROUTER -> body.put(
+                "reasoning",
+                if (on) JSONObject().put("enabled", true)
+                else JSONObject().put("effort", "none")
+            )
+            Style.THINKING_TYPE -> body.put(
+                "thinking", JSONObject().put("type", if (on) "enabled" else "disabled")
+            )
+            Style.ENABLE_THINKING -> body.put("enable_thinking", on)
+            Style.THINKING_MODE -> body.put("thinking_mode", on)
+            Style.EFFORT -> body.put("reasoning_effort", effortFor(provider, on))
+        }
+    }
+
+    /**
+     * Gemini carries this inside generationConfig, and the field changed name in 3.x: sending a
+     * token budget to a 3-series model is rejected outright, and 2.5 Pro has no off position.
+     */
+    private fun applyGeminiThinking(config: JSONObject, provider: ApiProvider) {
+        val model = provider.model.lowercase()
+        if (!model.contains("gemini")) return
+        if (provider.thinking) return // on = leave the model's own dynamic default alone
+        val major = Regex("gemini-?(\\d+)").find(model)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        when {
+            major >= 3 -> config.put("thinkingConfig", JSONObject().put("thinkingLevel", "minimal"))
+            model.contains("2.5") && model.contains("pro") -> Unit // Pro cannot be turned off
+            else -> config.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+        }
+    }
+
+    private fun requestFor(
+        provider: ApiProvider,
+        apiKey: String,
+        body: String,
+        stream: Boolean = false
+    ): Request {
+        val url = if (stream && provider.format == ApiFormat.GEMINI) {
+            // Gemini signals streaming in the path, not the body.
+            endpointFor(provider).replace(":generateContent", ":streamGenerateContent") +
+                "?alt=sse"
+        } else endpointFor(provider)
+
         val builder = Request.Builder()
-            .url(endpointFor(provider))
+            .url(url)
             .post(body.toRequestBody(JSON))
             .header("Content-Type", "application/json")
 
@@ -333,6 +479,18 @@ object PromptOptimizer {
     }
 
     /**
+     * A 400 is usually the request, not the server: the common one is a prompt that outgrew the
+     * model, which is easy to mistake for the app being broken.
+     */
+    private fun bodyHint(code: Int, raw: String): LocalizedText? {
+        if (code != 400) return httpHint(code)
+        val text = raw.lowercase()
+        val overflow = text.contains("context") || text.contains("too long") ||
+            text.contains("maximum length") || text.contains("too many tokens")
+        return if (overflow) LocalizedText(R.string.poe_context_too_long) else httpHint(code)
+    }
+
+    /**
      * The headline for a failed call. The vendor's own sentence rides inside the raw body that
      * the screen shows underneath, so this line only has to carry the status code.
      */
@@ -350,13 +508,161 @@ object PromptOptimizer {
         .retryOnConnectionFailure(true)
         .build()
 
-    private fun execute(provider: ApiProvider, apiKey: String, input: String, forTest: Boolean, rules: String? = null): Outcome {
+    /**
+     * Streaming has no overall deadline: a slow model would be cut off mid-answer. The read
+     * timeout still fires if the connection goes quiet, which is the case worth catching.
+     */
+    private fun streamingClientFor(timeoutSec: Int): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(minOf(timeoutSec, 30).toLong(), TimeUnit.SECONDS)
+        .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .retryOnConnectionFailure(true)
+        .build()
+
+    /** The text a single stream event carries, or "" for events that only carry metadata. */
+    private fun deltaOf(provider: ApiProvider, event: JSONObject): String = when (provider.format) {
+        ApiFormat.OPENAI_CHAT ->
+            readContent(event.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")?.opt("content"))
+                .orEmpty()
+
+        ApiFormat.OPENAI_RESPONSES ->
+            if (event.optString("type") == "response.output_text.delta") event.optString("delta") else ""
+
+        ApiFormat.ANTHROPIC -> {
+            val delta = event.optJSONObject("delta")
+            if (delta?.optString("type") == "text_delta") delta.optString("text") else ""
+        }
+
+        ApiFormat.GEMINI -> buildString {
+            val parts = event.optJSONArray("candidates")
+                ?.optJSONObject(0)
+                ?.optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?: return@buildString
+            for (i in 0 until parts.length()) {
+                parts.optJSONObject(i)?.optString("text")?.let { append(it) }
+            }
+        }
+    }
+
+    /** Token counts, when the vendor bothers to report them mid-stream. */
+    private fun usageOf(event: JSONObject): Pair<Int, Int>? {
+        event.optJSONObject("usage")?.let { u ->
+            val prompt = u.optInt("prompt_tokens", u.optInt("input_tokens", 0))
+            val completion = u.optInt("completion_tokens", u.optInt("output_tokens", 0))
+            if (prompt > 0 || completion > 0) return prompt to completion
+        }
+        event.optJSONObject("usageMetadata")?.let { u ->
+            val prompt = u.optInt("promptTokenCount", 0)
+            val completion = u.optInt("candidatesTokenCount", 0)
+            if (prompt > 0 || completion > 0) return prompt to completion
+        }
+        event.optJSONObject("message")?.optJSONObject("usage")?.let { u ->
+            val prompt = u.optInt("input_tokens", 0)
+            val completion = u.optInt("output_tokens", 0)
+            if (prompt > 0 || completion > 0) return prompt to completion
+        }
+        return null
+    }
+
+    private fun executeStreaming(
+        provider: ApiProvider,
+        request: Request,
+        started: Long,
+        onDelta: (String) -> Unit
+    ): Outcome {
+        val timeout = provider.timeoutSec
+        return try {
+            streamingClientFor(timeout).newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val raw = response.body?.string().orEmpty()
+                    DebugLogger.w(TAG, "Stream failed ${response.code}: ${raw.take(400)}")
+                    return Outcome.Error(errorMessage(response.code), raw, bodyHint(response.code, raw), response.code)
+                }
+                val source = response.body?.source()
+                    ?: return Outcome.Error(LocalizedText(R.string.poe_unparsable))
+                val collected = StringBuilder()
+                var promptTokens = 0
+                var completionTokens = 0
+                var sawEvent = false
+
+                while (true) {
+                    val line = source.readUtf8Line() ?: break
+                    if (!line.startsWith("data:")) continue
+                    val payload = line.removePrefix("data:").trim()
+                    if (payload.isEmpty()) continue
+                    if (payload == "[DONE]") break
+                    val event = runCatching { JSONObject(payload) }.getOrNull() ?: continue
+                    sawEvent = true
+                    usageOf(event)?.let { (prompt, completion) ->
+                        if (prompt > 0) promptTokens = prompt
+                        if (completion > 0) completionTokens = completion
+                    }
+                    val piece = deltaOf(provider, event)
+                    if (piece.isNotEmpty()) {
+                        collected.append(piece)
+                        onDelta(piece)
+                    }
+                }
+
+                val elapsed = System.currentTimeMillis() - started
+                if (!sawEvent) return Outcome.Error(LocalizedText(R.string.poe_stream_unsupported))
+                val cleaned = cleanResult(collected.toString())
+                if (cleaned.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_empty_result))
+                Outcome.Ok(cleaned, elapsed, promptTokens, completionTokens)
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            Outcome.Error(
+                LocalizedText(R.string.poe_timeout, timeout),
+                hint = LocalizedText(R.string.poe_timeout_hint)
+            )
+        } catch (e: java.net.UnknownHostException) {
+            Outcome.Error(LocalizedText(R.string.poe_dns_failed))
+        } catch (e: javax.net.ssl.SSLException) {
+            Outcome.Error(LocalizedText(R.string.poe_tls_error, e.message.orEmpty()))
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "Stream failed: ${e.message}")
+            Outcome.Error(LocalizedText(R.string.poe_request_failed, e.message ?: e.javaClass.simpleName))
+        }
+    }
+
+    private fun execute(
+        provider: ApiProvider,
+        apiKey: String,
+        input: String,
+        forTest: Boolean,
+        rules: String? = null,
+        onDelta: ((String) -> Unit)? = null
+    ): Outcome {
         if (provider.baseUrl.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_url))
         if (provider.model.isBlank()) return Outcome.Error(LocalizedText(R.string.poe_missing_model))
 
+        val first = attempt(provider, apiKey, input, forTest, rules, onDelta, withThinking = true)
+        if (first !is Outcome.Error || first.code != 400 || !thinkingSupported(provider)) return first
+
+        // The vendor did not recognise the thinking field. Paying for one more request is
+        // cheaper than making the user hunt for a setting that this model never had.
+        DebugLogger.w(TAG, "400 with the thinking flag, retrying without it")
+        val second = attempt(provider, apiKey, input, forTest, rules, onDelta, withThinking = false)
+        return if (second is Outcome.Ok) second.copy(thinkingRejected = true) else second
+    }
+
+    private fun attempt(
+        provider: ApiProvider,
+        apiKey: String,
+        input: String,
+        forTest: Boolean,
+        rules: String?,
+        onDelta: ((String) -> Unit)?,
+        withThinking: Boolean
+    ): Outcome {
         val started = System.currentTimeMillis()
-        val body = bodyFor(provider, input, forTest, rules)
-        val request = requestFor(provider, apiKey, body)
+        val streaming = onDelta != null && !forTest
+        val body = bodyFor(provider, input, forTest, rules, stream = streaming, withThinking = withThinking)
+        val request = requestFor(provider, apiKey, body, stream = streaming)
+        if (streaming) return executeStreaming(provider, request, started, onDelta!!)
         val timeout = provider.timeoutSec
 
         return try {
@@ -365,7 +671,7 @@ object PromptOptimizer {
                 val elapsed = System.currentTimeMillis() - started
                 if (!response.isSuccessful) {
                     DebugLogger.w(TAG, "Request failed ${response.code}: ${raw.take(400)}")
-                    return Outcome.Error(errorMessage(response.code), raw, httpHint(response.code))
+                    return Outcome.Error(errorMessage(response.code), raw, bodyHint(response.code, raw), response.code)
                 }
                 val text = parse(provider, raw, allowReasoning = forTest)
                     ?: return Outcome.Error(
@@ -379,7 +685,8 @@ object PromptOptimizer {
                         raw
                     )
                 }
-                Outcome.Ok(cleaned, elapsed)
+                val usage = runCatching { usageOf(JSONObject(raw)) }.getOrNull()
+                Outcome.Ok(cleaned, elapsed, usage?.first ?: 0, usage?.second ?: 0)
             }
         } catch (e: java.net.SocketTimeoutException) {
             Outcome.Error(
@@ -417,8 +724,17 @@ object PromptOptimizer {
         return value
     }
 
-    fun optimize(provider: ApiProvider, apiKey: String, input: String, rules: String? = null): Outcome =
-        execute(provider, apiKey, input, forTest = false, rules = rules)
+    /**
+     * Rewrites [input]. When [onDelta] is given the answer is streamed and every fragment is
+     * handed over as it arrives, so the screen fills in while the model is still writing.
+     */
+    fun optimize(
+        provider: ApiProvider,
+        apiKey: String,
+        input: String,
+        rules: String? = null,
+        onDelta: ((String) -> Unit)? = null
+    ): Outcome = execute(provider, apiKey, input, forTest = false, rules = rules, onDelta = onDelta)
 
     /** Cheap round-trip that proves URL + key + model name all work. */
     fun test(provider: ApiProvider, apiKey: String): Outcome =

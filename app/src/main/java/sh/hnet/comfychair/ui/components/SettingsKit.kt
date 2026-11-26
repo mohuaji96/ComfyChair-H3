@@ -83,8 +83,15 @@ fun SettingsDetailScaffold(
     bottomBar: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // The keyboard has to push the pinned action row up, not cover it.
-    Column(Modifier.fillMaxSize().imePadding()) {
+    // The keyboard has to push the pinned action row up, not cover it. The page tint matters:
+    // without it a white card on a white page has no edge, which is what made every theme look
+    // identical on these sub-pages.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .imePadding()
+    ) {
         TopAppBar(
             title = {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -359,7 +366,8 @@ fun SettingsTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailingIcon: (@Composable () -> Unit)? = null
 ) {
-    val fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    // Was 0.5 with a transparent outline: on a white page the box disappeared entirely.
+    val fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -374,7 +382,7 @@ fun SettingsTextField(
             focusedContainerColor = fill,
             unfocusedContainerColor = fill,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
             focusedLabelColor = MaterialTheme.colorScheme.primary,
             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
@@ -394,7 +402,8 @@ fun SettingsSelectField(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = FieldShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 10.dp),

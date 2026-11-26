@@ -13,6 +13,7 @@ import sh.hnet.comfychair.net.PromptOptimizer
 import sh.hnet.comfychair.storage.ApiProviderStore
 import sh.hnet.comfychair.storage.OptimizeHistoryStore
 import sh.hnet.comfychair.storage.PromptTemplateStore
+import sh.hnet.comfychair.task.OptimizeRunner
 
 /**
  * Shared state for the prompt optimiser: provider CRUD plus the one-shot rewrite call.
@@ -24,17 +25,24 @@ class PromptOptimizerViewModel : ViewModel() {
 
     data class OptimizeUiState(
         val running: Boolean = false,
+        /** True while the answer is still arriving; [result] grows in place. */
+        val streaming: Boolean = false,
         val result: String = "",
         /** The exact input that produced [result]; used to avoid re-billing an unchanged prompt. */
         val resultInput: String = "",
         val elapsedMs: Long = 0,
+        /** Reported by the endpoint when it sends a usage block; zero means it did not. */
+        val promptTokens: Int = 0,
+        val completionTokens: Int = 0,
         /** Only meaningful once [hasResult] is true; the tag library is Chinese by default. */
         val english: Boolean = false,
         val error: String? = null,
         /** Raw response or transport detail, shown small under the error. */
         val errorDetail: String? = null,
         /** The model's own one-line report of what it removed, already stripped of its prefix. */
-        val note: String = ""
+        val note: String = "",
+        /** The endpoint refused the thinking flag and the call was repeated without it. */
+        val thinkingRejected: Boolean = false
     ) {
         val hasResult: Boolean get() = result.isNotBlank()
     }
@@ -57,6 +65,10 @@ class PromptOptimizerViewModel : ViewModel() {
     private var appContext: Context? = null
     private var templateLoaded = false
 
+    /** The input and language of the run in flight, so a late report lands on the right state. */
+    private var inputForRun: String = ""
+    private var englishForRun: Boolean = false
+
     fun initialize(context: Context) {
         val app = context.applicationContext
         appContext = app
@@ -68,6 +80,7 @@ class PromptOptimizerViewModel : ViewModel() {
         // Always re-read: the settings screen and the composer sheet hold separate instances,
         // and each screen entering composition must see what the other one just saved.
         reload()
+        observeRunner()
     }
 
     fun reload() {
@@ -263,50 +276,89 @@ class PromptOptimizerViewModel : ViewModel() {
         }
 
         val key = ApiProviderStore.apiKey(ctx, provider.id).orEmpty()
-        optimize.value = OptimizeUiState(running = true, english = provider.english)
+        inputForRun = input
+        englishForRun = provider.english
+        optimize.value = OptimizeUiState(
+            running = true,
+            streaming = true,
+            english = provider.english,
+            resultInput = input
+        )
 
+        val started = OptimizeRunner.start(
+            context = ctx,
+            provider = provider,
+            key = key,
+            input = input,
+            rules = PromptTemplateStore.active(ctx).body
+        )
+        if (!started) {
+            // Another screen already has a run going; mirror it rather than queueing a second.
+            observeRunner()
+        }
+    }
+
+    /** Stops the run in flight. The endpoint keeps writing for a moment, the answer is dropped. */
+    fun cancelOptimize() {
+        OptimizeRunner.cancel()
+        optimize.value = OptimizeUiState(english = englishForRun)
+    }
+
+    private var observing = false
+
+    /**
+     * Mirrors the process-wide run into screen state. Two view models exist (the settings page
+     * and the composer sheet); both read the same source, so neither can drift.
+     */
+    fun observeRunner() {
+        if (observing) return
+        observing = true
         viewModelScope.launch {
-            val templateName = withContext(Dispatchers.IO) {
-                PromptTemplateStore.active(ctx).name
-            }
-            val outcome = withContext(Dispatchers.IO) {
-                PromptOptimizer.optimize(provider, key, input, PromptTemplateStore.active(ctx).body)
-            }
-            when (outcome) {
-                is PromptOptimizer.Outcome.Ok -> {
-                    // The report line belongs to the contract, not to the prompt: strip it before
-                    // it can reach the clipboard or the generate button.
-                    val (body, note) = OptimizeHistoryStore.splitNote(outcome.text)
-                    optimize.value = OptimizeUiState(
-                        running = false,
-                        result = body,
-                        note = note,
-                        resultInput = input,
-                        elapsedMs = outcome.elapsedMs,
-                        english = provider.english
-                    )
-                    withContext(Dispatchers.IO) {
-                        OptimizeHistoryStore.add(
-                            ctx,
-                            OptimizeHistoryStore.newRecord(templateName, input, body, note)
-                        )
-                    }
-                    upsert(provider.copy(
-                        lastUsedAt = System.currentTimeMillis(),
-                        lastOkAt = System.currentTimeMillis()
-                    ))
-                }
-                is PromptOptimizer.Outcome.Error -> {
-                    optimize.value = OptimizeUiState(
-                        running = false,
-                        error = errorLine(ctx, outcome),
-                        errorDetail = outcome.detail,
-                        english = provider.english
+            OptimizeRunner.task.collect { task ->
+                if (task != null) {
+                    optimize.value = optimize.value.copy(
+                        running = true,
+                        streaming = true,
+                        elapsedMs = task.elapsedMs,
+                        result = stripPromptTags(task.partial),
+                        error = null,
+                        errorDetail = null
                     )
                 }
             }
         }
+        viewModelScope.launch {
+            OptimizeRunner.reports.collect { report ->
+                when (report) {
+                    is OptimizeRunner.Report.Done -> {
+                        optimize.value = OptimizeUiState(
+                            running = false,
+                            result = report.text,
+                            note = report.note,
+                            resultInput = inputForRun,
+                            elapsedMs = report.elapsedMs,
+                            promptTokens = report.promptTokens,
+                            completionTokens = report.completionTokens,
+                            thinkingRejected = report.thinkingRejected,
+                            english = englishForRun
+                        )
+                    }
+                    is OptimizeRunner.Report.Failed -> {
+                        optimize.value = OptimizeUiState(
+                            error = report.message,
+                            errorDetail = report.detail,
+                            elapsedMs = 0,
+                            english = englishForRun
+                        )
+                    }
+                }
+            }
+        }
     }
+
+    /** Only the body is shown while streaming; the tags arrive around it. */
+    private fun stripPromptTags(raw: String): String =
+        raw.replace("<prompt>", "").replace("</prompt>", "").trimStart()
 
     /** [draftKey] is the text currently in the key field, so an unsaved key can be tried. */
     fun runTest(provider: ApiProvider, draftKey: String?) {

@@ -28,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.queue.QueueSnapshot
+import sh.hnet.comfychair.task.OptimizeRunner
 import sh.hnet.comfychair.ui.components.dialogs.ConfirmDialog
 import sh.hnet.comfychair.ui.components.shared.TooltipIconButton
 import sh.hnet.comfychair.util.AppErrors
@@ -99,6 +101,7 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
     val relayRemaining by sh.hnet.comfychair.queue.H3RelayStatus.remaining.collectAsState()
     val relayDetail by sh.hnet.comfychair.queue.H3RelayStatus.detail.collectAsState()
     val relayActive = relayDone + relayRemaining > 0
+    val optimizeTask by OptimizeRunner.task.collectAsState()
     var snapshot by remember { mutableStateOf<QueueSnapshot?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
 
@@ -174,7 +177,52 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                     }
                 }
             }
-            if (current != null && current.running.isEmpty() && current.pending.isEmpty() && lastFailure == null && !relayActive) {
+            // A rewrite runs on this phone, not on the server; it belongs in the same place the
+            // user looks when something is still going in the background.
+            optimizeTask?.let { task ->
+                item(key = "optimize-task") {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+                        shape = RowShape,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Spacer(Modifier.size(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.opt_task_title) + " · " +
+                                        stringResource(R.string.opt_task_running, elapsedLabel(task.elapsedMs)),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    task.providerName + " · " + task.model,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            androidx.compose.material3.TextButton(onClick = { OptimizeRunner.cancel() }) {
+                                Text(
+                                    stringResource(R.string.opt_stop),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (current != null && current.running.isEmpty() && current.pending.isEmpty() && lastFailure == null && !relayActive && optimizeTask == null) {
                 item {
                     Text(
                         stringResource(R.string.msg_queue_empty),
@@ -441,4 +489,10 @@ private fun QueueRow(
             trailing()
         }
     }
+}
+
+/** 23 s -> "00:23"; the queue card is a status line, not a stopwatch with decimals. */
+private fun elapsedLabel(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    return "%02d:%02d".format(total / 60, total % 60)
 }

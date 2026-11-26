@@ -13,8 +13,8 @@ plugins {
  * hand. Checking it here turns a typo into a build error instead of a version that has to be
  * skipped afterwards.
  */
-val appVersionCode = 385
-val appVersionName = "0.9.8.8382.625-h3"
+val appVersionCode = 386
+val appVersionName = "0.9.8.8382.626-h3"
 
 // Hoisted out of the android block: verifyReleaseSigning needs the same answer, and a val declared
 // inside android {} is not visible to the task registrations below it.

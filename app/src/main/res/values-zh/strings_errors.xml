@@ -51,4 +51,5 @@
     <string name="poe_dns_failed">域名解析失败，检查 API URL</string>
     <string name="poe_tls_error">HTTPS 证书错误：%1$s</string>
     <string name="poe_request_failed">请求失败：%1$s</string>
+    <string name="poe_context_too_long">输入超过了该模型能接受的长度：把原文缩短，或换一个上下文更大的模型</string>
 </resources>

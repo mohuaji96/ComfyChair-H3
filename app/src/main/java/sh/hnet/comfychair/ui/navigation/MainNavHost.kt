@@ -62,6 +62,7 @@ import kotlinx.coroutines.withContext
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.MainRoute
 import sh.hnet.comfychair.navigation.SettingsRoute
+import sh.hnet.comfychair.task.OptimizeRunner
 import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.queue.JobStatus
@@ -361,6 +362,19 @@ fun MainNavHost(
     // The gallery's selection toolbar takes the navigation bar's place
     val galleryState by galleryViewModel.uiState.collectAsState()
     val gallerySelecting = currentScreen == MainRoute.Gallery && galleryState.isSelectionMode
+    // Detail pages own the whole screen: their own action bar used to sit on top of the tab bar.
+    val onDetailPage = currentRoute != null && currentScreen == null
+
+    // A rewrite outlives the sheet that started it, so its outcome has to surface here.
+    LaunchedEffect(Unit) {
+        OptimizeRunner.reports.collect { report ->
+            val message = when (report) {
+                is OptimizeRunner.Report.Done -> context.getString(R.string.opt_done_toast)
+                is OptimizeRunner.Report.Failed -> context.getString(R.string.opt_failed_toast, report.message)
+            }
+            snackbarHostState.showSnackbar(message = message, duration = SnackbarDuration.Short)
+        }
+    }
 
     CompositionLocalProvider(
         LocalMediaViewer provides mediaViewer,
@@ -373,7 +387,7 @@ fun MainNavHost(
                 Scaffold(
                     bottomBar = {
                         AnimatedVisibility(
-                            visible = !gallerySelecting,
+                            visible = !gallerySelecting && !onDetailPage,
                             enter = expandVertically(expandFrom = Alignment.Top),
                             exit = shrinkVertically(shrinkTowards = Alignment.Top)
                         ) {

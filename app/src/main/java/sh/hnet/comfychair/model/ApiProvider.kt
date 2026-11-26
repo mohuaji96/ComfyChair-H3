@@ -55,6 +55,12 @@ data class ApiProvider(
     val temperature: Float,
     val maxTokens: Int,
     val timeoutSec: Int,
+    /**
+     * Let the model reason before it writes. Off by default: rewriting a prompt does not need
+     * it, and a thinking model spends the whole token budget before producing a word — measured
+     * on Zhipu's glm-4.5-air, 74 s with thinking against 11 s without.
+     */
+    val thinking: Boolean = false,
     /** Which built-in template this provider uses: "full", "lite" or "custom". */
     val templateSource: String = TEMPLATE_FULL,
     val lastUsedAt: Long? = null,
@@ -75,6 +81,7 @@ data class ApiProvider(
         put("temperature", temperature.toDouble())
         put("maxTokens", maxTokens)
         put("timeoutSec", timeoutSec)
+        put("thinking", thinking)
         put("templateSource", templateSource)
         lastUsedAt?.let { put("lastUsedAt", it) }
         lastOkAt?.let { put("lastOkAt", it) }
@@ -82,8 +89,16 @@ data class ApiProvider(
 
     companion object {
         const val DEFAULT_TEMPERATURE = 0.2f
-        const val DEFAULT_MAX_TOKENS = 4000
+        /** A rewrite needs ~330 tokens; 1500 leaves room without inviting a rambling answer. */
+        const val DEFAULT_MAX_TOKENS = 1500
         const val DEFAULT_TIMEOUT_SEC = 120
+        /** With thinking on the budget is shared with the reasoning, so it must be raised. */
+        const val THINKING_MAX_TOKENS = 8000
+
+        /** The ceiling actually sent: thinking shares it, so it needs more room than a rewrite. */
+        fun effectiveMaxTokens(provider: ApiProvider): Int =
+            if (provider.thinking) maxOf(provider.maxTokens, THINKING_MAX_TOKENS)
+            else provider.maxTokens
         const val TEMPLATE_FULL = "full"
         const val TEMPLATE_LITE = "lite"
         const val TEMPLATE_CUSTOM = "custom"
@@ -120,6 +135,12 @@ data class ApiProvider(
             temperature = json.optDouble("temperature", DEFAULT_TEMPERATURE.toDouble()).toFloat(),
             maxTokens = json.optInt("maxTokens", DEFAULT_MAX_TOKENS),
             timeoutSec = json.optInt("timeoutSec", DEFAULT_TIMEOUT_SEC),
+            // Earlier builds stored the inverse flag; keep those providers behaving as before.
+            thinking = if (json.has("thinking")) {
+                json.optBoolean("thinking", false)
+            } else {
+                !json.optBoolean("fastMode", true)
+            },
             templateSource = json.optString("templateSource").ifEmpty { TEMPLATE_FULL },
             lastUsedAt = json.optLong("lastUsedAt", 0L).takeIf { it > 0L },
             lastOkAt = json.optLong("lastOkAt", 0L).takeIf { it > 0L }
