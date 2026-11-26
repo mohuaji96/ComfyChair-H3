@@ -1,6 +1,7 @@
 package sh.hnet.comfychair.workflow
 
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,5 +53,20 @@ class H3RefSlotTest {
             )
         )
         assertTrue("声明 9 个也不能超出手上这两个槽", result.errors.isNotEmpty())
+    }
+
+    @Test
+    fun theInterfaceOffersExactlyWhatSubmissionCanCarry() {
+        // 界面能加到第几张，必须等于提交时真正带得动的张数；否则就会出现“能选第三张，
+        // 点生成才报超出上限”。
+        AutogrowLimits.record("MiniMaxH3ReferenceToVideo", "ref_images", 9)
+        val spec = H3Plan.resolve(twoSlot)!!
+        assertEquals("声明 9 个，文件只连了两个，界面也只该给两格", 2, H3Plan.refLimit(spec))
+    }
+
+    @Test
+    fun aWorkflowWithNoReferenceSocketsDoesNotHandOutAFreeFirstTile() {
+        // 以前这里会补一个“至少 1 格”，于是没有槽位的工作流也能点开第一格，提交时落空。
+        assertEquals(H3Plan.NextRef.AskServer, H3Plan.nextRefSlot(0, 0, 0))
     }
 }

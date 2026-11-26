@@ -1,0 +1,5 @@
+v0.9.8.8382.622-h3
+- Reference image count now follows the sockets the workflow actually wires, so a two-slot template no longer offers a third.
+- The limit is shown when you tap add, instead of appearing only after you hit generate.
+- A workflow with no reference sockets no longer gets one free slot.
+- The reference-mode hint reports the real limit instead of always saying three.

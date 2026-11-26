@@ -639,7 +639,8 @@ object H3Plan {
      * "ask", never "refuse".
      */
     fun nextRefSlot(usedTiles: Int, templateSlots: Int, knownCeiling: Int): NextRef = when {
-        usedTiles < templateSlots.coerceAtLeast(1) -> NextRef.Pick(usedTiles)
+        // 不再在这里补一个“至少 1 格”：工作流一格都没连的时候，补出来的那一格提交时会落空。
+        usedTiles < templateSlots -> NextRef.Pick(usedTiles)
         knownCeiling > usedTiles -> NextRef.Pick(usedTiles)
         else -> NextRef.AskServer
     }
@@ -655,6 +656,13 @@ object H3Plan {
         val defined = spec.refIndices.size.coerceAtLeast(1)
         return if (spec.maxRefSlots > 0) minOf(spec.maxRefSlots, defined) else defined
     }
+
+    /**
+     * 界面能加到第几张，必须和提交时真正能带的张数是同一个数。
+     * 以前界面按服务器声明的 9 格放行、提交按工作流实际的 2 格拒绝，于是“能选第三张，
+     * 点生成才报超出上限”。两处都读这里。
+     */
+    fun refLimit(spec: Spec): Int = ceiling(spec)
 
     // ---------------------------------------------------------------- submission copy
 
@@ -1136,6 +1144,6 @@ object H3Plan {
         Mode.T2V -> H3Message(R.string.plan_hint_t2v)
         Mode.I2V -> H3Message(R.string.plan_hint_i2v)
         Mode.FL2V -> H3Message(R.string.plan_hint_fl2v)
-        Mode.R2V -> H3Message(R.string.plan_hint_r2v, spec.maxRefSlots.coerceAtLeast(3))
+        Mode.R2V -> H3Message(R.string.plan_hint_r2v, refLimit(spec))
     }
 }

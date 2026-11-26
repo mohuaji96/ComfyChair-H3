@@ -350,7 +350,9 @@ fun H3StudioContent(
     var probedCeiling by remember(workflowId) { mutableStateOf(0) }
     var probing by remember { mutableStateOf(false) }
     var selectedRef by remember(workflowId, area) { mutableStateOf(-1) }
-    val templateSlots = spec.refIndices.size.coerceAtLeast(3)
+    val templateSlots = spec.refIndices.size
+    // 提交时真正能带几张，界面就只让加到几张。
+    val refLimit = H3Plan.refLimit(spec)
     val filledRefs = draft.refs.filterIndexed { i, f -> f.isNotBlank() && i !in draft.disabledRefs }
 
     val aspectOptions = remember(models.nodeDefinitionsRevision) {
@@ -574,9 +576,12 @@ fun H3StudioContent(
             main.post {
                 probing = false
                 probedCeiling = max ?: 0
-                if (max == null || max <= current)
+                // 服务器说能放 9 张也没用：工作流只连了两格，第三格提交时会被拒。
+                // 这里按提交上限判断，免得放行一个选完就用不了的格子。
+                val usable = minOf(max ?: 0, refLimit)
+                if (max == null || usable <= current)
                     message = context.getString(R.string.h3_msg_no_ref_limit, current)
-                else onResult(max)
+                else onResult(usable)
             }
         }
     }
@@ -717,8 +722,8 @@ fun H3StudioContent(
         if (busy) return
         val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
         if (live !== ConnectionManager.clientOrNull) return
-        // The live map may have been filled since this screen was composed; read it here.
-        val known = maxOf(spec.maxRefSlots, H3Plan.maxRefSlots(), probedCeiling)
+        // 服务器声明的格数只是上限的一半，还要受工作流自身连了几个槽位约束。
+        val known = minOf(maxOf(spec.maxRefSlots, H3Plan.maxRefSlots(), probedCeiling), refLimit)
         // Tiles in use, not the backing list length: the draft always carries three empty
         // placeholders, and asking the server while two of them are still free is the bug.
         val used = draft.refs.indexOfLast { it.isNotBlank() } + 1
@@ -2891,14 +2896,14 @@ private class H3DraftStore(context: android.content.Context) {
             steps = spec.steps?.steps?.toString() ?: ""
         )
         val empty = defaults.copy(
-            refs = List(spec.refIndices.size.coerceAtLeast(if (area == H3Plan.Area.R2V) 3 else 0)) { "" }
+            refs = List(if (area == H3Plan.Area.R2V) H3Plan.refLimit(spec) else 0) { "" }
         )
         val raw = prefs.getString("$workflowId|${area.name}", null) ?: return empty
         val o = runCatching { JSONObject(raw) }.getOrNull() ?: return defaults
         val refs = mutableListOf<String>()
         o.optJSONArray("refs")?.let { arr -> for (i in 0 until arr.length()) refs.add(arr.optString(i)) }
         if (area == H3Plan.Area.R2V && refs.isEmpty()) {
-            val minSlots = spec.refIndices.size.coerceAtLeast(3)
+            val minSlots = H3Plan.refLimit(spec)
             repeat(minSlots) { refs.add("") }
         }
         val loras = mutableMapOf<String, H3LoraDraft>()
