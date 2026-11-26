@@ -27,21 +27,26 @@ class H3RelayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // A null intent means the system brought us back after the process was killed. The run
-        // it was protecting lived in memory, so there is nothing to resume -- rebuilding the
-        // banner produced a permanent "0 of 0" notification with no way to get rid of it.
+        // START_STICKY may recreate the service with a null Intent after process death.
+        // Rebuild the notification from durable queue metadata; the H3 page reconciles the
+        // current prompt against /queue and /history when the user returns to the workspace.
         if (intent == null) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
+            H3RelayQueue.restore(this)
+            if (!H3RelayStatus.active) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            startForeground(ID, buildNotification())
+            return START_STICKY
         }
         when (intent.action) {
             ACTION_PAUSE -> {
-                H3RelayStatus.setPaused(true)
+                H3RelayQueue.setPaused(this, true)
                 startForeground(ID, buildNotification())
             }
             ACTION_RESUME -> {
-                H3RelayStatus.setPaused(false)
+                H3RelayQueue.setPaused(this, false)
                 startForeground(ID, buildNotification())
             }
             ACTION_STOP -> {

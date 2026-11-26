@@ -53,6 +53,7 @@
     <string name="h3_mode_r2v">参考生视频</string>
     <string name="h3_workflow_missing">工作流不存在，请重新导入</string>
     <string name="h3_workflow_not_h3">该工作流当前无法识别为 H3，请在专业编辑器中检查节点结构</string>
+    <string name="h3_workflow_ambiguous_core">该工作流包含多个 H3 核心节点，无法安全判断生成分支。请在专业编辑器中保留一个核心或整理分支。</string>
     <string name="h3_prompt_title">视频提示词</string>
     <string name="h3_prompt_clear">清空提示词</string>
     <string name="h3_prompt_fullscreen">全屏编辑</string>
@@ -410,4 +411,9 @@
     <string name="theme_label_primary">主动作</string>
     <string name="theme_preview_button">按钮</string>
     <string name="theme_preview_selected">选中</string>
+    <string name="h3_msg_relay_context_mismatch">这条连拍任务属于另一台服务器或另一个工作流。请切回原服务器并选择原工作流后再恢复。</string>
+    <string name="h3_msg_relay_recovered_submit">已从服务器队列找回这段任务，正在等待生成结果。</string>
+    <string name="h3_msg_relay_submit_unknown">提交结果仍不确定，服务器当前队列未找到匹配任务。请先检查服务器历史记录，不要直接重复提交。</string>
+    <string name="plan_output_ambiguous">当前 H3 核心连接了多个输出分支，请在工作流编辑器中明确保留一个有效输出。</string>
+    <string name="h3_msg_relay_persist_failed">连拍检查点保存失败，已阻止提交下一段。请重试或重新打开 H3 工作区恢复。</string>
 </resources>

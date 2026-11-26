@@ -362,12 +362,8 @@ class GalleryViewModel : ViewModel() {
     private suspend fun saveVideoToGalleryInternal(context: Context, item: GalleryItem): Boolean {
         return withContext(Dispatchers.IO) {
             val key = MediaCacheKey(item.promptId, item.filename)
-            val videoBytes = item.localPath?.let { path ->
-                runCatching { File(path).readBytes() }.getOrNull()
-            } ?: MediaCache.getVideoBytes(key)
-                ?: MediaCache.fetchVideoBytes(key, item.subfolder, item.type)
-
-            if (videoBytes == null) return@withContext false
+            val sourceFile = item.localPath?.let { File(it) }?.takeIf { it.exists() && it.length() > 0L }
+                ?: MediaCache.localFile(context, key, isVideo = true)
 
             try {
                 val contentValues = ContentValues().apply {
@@ -378,13 +374,25 @@ class GalleryViewModel : ViewModel() {
 
                 val resolver = context.contentResolver
                 val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    ?: return@withContext false
 
-                uri?.let { outputUri ->
-                    resolver.openOutputStream(outputUri)?.use { outputStream ->
-                        outputStream.write(videoBytes)
+                val written = resolver.openOutputStream(uri)?.use { output ->
+                    if (sourceFile != null) {
+                        sourceFile.inputStream().use { input -> input.copyTo(output, 128 * 1024) }
+                        true
+                    } else {
+                        val fetchedUri = MediaCache.fetchVideoUri(key, item.subfolder, item.type, context)
+                        if (fetchedUri != null) {
+                            resolver.openInputStream(fetchedUri)?.use { input -> input.copyTo(output, 128 * 1024) }
+                            true
+                        } else false
                     }
+                } ?: false
+
+                if (!written) {
+                    resolver.delete(uri, null, null)
                 }
-                true
+                written
             } catch (e: Exception) {
                 false
             }
@@ -467,23 +475,46 @@ class GalleryViewModel : ViewModel() {
     private suspend fun getVideoShareUri(context: Context, item: GalleryItem, index: Int): Uri? {
         return withContext(Dispatchers.IO) {
             val key = MediaCacheKey(item.promptId, item.filename)
-            val videoBytes = item.localPath?.let { path ->
-                runCatching { File(path).readBytes() }.getOrNull()
-            } ?: MediaCache.getVideoBytes(key)
-                ?: MediaCache.fetchVideoBytes(key, item.subfolder, item.type)
+            val shareFile = File(context.cacheDir, "share_video_$index.mp4")
+            val sourceFile = item.localPath?.let { File(it) }?.takeIf { it.exists() && it.length() > 0L }
+                ?: MediaCache.localFile(context, key, isVideo = true)
 
-            if (videoBytes == null) return@withContext null
+            val written = if (sourceFile != null) {
+                runCatching {
+                    sourceFile.inputStream().use { input ->
+                        shareFile.outputStream().use { output ->
+                            input.copyTo(output, 128 * 1024)
+                        }
+                    }
+                    true
+                }.getOrDefault(false)
+            } else {
+                val fetchedUri = MediaCache.fetchVideoUri(key, item.subfolder, item.type, context)
+                if (fetchedUri != null) {
+                    runCatching {
+                        context.contentResolver.openInputStream(fetchedUri)?.use { input ->
+                            shareFile.outputStream().use { output ->
+                                input.copyTo(output, 128 * 1024)
+                            }
+                        }
+                        true
+                    }.getOrDefault(false)
+                } else false
+            }
+
+            if (!written || !shareFile.exists() || shareFile.length() == 0L) {
+                shareFile.delete()
+                return@withContext null
+            }
 
             try {
-                val shareFile = File(context.cacheDir, "share_video_$index.mp4")
-                shareFile.writeBytes(videoBytes)
-
                 FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
                     shareFile
                 )
             } catch (e: Exception) {
+                shareFile.delete()
                 null
             }
         }

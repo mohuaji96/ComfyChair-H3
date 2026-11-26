@@ -1,0 +1,6 @@
+v0.9.8.8382.623-h3
+- Relay execution now recovers across process death and reconciles against the server.
+- Segments checkpoint before submit; unknown outcomes check queue and history before retrying.
+- Relay runs bind to server and workflow, preventing cross-server task confusion.
+- Video sharing streams directly to temporary files, preventing memory spikes.
+- Models & LoRA card removes the duplicate enabled-count subtitle.

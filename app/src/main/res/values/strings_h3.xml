@@ -53,6 +53,7 @@
     <string name="h3_mode_r2v">Reference to video</string>
     <string name="h3_workflow_missing">Workflow not found — import it again</string>
     <string name="h3_workflow_not_h3">This workflow cannot be read as H3; check its nodes in the full editor</string>
+    <string name="h3_workflow_ambiguous_core">This workflow contains multiple H3 generation cores. Select or simplify the active branch in the full editor.</string>
     <string name="h3_prompt_title">Video prompt</string>
     <string name="h3_prompt_clear">Clear prompt</string>
     <string name="h3_prompt_fullscreen">Full-screen editor</string>
@@ -410,4 +411,9 @@
     <string name="theme_label_primary">Primary</string>
     <string name="theme_preview_button">Button</string>
     <string name="theme_preview_selected">Selected</string>
+    <string name="h3_msg_relay_context_mismatch">This continuation run belongs to a different server or workflow. Reconnect to the original server and select the original workflow to resume it.</string>
+    <string name="h3_msg_relay_recovered_submit">Recovered the submitted segment from the server queue. Waiting for its result.</string>
+    <string name="h3_msg_relay_submit_unknown">The submit result is still unknown and no matching queued job was found. Check server history before submitting again.</string>
+    <string name="plan_output_ambiguous">Multiple output branches are connected to this H3 core. Select a single active output in the workflow editor.</string>
+    <string name="h3_msg_relay_persist_failed">Could not save the continuation checkpoint. The next segment was not submitted; retry or reopen the H3 workspace.</string>
 </resources>
