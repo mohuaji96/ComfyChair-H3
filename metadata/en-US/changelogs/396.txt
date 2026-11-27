@@ -1,0 +1,8 @@
+v0.9.8.8382.630-h3
+Updated:
+- Chain progress now keeps up everywhere: switch tabs or open the gallery and come back, it is current
+- A chain that ends, failed or not, refreshes the gallery so finished segments show up
+- A chain from another server is no longer shown as this server's progress
+Fixed:
+- A chain that could not be written down says so instead of pretending it was saved
+- Leaving before the answer arrives now asks the server about that chain on the next launch

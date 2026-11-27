@@ -1,0 +1,8 @@
+v0.9.8.8382.630-h3
+Updated:
+- Each segment after the first now opens on the previous segment's last frame, and its prompt names that picture
+Fixed:
+- Segments restarted from the first reference image instead of continuing the clip
+- The chain was sent without the id the server requires and was refused
+- A 1.0 plugin could be switched on and only failed at Start chain
+- A prompt naming the wrong picture is reported before the batch runs

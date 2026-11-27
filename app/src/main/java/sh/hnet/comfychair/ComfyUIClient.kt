@@ -2032,7 +2032,12 @@ class ComfyUIClient(
     /** A GET answered as text, read up to a limit. */
     sealed interface TextResult {
         data class Ok(val text: String) : TextResult
-        data class HttpError(val code: Int) : TextResult
+        /**
+         * A refusal. [body] is whatever the server sent with it, read just like a 200:
+         * a 403 from a plugin says "the plugin is switched off", and throwing that away
+         * leaves the user with a bare status number they cannot act on.
+         */
+        data class HttpError(val code: Int, val body: String? = null) : TextResult
         /** The answer is longer than the limit; reading stopped there. */
         data object TooLarge : TextResult
         /** No answer (network, TLS); [message] is for the user only, never logged. */
@@ -2058,7 +2063,17 @@ class ComfyUIClient(
                     val result = response.use {
                         val body = response.body
                         when {
-                            !response.isSuccessful -> TextResult.HttpError(response.code)
+                            // The same rule as the POST path: a 4xx carries the reason in its
+                            // body, so it is read rather than guessed at from the code.
+                            !response.isSuccessful && response.code !in 400..499 ->
+                                TextResult.HttpError(response.code)
+                            !response.isSuccessful -> try {
+                                val source = body.source()
+                                if (source.request(maxBytes + 1)) TextResult.HttpError(response.code)
+                                else TextResult.HttpError(response.code, source.readUtf8())
+                            } catch (e: IOException) {
+                                TextResult.HttpError(response.code)
+                            }
                             else -> try {
                                 val source = body.source()
                                 // More than the limit buffered: too large, without reading the rest

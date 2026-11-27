@@ -180,6 +180,7 @@
     <string name="h3_msg_preparing">Preparing the submission…</string>
     <string name="h3_msg_prepare_failed">Could not prepare the submission: %1$s</string>
     <string name="h3_msg_preflight_failed">Pre-flight checks failed: %1$s</string>
+    <string name="h3_msg_tail_conflict">Segment %1$d says picture %2$d is the last frame, but it is picture %3$d. Fix that line first.</string>
     <string name="h3_msg_submitted">Submitted %1$s · prompt_id=%2$s</string>
     <string name="h3_msg_submit_failed">Submission failed: %1$s</string>
     <string name="h3_msg_preview_on">Sampling preview on</string>
@@ -345,8 +346,10 @@
     <string name="h3_chain_add">Add to chain</string>
     <string name="h3_chain_added">Added: segment %1$d</string>
     <string name="h3_chain_submitted">Handed to the server: %1$s, %2$d segments</string>
+    <string name="h3_chain_submitted_unkept">Handed to the server: %1$s. The progress could not be saved, so this phone will lose the chain after a restart.</string>
     <string name="h3_chain_refused">The server refused this chain: %1$s</string>
     <string name="h3_chain_unreachable">Could not reach the server; the chain was not sent</string>
+    <string name="h3_chain_control_failed">The server did not accept that request: %1$s</string>
     <string name="h3_chain_busy">The last batch is still running on the server; wait for it to end</string>
     <string name="h3_chain_full">A chain holds at most %1$d segments</string>
     <string name="h3_chain_failed">Chain failed: %1$s</string>

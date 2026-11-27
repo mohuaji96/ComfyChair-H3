@@ -18,7 +18,7 @@ class H3RelayClientTest {
     private val objectForm = """
         {
           "plugin": "h3-relay",
-          "version": "1.0.0",
+          "version": "1.1.0",
           "enabled": true,
           "templates": {"itv_h3_mobile_r2v": "9da5d11e", "ttv_h3_mobile_frames": "7c0bf93b"},
           "relayTemplates": {"itv_h3_mobile_r2v": "9da5d11e", "itv_h3_mobile_r2v_turbo": "fb9aabcf"},
@@ -31,7 +31,7 @@ class H3RelayClientTest {
     private val arrayForm = """
         {
           "plugin": "h3-relay",
-          "version": "1.0.0",
+          "version": "1.1.0",
           "relayTemplates": ["itv_h3_mobile_r2v", "itv_h3_mobile_r2v_turbo"],
           "refSlots": {"itv_h3_mobile_r2v": 9}
         }
@@ -58,7 +58,14 @@ class H3RelayClientTest {
 
     @Test
     fun `rejects a version below the contract`() {
-        assertNull(H3RelayClient.parse(objectForm.replace("\"1.0.0\"", "\"0.9.9\"")))
+        assertNull(H3RelayClient.parse(objectForm.replace("\"1.1.0\"", "\"0.9.9\"")))
+    }
+
+    @Test
+    fun `rejects the 1_0 plugin that cannot run a caller graph`() {
+        // 1.0.0 answers template_unknown to the graphs this app sends, so it must never light
+        // the switch up: the user would stage a chain and be refused at start instead.
+        assertNull(H3RelayClient.parse(objectForm.replace("\"1.1.0\"", "\"1.0.0\"")))
     }
 
     @Test
@@ -193,6 +200,7 @@ class H3RelayClientTest {
     @Test
     fun `the body carries one plan entry per segment and the user's project name`() {
         val body = H3RelayClient.chainBody(
+            "h3-test-0001",
             "itv_h3_mobile_r2v",
             "夜景",
             listOf(
@@ -209,6 +217,8 @@ class H3RelayClientTest {
                 )
             )
         )
+        // The plugin answers 400 bad_chain_id to a body without this, on the very first attempt.
+        assertEquals("h3-test-0001", body.getString("chainId"))
         assertEquals("itv_h3_mobile_r2v", body.getString("templateId"))
         // `segments` is a number the plugin compares against `plan.length`; disagreeing is a 400.
         assertEquals(2, body.getInt("segments"))
@@ -224,10 +234,24 @@ class H3RelayClientTest {
     }
 
     @Test
+    fun `the tail placeholder matches what the plugin looks for`() {
+        // The plugin swaps this literal for the segment it just produced. Drifting from it means
+        // every segment after the first is refused, and nothing on this side would notice.
+        assertEquals("h3relay_tail", H3RelayClient.TAIL_PLACEHOLDER)
+    }
+
+    @Test
+    fun `no plugin below the graph version is accepted`() {
+        // 1.0.0 answers template_unknown to a chain that carries graphs, so accepting it would
+        // let a whole chain be staged and only fail on start.
+        assertEquals(H3RelayClient.GRAPH_MIN_VERSION, H3RelayClient.MIN_VERSION)
+    }
+
+    @Test
     fun `a whole graph is sent only when the caller has one`() {
         val graph = org.json.JSONObject().put("1", org.json.JSONObject().put("class_type", "LoadImage"))
         val body = H3RelayClient.chainBody(
-            "itv_h3_mobile_r2v", "p",
+            "h3-test-0002", "itv_h3_mobile_r2v", "p",
             listOf(H3RelayClient.Segment("一", org.json.JSONObject(), graph = graph))
         )
         assertEquals(

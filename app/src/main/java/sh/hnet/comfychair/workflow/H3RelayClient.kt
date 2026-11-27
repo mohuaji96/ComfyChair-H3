@@ -14,15 +14,20 @@ import sh.hnet.comfychair.ComfyUIClient
  */
 object H3RelayClient {
 
-    /** The chain contract (`plan`, `numbering`, per-template slots) landed in this version. */
-    const val MIN_VERSION = "1.0.0"
+    /**
+     * The oldest plugin this app will chain against. It is 1.1.0, not 1.0.0: every chain this app
+     * sends carries `plan[i].graph`, and a plugin that predates caller-built graphs answers
+     * `template_unknown` to exactly that request. Accepting 1.0.0 here would let the user stage a
+     * whole chain and only be told it cannot run after pressing start.
+     */
+    const val MIN_VERSION = "1.1.0"
 
     /**
      * The first plugin that runs a caller-built graph (`plan[i].graph`) instead of rebuilding
      * every segment from its own template. Below this one a chain is built from the plugin's
      * bundled model and LoRA, so a phone that paints its own graph must not send one.
      */
-    const val GRAPH_MIN_VERSION = "1.1.0"
+    const val GRAPH_MIN_VERSION = "1.1.0" // keep equal to MIN_VERSION: nothing below 1.1.0 runs a chain
 
     private const val INFO_ROUTE = "/h3relay/info"
     /**
@@ -194,8 +199,14 @@ object H3RelayClient {
 
     // ---- wire -------------------------------------------------------------------------
 
-    /** Builds the body `POST /h3relay/chain` expects; [project] is the user's chain name. */
-    fun chainBody(templateId: String, project: String, segments: List<Segment>): JSONObject {
+    /**
+     * Builds the body `POST /h3relay/chain` expects; [project] is the user's chain name.
+     *
+     * The id is the chain's identity from before the first byte goes out: the plugin refuses a
+     * submission without one, and it is what makes a retry land on the same chain instead of a
+     * second copy. Whoever calls this owns keeping [chainId] stable across attempts.
+     */
+    fun chainBody(chainId: String, templateId: String, project: String, segments: List<Segment>): JSONObject {
         val plan = JSONArray()
         segments.forEach { segment ->
             plan.put(
@@ -213,6 +224,7 @@ object H3RelayClient {
             )
         }
         return JSONObject()
+            .put("chainId", chainId)
             .put("templateId", templateId)
             .put("segments", segments.size)
             .put("plan", plan)
@@ -360,7 +372,9 @@ object H3RelayClient {
             else -> refusal
         }
         is ComfyUIClient.TextResult.HttpError ->
-            if (answer.code == 404) Answer.Gone else Answer.Rejected(Refused(Failure.UNKNOWN, null, null))
+            if (answer.code == 404) Answer.Gone
+            else answer.body?.let { parseError(it) }
+                ?: Answer.Rejected(Refused(Failure.UNKNOWN, "HTTP ${answer.code}", null))
         is ComfyUIClient.TextResult.TooLarge -> Answer.Unreachable("answer too large")
         is ComfyUIClient.TextResult.Failed -> Answer.Unreachable(answer.message)
     }

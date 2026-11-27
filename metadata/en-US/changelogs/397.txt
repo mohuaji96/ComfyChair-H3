@@ -1,0 +1,6 @@
+v0.9.8.8382.630-h3
+- Reopening the app shows the chain where it actually got to instead of segment 1
+- Pause / resume / stop now say why when the server did not take the request
+- The 48-segment ceiling counts the segment on screen, so a 49-segment batch is never sent
+- A refusal shows the server's own wording instead of a generic sentence
+- Each chain segment reports its size, length and steps, so the server sidebar reads properly

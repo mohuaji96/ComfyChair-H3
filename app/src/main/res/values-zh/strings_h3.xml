@@ -180,6 +180,7 @@
     <string name="h3_msg_preparing">正在准备提交…</string>
     <string name="h3_msg_prepare_failed">无法准备提交：%1$s</string>
     <string name="h3_msg_preflight_failed">提交前检查未通过：%1$s</string>
+    <string name="h3_msg_tail_conflict">第 %1$d 段的提示词写着第 %2$d 张是上一段结尾，实际是第 %3$d 张，请先改这一行</string>
     <string name="h3_msg_submitted">已提交 %1$s · prompt_id=%2$s</string>
     <string name="h3_msg_submit_failed">提交失败：%1$s</string>
     <string name="h3_msg_preview_on">采样预览已打开</string>
@@ -345,8 +346,10 @@
     <string name="h3_chain_add">加入连拍</string>
     <string name="h3_chain_added">已加入连拍，第 %1$d 段</string>
     <string name="h3_chain_submitted">连拍已交给服务器：%1$s，共 %2$d 段</string>
+    <string name="h3_chain_submitted_unkept">连拍已交给服务器：%1$s。但进度没能存住，退出 App 后这条连拍就不再跟了</string>
     <string name="h3_chain_refused">服务器拒绝了这个连拍：%1$s</string>
     <string name="h3_chain_unreachable">连不上服务器，连拍没有提交</string>
+    <string name="h3_chain_control_failed">服务器没有接受这个操作：%1$s</string>
     <string name="h3_chain_busy">上一批还在服务器上跑，等它结束再排</string>
     <string name="h3_chain_full">一次最多 %1$d 段</string>
     <string name="h3_chain_failed">连拍失败：%1$s</string>

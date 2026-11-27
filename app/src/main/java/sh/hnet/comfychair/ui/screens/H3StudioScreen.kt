@@ -213,7 +213,11 @@ fun H3StudioContent(
     val pendingStore = remember { PendingJobStore(context) }
     // The chain record and the staged cursor both live in [H3RelayChain], because the server
     // owns the run: this page only reads it back after a restart and pushes what it sees.
-    remember(context) { H3RelayChain.restore(context) }
+    // The follow loop lives there too, so leaving this page no longer freezes the progress.
+    LaunchedEffect(client) {
+        H3RelayChain.restore(context)
+        H3RelayChain.watch(context)
+    }
     val chainState by H3RelayChain.state.collectAsState()
     val stagedSegments by H3RelayChain.staged.collectAsState()
     // The last prompt this page submitted by itself, watched for the poster and the时长 line
@@ -297,7 +301,9 @@ fun H3StudioContent(
             message = context.getString(R.string.h3_msg_relay_context_mismatch)
             return
         }
-        if (stagedSegments >= H3_MAX_CHAIN) {
+        // The draft on screen is itself the last segment of the batch, so staging stops one
+        // short of the ceiling: 47 staged + this one is 48, which is what the plugin takes.
+        if (stagedSegments >= H3_MAX_CHAIN - 1) {
             message = context.getString(R.string.h3_chain_full, H3_MAX_CHAIN)
             return
         }
@@ -424,8 +430,38 @@ fun H3StudioContent(
         spec?.modes?.let { mList -> wrappedObj.put("modes", org.json.JSONArray(mList.map { it.name })) }
         val attributed = WorkflowManager.applyNodeAttributeEdits(wrappedObj.toString(), workflowId)
         val plan = H3Plan.resolve(attributed) ?: error(context.getString(R.string.h3_err_workflow_unresolved))
-        drafts.map { d ->
-            val built = H3Plan.build(attributed, plan, requestFor(d, plan), aspectOptions)
+        drafts.mapIndexed { index, d ->
+            // Every segment after the first begins on the frame the previous one ended with. What
+            // goes in that slot is this literal, not a file name: only the plugin knows what the
+            // previous segment actually produced. Without it the chain would replay the first
+            // segment's pictures, and the plugin refuses a continuing segment it cannot wire.
+            // The picture also has to be named in the wording: the model reads the tail off the
+            // prompt, not off the socket, so a segment that carries the frame without saying so
+            // starts a fresh shot. Only the line this object owns is added; a claim for another
+            // picture is refused below rather than layered on top of.
+            val segment = if (index == 0) d else {
+                val own = d.refs.filterIndexed { i, file ->
+                    file.isNotBlank() && i !in d.disabledRefs
+                }.size
+                val picture = own + 1
+                val applied = H3Continuation.apply(d.prompt, picture, true)
+                // A claim for a different picture is a hand-written one, and two claims cancel
+                // each other out: the model would take the named picture as the opening frame
+                // while the plugin puts the real tail in another slot. Refuse the batch instead
+                // of running a chain that is quietly wrong from its second segment on.
+                val claimed = applied.declared.takeIf { it != H3Continuation.NONE }
+                    ?: H3Continuation.declaredPicture(applied.prompt)
+                if (claimed != null && claimed != picture) {
+                    error(context.getString(R.string.h3_msg_tail_conflict, index + 1, claimed, picture))
+                }
+                d.copy(
+                    continuation = H3RelayClient.TAIL_PLACEHOLDER,
+                    continuationAuto = true,
+                    continuationOwner = picture,
+                    prompt = applied.prompt
+                )
+            }
+            val built = H3Plan.build(attributed, plan, requestFor(segment, plan), aspectOptions)
             if (!built.ok) error(built.errors.joinToString("; ") { it.format(context) })
             val preflight = SubmitPreflight.prepare(built.json) { ct, key ->
                 ConnectionManager.nodeTypeRegistry.getInputDefinition(ct, key)?.options
@@ -455,6 +491,12 @@ fun H3StudioContent(
             message = context.getString(R.string.h3_msg_relay_context_mismatch)
             return
         }
+        // staged + the one on screen is the whole batch; a batch the plugin would refuse for
+        // length must not be sent at all, because the refusal costs the graphs built for it.
+        if (stagedSegments >= H3_MAX_CHAIN) {
+            message = context.getString(R.string.h3_chain_full, H3_MAX_CHAIN)
+            return
+        }
         val drafts = buildList {
             repeat(stagedSegments) { add(segmentLoad(H3RelayChain.headIndex(context) + it)) }
             add(draft)
@@ -473,21 +515,45 @@ fun H3StudioContent(
                     prompt = d.prompt,
                     // Informational: the graph carries the real settings, but the plugin's own
                     // sidebar shows these, and a chain whose rows say nothing is hard to read.
-                    params = JSONObject()
-                        .put("seconds", d.seconds.toDoubleOrNull() ?: 0.0)
-                        .put("steps", d.steps.toIntOrNull() ?: 0),
+                    // Size is written the way the segment actually asked for it — exact pixels
+                    // when the user typed them, the ratio otherwise.
+                    params = JSONObject().apply {
+                        put("seconds", d.seconds.toDoubleOrNull() ?: 0.0)
+                        put("steps", d.steps.toIntOrNull() ?: 0)
+                        val width = d.customW.trim().toIntOrNull()
+                        val height = d.customH.trim().toIntOrNull()
+                        if (width != null && height != null) {
+                            put("width", width)
+                            put("height", height)
+                        } else {
+                            put("ratio", d.ratio)
+                            d.mp.toDoubleOrNull()?.let { put("megapixels", it) }
+                        }
+                    },
                     references = d.refs.filterIndexed { i, f -> f.isNotBlank() && i !in d.disabledRefs },
                     graph = graphs[index]
                 )
             }
-            val body = H3RelayClient.chainBody("", project, segments)
+            // The id is minted and written down before the request goes out, so a lost answer
+            // can be settled by asking about this chain instead of guessing whether it exists.
+            val chainId = withContext(Dispatchers.IO) { H3RelayChain.pendingChainId(context) }
+            val body = H3RelayClient.chainBody(chainId, "", project, segments)
             when (val answer = H3RelayClient.submitChain(live, body)) {
                 is H3RelayClient.Answer.Ok -> {
                     val accepted = answer.value
-                    H3RelayChain.begin(context, accepted.chainId, accepted.project, accepted.segments)
+                    // The chain runs on the server either way, so a failed write must not stop
+                    // the run — it only means this phone will not recognise the chain after a
+                    // restart, which the user has to be told rather than discover.
+                    val kept = withContext(Dispatchers.IO) {
+                        H3RelayChain.begin(context, accepted.chainId, accepted.project, accepted.segments)
+                    }
                     H3RelayChain.resetStaging(context)
                     busy = false
-                    message = context.getString(R.string.h3_chain_submitted, accepted.project, accepted.segments)
+                    message = if (kept) {
+                        context.getString(R.string.h3_chain_submitted, accepted.project, accepted.segments)
+                    } else {
+                        context.getString(R.string.h3_chain_submitted_unkept, accepted.project)
+                    }
                 }
                 is H3RelayClient.Answer.Rejected -> {
                     busy = false
@@ -501,31 +567,6 @@ fun H3StudioContent(
                     message = context.getString(R.string.h3_chain_unreachable)
                 }
             }
-        }
-    }
-
-    // One request every two seconds while a chain exists: the summary is the whole truth about
-    // where the server got to, so the progress bar, the queue sheet and the gallery all agree.
-    LaunchedEffect(chainState.chainId) {
-        val id = chainState.chainId ?: return@LaunchedEffect
-        while (true) {
-            val live = ConnectionManager.clientOrNull ?: break
-            when (val answer = H3RelayClient.chain(live, id)) {
-                is H3RelayClient.Answer.Ok -> {
-                    H3RelayChain.report(answer.value)
-                    if (answer.value.ended) {
-                        if (answer.value.state != H3RelayClient.ChainState.FAILED) {
-                            // The plugin wrote the clips straight into the output folder, so the
-                            // gallery learns about them the same way it learns about any file.
-                            sh.hnet.comfychair.repository.GalleryRepository.getInstance().refresh()
-                        }
-                        break
-                    }
-                }
-                is H3RelayClient.Answer.Gone -> { H3RelayChain.clear(context); break }
-                else -> Unit
-            }
-            delay(2000)
         }
     }
 
