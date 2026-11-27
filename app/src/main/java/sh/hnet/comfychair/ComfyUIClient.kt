@@ -2075,6 +2075,46 @@ class ComfyUIClient(
     }
 
     /**
+     * POSTs [body] to [pathAndQuery] (starting with "/") and reads the answer as text, at most
+     * [maxBytes]. Same contract as [getText]: the caller sees the status code, so a plugin's
+     * `{"error": ...}` body can be told apart from a transport failure.
+     */
+    suspend fun postJson(pathAndQuery: String, body: String, maxBytes: Long): TextResult {
+        val baseUrl = getBaseUrl() ?: return TextResult.Failed(null)
+        val request = Request.Builder()
+            .url(baseUrl + pathAndQuery)
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        val call = httpClient.newCall(request)
+        return suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) {
+                    if (continuation.isActive) continuation.resume(TextResult.Failed(e.message))
+                }
+
+                override fun onResponse(call: okhttp3.Call, response: Response) {
+                    val result = response.use {
+                        val payload = response.body
+                        when {
+                            // A refusal carries the reason in the body, so it is read like a 200.
+                            !response.isSuccessful && response.code !in 400..499 ->
+                                TextResult.HttpError(response.code)
+                            else -> try {
+                                val source = payload.source()
+                                if (source.request(maxBytes + 1)) TextResult.TooLarge else TextResult.Ok(source.readUtf8())
+                            } catch (e: IOException) {
+                                TextResult.Failed(e.message)
+                            }
+                        }
+                    }
+                    if (continuation.isActive) continuation.resume(result)
+                }
+            })
+        }
+    }
+
+    /**
      * Clean up resources
      * Should be called when done with the client
      */

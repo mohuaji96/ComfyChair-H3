@@ -1,0 +1,3 @@
+v0.9.8.8382.629-h3
+- Rewrote the "?" help beside Relay mode: relay needs the companion plugin ComfyUI H3 Relay 1.0.0 or newer on the server, and it now says where to put it, how the version is checked, and why the plugin alone is not enough.
+- The longer help scrolls inside the dialog instead of being clipped on small screens.

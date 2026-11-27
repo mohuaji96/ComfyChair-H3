@@ -298,7 +298,7 @@
     <string name="h3_clear_short">清除</string>
     <string name="h3_last_frame_short">尾帧</string>
     <string name="h3_cap">上限</string>
-    <string name="h3_relay_help">用途&#10;把好几段拼成一条长视频：每段跑完自动接上一段最后一帧，接着生成下一段。&#10;&#10;怎么用&#10;1. 打开「连拍模式」，第一次会确认服务器上装了连拍插件&#10;2. 填项目名（必填）：文件名就是「项目名_段号」，重名会自动加 -2、-3&#10;3. 写好提示词、选好参考图，点「添加到队列」，点几次就是几段&#10;4. 只把当前这一段交给服务器；跑完自动取尾帧、换到参考槽、提交下一段&#10;&#10;注意&#10;· 每段用的是点「添加」那一刻的参数（时长 / 比例 / 步数 / 参考图）&#10;· 第 1 段最多 9 张参考图；第 2 段起要留一格给上一段的尾帧，最多 8 张&#10;· 连拍期间请不要把 App 从后台划掉：取帧和提交都要靠手机，划掉会停住&#10;· 任一段失败会停下等你，不会跳过&#10;· 关掉开关会暂停，剩余段不丢，重新打开继续</string>
+    <string name="h3_relay_help">用途&#10;把好几段拼成一条长视频：每段跑完自动接上一段最后一帧，接着生成下一段。&#10;&#10;先装插件&#10;连拍是两边配合的功能，服务器上要先装配套插件 ComfyUI H3 Relay（GitHub 上的 mohuaji96/ComfyUI-H3Relay）1.1.0 及以上：整个目录放进 ComfyUI 的 custom_nodes，重启 ComfyUI 后在控制台能看到挂载信息。装上之后这个开关才打得开——打开时会先去问服务器有没有插件、版本够不够，没有就立刻弹回并说明原因。只装插件也不行，它没有自己的界面，任务只能由这个 App 提交。&#10;&#10;怎么用&#10;1. 打开「连拍模式」&#10;2. 填项目名（必填）：文件名就是「项目名_段号」，重名会自动加 -2、-3&#10;3. 写好提示词、选好参考图，点「加入连拍」，点几次就是几段&#10;4. 点「开始连拍」：已排的各段一次性交给服务器&#10;&#10;注意&#10;· 每段用的是点「加入」那一刻的参数（时长 / 比例 / 步数 / 参考图）&#10;· 第 1 段最多 9 张参考图；第 2 段起要留一格给上一段的尾帧，最多 8 张&#10;· 点下「开始连拍」后整条链都在服务器上跑：尾帧在那里取、下一段在那里接，锁屏或退出 App 都不影响&#10;· 暂停、继续、停止都在队列抽屉里；停止会让正在跑的那一段跑完并保留&#10;· 任一段失败会停下等你，不会跳过</string>
     <string name="h3_hint_second_pass_steps">推荐 2 – 10 步；Turbo 加速二采去噪精修步数</string>
     <string name="h3_hint_rtx_scale">填 1.0 即为不放大；1.2 为 1.2 倍放大；1.5 为 1.5 倍放大</string>
     <string name="h3_steps_count">%1$s 步</string>
@@ -338,6 +338,20 @@
     <string name="h3_relay_fail_wait">任一段失败整条停下，已出的片段保留</string>
     <string name="h3_relay_prefix_hint">必填，例如 我的短片</string>
     <string name="h3_relay_queued_n">已排 %1$d 段，跑完当前这段自动接上</string>
+    <string name="h3_chain_progress">连拍 %1$d/%2$d · 服务器在跑</string>
+    <string name="h3_chain_paused">连拍 %1$d/%2$d · 已暂停</string>
+    <string name="h3_chain_staged">已排 %1$d 段，还没交给服务器</string>
+    <string name="h3_chain_start">开始连拍</string>
+    <string name="h3_chain_add">加入连拍</string>
+    <string name="h3_chain_added">已加入连拍，第 %1$d 段</string>
+    <string name="h3_chain_submitted">连拍已交给服务器：%1$s，共 %2$d 段</string>
+    <string name="h3_chain_refused">服务器拒绝了这个连拍：%1$s</string>
+    <string name="h3_chain_unreachable">连不上服务器，连拍没有提交</string>
+    <string name="h3_chain_busy">上一批还在服务器上跑，等它结束再排</string>
+    <string name="h3_chain_full">一次最多 %1$d 段</string>
+    <string name="h3_chain_failed">连拍失败：%1$s</string>
+    <string name="h3_chain_pause">暂停</string>
+    <string name="h3_chain_resume">继续</string>
     <string name="h3_audio_count">%1$d / %2$d</string>
     <string name="h3_not_selected_short">未选</string>
     <string name="h3_err_extra_invalid">%1$s 需要合法数值</string>
@@ -422,4 +436,8 @@
     <string name="h3_msg_relay_submit_unknown">提交结果仍不确定，服务器当前队列未找到匹配任务。请先检查服务器历史记录，不要直接重复提交。</string>
     <string name="plan_output_ambiguous">当前 H3 核心连接了多个输出分支，请在工作流编辑器中明确保留一个有效输出。</string>
     <string name="h3_msg_relay_persist_failed">连拍检查点保存失败，已阻止提交下一段。请重试或重新打开 H3 工作区恢复。</string>
+    <string name="h3_relay_probe_offline">插件检测：还没连服务器。</string>
+    <string name="h3_relay_probe_missing">插件检测：这台服务器上没有响应连拍插件。</string>
+    <string name="h3_relay_probe_graph">插件检测：%1$s 版，支持整条链交给服务器跑。</string>
+    <string name="h3_relay_probe_old">插件检测：%1$s 版偏旧，跑不了整条链（需要 %2$s 及以上）。</string>
 </resources>

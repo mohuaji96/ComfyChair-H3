@@ -1,0 +1,8 @@
+v0.9.8.8382.629-h3
+Updated:
+- The 连拍 help dialog now reports the server-side plugin version on its own line.
+- Whole-chain handover needs plugin 1.1.0 or newer; an older one is told which version to install.
+- "Not connected" and "no plugin on this server" each get their own line.
+
+Fixed:
+- The server plugin reported its own version as 1.0.0, which no longer matched a release. It now reports the real one, so the app stops showing a wrong version.

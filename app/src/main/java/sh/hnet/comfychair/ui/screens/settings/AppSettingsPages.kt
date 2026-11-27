@@ -2,18 +2,11 @@
 
 package sh.hnet.comfychair.ui.screens.settings
 
-import android.Manifest
 import android.app.LocaleManager
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.LocaleList
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Memory
-import androidx.core.content.ContextCompat
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -24,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import sh.hnet.comfychair.R
-import sh.hnet.comfychair.queue.H3RelayService
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.MediaStorageMode
 import sh.hnet.comfychair.ui.components.settings.ConfirmDestructiveDialog
@@ -78,29 +70,8 @@ fun GenerationSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () -> U
     val livePreview by viewModel.isLivePreviewEnabled.collectAsState()
     val spellCheck by viewModel.isPromptSpellCheckEnabled.collectAsState()
     val h3Preview by viewModel.isH3PreviewEnabled.collectAsState()
-    var relayNotify by remember { mutableStateOf(AppSettings.isRelayNotifyEnabled(context)) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.refreshH3Preview(context)
-    }
-
-    fun enableRelayNotify() {
-        AppSettings.setRelayNotifyEnabled(context, true)
-        relayNotify = true
-        H3RelayService.update(context)
-    }
-
-    // Android 13+ hides the notification without the grant. The foreground service still keeps the
-    // process alive, so a refusal costs the progress line, not the keep-alive.
-    val notifyPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            enableRelayNotify()
-        } else {
-            relayNotify = false
-            AppSettings.setRelayNotifyEnabled(context, false)
-            Toast.makeText(context, context.getString(R.string.app_notif_permission_denied), Toast.LENGTH_LONG).show()
-        }
     }
 
     SettingsPage(stringResource(R.string.title_settings_generation), onNavigateBack) {
@@ -132,33 +103,6 @@ fun GenerationSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () -> U
                     supporting = stringResource(R.string.desc_prompt_spell_check),
                     checked = spellCheck,
                     onCheckedChange = { viewModel.setPromptSpellCheckEnabled(context, it) }
-                )
-            }
-            // Its own row: the switch holds the relay alive through the lock screen, so it was the
-            // reason a burst kept running with the app in the background. Merging the settings pages
-            // left the service and its permission in place but dropped the only way to turn it on.
-            row { shapes ->
-                SettingsSwitchRow(
-                    shapes = shapes,
-                    title = stringResource(R.string.settings_relay_notif_title),
-                    supporting = stringResource(R.string.settings_relay_notif_sub),
-                    checked = relayNotify,
-                    onCheckedChange = { on ->
-                        when {
-                            !on -> {
-                                relayNotify = false
-                                AppSettings.setRelayNotifyEnabled(context, false)
-                                H3RelayService.stop(context)
-                            }
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED -> {
-                                notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            else -> enableRelayNotify()
-                        }
-                    }
                 )
             }
         }
@@ -292,3 +236,4 @@ fun WorkflowEditorSettingsPage(viewModel: SettingsViewModel, onNavigateBack: () 
         }
     }
 }
+

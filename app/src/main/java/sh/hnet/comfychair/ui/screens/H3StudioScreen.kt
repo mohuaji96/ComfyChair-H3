@@ -11,6 +11,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -86,10 +88,8 @@ import sh.hnet.comfychair.cache.MediaCache
 import sh.hnet.comfychair.cache.MediaCacheKey
 import sh.hnet.comfychair.storage.MetadataStore
 import sh.hnet.comfychair.storage.SequenceStore
-import sh.hnet.comfychair.queue.H3RelayService
-import sh.hnet.comfychair.queue.H3RelayQueue
+import sh.hnet.comfychair.queue.H3RelayChain
 import sh.hnet.comfychair.workflow.ProgressStage
-import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.ui.components.GenerationButton
 import sh.hnet.comfychair.ui.components.H3SamplingPreviewState
 import sh.hnet.comfychair.ui.components.H3SamplingPreviewStrip
@@ -126,6 +126,9 @@ internal const val H3_OWNER_ID = "H3_WORKSPACE"
 private const val H3_CELL_ADD = -1
 private const val H3_CELL_TAIL = -2
 private const val H3_MAX_PICTURES = 9
+// The plugin refuses a chain longer than this, so the phone stops staging at the same number
+// instead of letting the user build a batch that can only be rejected at the very end.
+private const val H3_MAX_CHAIN = 48
 
 /**
  * H3 studio: card sections on top, a fixed generate bar at the bottom.
@@ -208,36 +211,14 @@ fun H3StudioContent(
     val scope = rememberCoroutineScope()
     val main = remember { Handler(Looper.getMainLooper()) }
     val pendingStore = remember { PendingJobStore(context) }
-    // Survives a backgrounded or killed process: the id is written at submit time.
-    val autoPrefs = remember {
-        context.getSharedPreferences("h3_continuation", android.content.Context.MODE_PRIVATE)
-    }
-    // Restore the in-memory notification projection before collecting its StateFlows.
-    val relayStateRestored = remember(context) { H3RelayQueue.restore(context); true }
-    var pendingAutoId by remember { mutableStateOf(autoPrefs.getString("pending", null)) }
-    var relayStage by remember { mutableStateOf(H3RelayQueue.stage(context)) }
-    val savedRelayServerId = autoPrefs.getString("relay_server_id", null)
-    val savedRelayWorkflowId = autoPrefs.getString("relay_workflow_id", null)
-    val savedRelayArea = autoPrefs.getString("relay_area", null)
-    val relayRunMatches = (savedRelayServerId == null || savedRelayServerId == ConnectionManager.currentServerId) &&
-        (savedRelayWorkflowId == null || savedRelayWorkflowId == workflowId) &&
-        (savedRelayArea == null || savedRelayArea == area.name)
-
-    LaunchedEffect(relayStateRestored) {
-        // A process died while a submit was in flight. Its result may have reached ComfyUI even
-        // though the callback did not reach this process, so never auto-submit it a second time.
-        if (relayStage == H3RelayQueue.STAGE_SUBMITTING) {
-            if (H3RelayQueue.setStage(context, H3RelayQueue.STAGE_SUBMIT_UNKNOWN)) {
-                relayStage = H3RelayQueue.STAGE_SUBMIT_UNKNOWN
-            }
-        }
-    }
-
-    fun setRelayStage(stage: String, sourcePromptId: String? = null): Boolean {
-        val saved = H3RelayQueue.setStage(context, stage, sourcePromptId)
-        if (saved) relayStage = stage
-        return saved
-    }
+    // The chain record and the staged cursor both live in [H3RelayChain], because the server
+    // owns the run: this page only reads it back after a restart and pushes what it sees.
+    remember(context) { H3RelayChain.restore(context) }
+    val chainState by H3RelayChain.state.collectAsState()
+    val stagedSegments by H3RelayChain.staged.collectAsState()
+    // The last prompt this page submitted by itself, watched for the poster and the时长 line
+    // only. A chain is watched through [chainState] instead.
+    var pendingRunId by remember { mutableStateOf<String?>(null) }
 
     var message by remember { mutableStateOf("") }
     var showDeclareHelp by remember { mutableStateOf(false) }
@@ -269,32 +250,6 @@ fun H3StudioContent(
     val queueState by sh.hnet.comfychair.queue.JobRegistry.queueState.collectAsState()
     val ownJobExecuting = queueState.executingOwnerId == H3_OWNER_ID
 
-    // The relay banner used to say only "3 done, 5 left", which is silent about the segment that
-    // is actually costing the time. Stage changes are rare, so refreshing on those alone is cheap;
-    // doing it per step would rewrite the notification dozens of times a minute.
-    LaunchedEffect(generationViewModel) {
-        var lastStage: ProgressStage? = null
-        generationViewModel?.generationState?.collect { state ->
-            val stage = if (state.isGenerating && state.promptId != null) state.stage else null
-            if (stage == lastStage) return@collect
-            lastStage = stage
-            H3RelayStatus.setDetail(
-                when {
-                    stage == null -> ""
-                    stage == ProgressStage.SAMPLE && state.maxProgress > 0 ->
-                        context.getString(
-                            R.string.h3_progress_steps,
-                            context.getString(stage.labelRes),
-                            state.progress,
-                            state.maxProgress
-                        )
-                    else -> context.getString(stage.labelRes)
-                }
-            )
-            H3RelayService.update(context)
-        }
-    }
-
     // The WebSocket status message only says how many jobs the server holds, not where ours sits,
     // and /queue is the only place that order exists. Poll it while we wait, stop the moment the
     // job starts or the queue empties.
@@ -324,84 +279,43 @@ fun H3StudioContent(
     val previewVisible by H3SamplingPreviewState.visible.collectAsState()
     val genState = generationViewModel?.generationState?.collectAsState()?.value
 
-    // 完整连拍: queued segments are draft snapshots, so each keeps the settings it was added with.
-    var relayCount by remember { mutableStateOf(autoPrefs.getInt("relay_count", 0)) }
-    var relaySubmitAfterFrame by remember { mutableStateOf(false) }
-    var relaySubmitTick by remember { mutableStateOf(0) }
-    var relayDone by remember { mutableStateOf(autoPrefs.getInt("relay_done", 0)) }
-    val relayPaused by H3RelayStatus.paused.collectAsState()
-
-    suspend fun relaySaveDurable(index: Int, d: H3Draft): Boolean =
+    // 完整连拍: staged segments are draft snapshots, so each keeps the settings it was staged with.
+    // The batch is sent as one chain — the server runs every segment back to back, so nothing here
+    // has to stay alive between them.
+    suspend fun segmentSave(index: Int, d: H3Draft): Boolean =
         withContext(Dispatchers.IO) { draftStore.saveDurable("__relay$index", area, d) }
 
-    fun relayLoad(index: Int): H3Draft = draftStore.load("__relay$index", area, spec)
+    fun segmentLoad(index: Int): H3Draft = draftStore.load("__relay$index", area, spec)
 
-    /** Read the queue head without consuming it; consumption happens only after tail upload is durable. */
-    fun relayPeek(): H3Draft = relayLoad(H3RelayQueue.headIndex(context))
-
-    fun commitRelayHead(): Boolean {
-        val progress = H3RelayQueue.commitCurrentSegment(context) ?: return false
-        relayDone = progress.done
-        relayCount = progress.remaining
-        relayStage = H3RelayQueue.STAGE_READY_TO_SUBMIT
-        pendingAutoId = null
-        H3RelayService.update(context)
-        return true
-    }
-
-    fun enqueueSegment() {
-        if (busy || !relayRunMatches) return
+    fun stageSegment() {
+        if (busy) return
+        if (chainState.active) {
+            message = context.getString(R.string.h3_chain_busy)
+            return
+        }
+        if (!H3RelayChain.ownsStaging(context, ConnectionManager.currentServerId, workflowId, area.name)) {
+            message = context.getString(R.string.h3_msg_relay_context_mismatch)
+            return
+        }
+        if (stagedSegments >= H3_MAX_CHAIN) {
+            message = context.getString(R.string.h3_chain_full, H3_MAX_CHAIN)
+            return
+        }
         busy = true
         val queuedDraft = draft
-        val index = H3RelayQueue.nextIndex(context)
-        val countAfterSave = relayCount + 1
+        val index = H3RelayChain.nextIndex(context)
         scope.launch {
-            val savedDraft = relaySaveDurable(index, queuedDraft)
-            val savedMeta = savedDraft && withContext(Dispatchers.IO) {
-                autoPrefs.edit()
-                    .putString("relay_server_id", ConnectionManager.currentServerId)
-                    .putString("relay_workflow_id", workflowId)
-                    .putString("relay_area", area.name)
-                    .putInt("relay_count", countAfterSave)
-                    .commit()
+            val saved = segmentSave(index, queuedDraft) && withContext(Dispatchers.IO) {
+                H3RelayChain.stage(context, ConnectionManager.currentServerId, workflowId, area.name)
             }
             main.post {
                 busy = false
-                if (!savedMeta) {
+                if (!saved) {
                     message = context.getString(R.string.h3_msg_relay_persist_failed)
                     return@post
                 }
-                relayCount = countAfterSave
-                H3RelayStatus.report(relayDone, relayCount)
-                H3RelayService.update(context)
+                message = context.getString(R.string.h3_chain_added, H3RelayChain.staged.value + 1)
             }
-        }
-    }
-
-    fun finishRelay() {
-        // Clear only the phone-side continuation chain. A prompt already accepted by ComfyUI
-        // remains a server job and is not interrupted by this local queue reset.
-        H3RelayQueue.clear(context)
-        relayDone = 0
-        relayCount = 0
-        relayStage = H3RelayQueue.STAGE_IDLE
-        pendingAutoId = null
-        H3RelayService.stop(context)
-    }
-
-    // 停止连拍 from the queue sheet: it is outside this page, so it clears the prefs and bumps a
-    // signal; the local counters follow here.
-    val relayStopSignal by H3RelayStatus.stopSignal.collectAsState()
-    var handledRelayStop by remember { mutableIntStateOf(relayStopSignal) }
-    LaunchedEffect(relayStopSignal) {
-        if (relayStopSignal != handledRelayStop) {
-            handledRelayStop = relayStopSignal
-            // The queue controller already cleared persistent state. Never replay a stop against a new run.
-            relayDone = H3RelayQueue.done(context)
-            relayCount = H3RelayQueue.remaining(context)
-            relayStage = H3RelayQueue.stage(context)
-            pendingAutoId = autoPrefs.getString("pending", null)
-            relaySubmitAfterFrame = false
         }
     }
 
@@ -418,7 +332,7 @@ fun H3StudioContent(
     // that segment can only spend capacity-1 on its own references. Counted here, once, so the
     // subtitle, the add button and the submission all agree instead of failing at the server.
     val reservesTailSlot = draft.continuationAuto &&
-        (relayCount > 0 || draft.continuation.isNotBlank())
+        (stagedSegments > 0 || draft.continuation.isNotBlank())
     val refCapacity = H3_MAX_PICTURES - if (reservesTailSlot) 1 else 0
 
     val aspectOptions = remember(models.nodeDefinitionsRevision) {
@@ -435,6 +349,184 @@ fun H3StudioContent(
     }
     val extraRatioPairs = remember(ratios) {
         ratios.filter { it.first !in H3Resolution.commonRatios }
+    }
+
+    /**
+     * One segment's request, read off that segment's own draft. A chain is a batch of drafts, so
+     * nothing here may look at the draft on screen.
+     */
+    fun requestFor(d: H3Draft, plan: H3Plan.Spec): H3Plan.Request {
+        val refs = d.refs.filterIndexed { index, file -> file.isNotBlank() && index !in d.disabledRefs }
+        // Only a continuing segment has one, and it already holds the placeholder the plugin
+        // swaps for the previous segment's final frame.
+        val submitted = if (d.continuation.isNotBlank()) refs + d.continuation else refs
+        var width: Int? = null
+        var height: Int? = null
+        var ratio: String? = d.ratio
+        if (d.customW.isNotBlank() || d.customH.isNotBlank()) {
+            width = d.customW.trim().toIntOrNull()
+            height = d.customH.trim().toIntOrNull()
+            ratio = null
+        }
+        return H3Plan.Request(
+            // 连拍 only exists on the reference-to-video page: a chain continues from a clip's
+            // last frame, and that is the one core with a socket for it.
+            mode = H3Plan.Mode.R2V,
+            prompt = d.prompt,
+            ratio = ratio,
+            megapixels = d.mp.toDoubleOrNull(),
+            customWidth = width,
+            customHeight = height,
+            multiple = d.multiple.toIntOrNull(),
+            loras = plan.loras.map { slot ->
+                val state = d.loras[slot.id] ?: H3LoraDraft(slot.file, slot.strength, slot.enabled)
+                H3Plan.LoraEdit(
+                    id = slot.id,
+                    file = state.file.takeIf { it.isNotBlank() && it != slot.file },
+                    strength = state.strength,
+                    enabled = state.enabled
+                )
+            },
+            extraLoras = d.extraLoras
+                .filter { it.name.isNotBlank() }
+                .take(H3Plan.LoraAdd.MAX_ENTRIES)
+                .map {
+                    H3Plan.LoraAdd(
+                        it.name,
+                        (it.strength.toDoubleOrNull() ?: 1.0)
+                            .coerceIn(H3Plan.LoraAdd.MIN_STRENGTH, H3Plan.LoraAdd.MAX_STRENGTH)
+                    )
+                },
+            seconds = d.seconds.toDoubleOrNull(),
+            steps = d.steps.toIntOrNull(),
+            references = submitted,
+            refAudios = d.audios.filter { it.isNotBlank() },
+            maxReferences = knownRefCeiling.takeIf { it > 0 },
+            extras = modelPayload(plan, d, context)
+        )
+    }
+
+    /**
+     * Every segment as a finished workflow, built the way 生成 builds a single run so the chain
+     * keeps this phone's model, LoRA stack and advanced scalars. The sampling-preview node is
+     * left out on purpose: no one on this side is watching a run it did not submit, and the node
+     * would write frames for no reader.
+     */
+    suspend fun chainGraphs(drafts: List<H3Draft>): List<JSONObject> = withContext(Dispatchers.IO) {
+        val exported = WorkflowManager.exportWorkflowToComfyUIFormat(workflowId).getOrThrow()
+        val expObj = JSONObject(exported)
+        val apiDoc = if (expObj.optJSONArray("nodes") != null || expObj.has("last_node_id") || expObj.has("links")) {
+            sh.hnet.comfychair.workflow.H3LiteGraphAdapter.convert(expObj)
+        } else {
+            expObj
+        }
+        val wrappedObj = if (apiDoc.optJSONObject("nodes") != null) apiDoc else JSONObject().put("nodes", apiDoc)
+        spec?.modes?.let { mList -> wrappedObj.put("modes", org.json.JSONArray(mList.map { it.name })) }
+        val attributed = WorkflowManager.applyNodeAttributeEdits(wrappedObj.toString(), workflowId)
+        val plan = H3Plan.resolve(attributed) ?: error(context.getString(R.string.h3_err_workflow_unresolved))
+        drafts.map { d ->
+            val built = H3Plan.build(attributed, plan, requestFor(d, plan), aspectOptions)
+            if (!built.ok) error(built.errors.joinToString("; ") { it.format(context) })
+            val preflight = SubmitPreflight.prepare(built.json) { ct, key ->
+                ConnectionManager.nodeTypeRegistry.getInputDefinition(ct, key)?.options
+            }
+            if (!preflight.ok) error(preflight.issues.joinToString("; ") { it.format(context) })
+            JSONObject(preflight.prompt)
+        }
+    }
+
+    /**
+     * Hands the whole batch to the server in one request. After this the phone is only a viewer:
+     * the plugin runs segment after segment, and closing the app stops nothing.
+     */
+    fun startChain() {
+        if (busy) return
+        if (chainState.active) {
+            message = context.getString(R.string.h3_chain_busy)
+            return
+        }
+        val live = ConnectionManager.clientOrNull ?: run {
+            message = context.getString(R.string.h3_msg_connect_first)
+            return
+        }
+        if (stagedSegments > 0 &&
+            !H3RelayChain.ownsStaging(context, ConnectionManager.currentServerId, workflowId, area.name)
+        ) {
+            message = context.getString(R.string.h3_msg_relay_context_mismatch)
+            return
+        }
+        val drafts = buildList {
+            repeat(stagedSegments) { add(segmentLoad(H3RelayChain.headIndex(context) + it)) }
+            add(draft)
+        }
+        val project = H3Naming.chainName(draft.sequenceName, true)
+        busy = true
+        message = context.getString(R.string.h3_msg_preparing)
+        scope.launch {
+            val graphs = runCatching { chainGraphs(drafts) }.getOrElse {
+                busy = false
+                message = context.getString(R.string.h3_msg_prepare_failed, it.localizedText(context))
+                return@launch
+            }
+            val segments = drafts.mapIndexed { index, d ->
+                H3RelayClient.Segment(
+                    prompt = d.prompt,
+                    // Informational: the graph carries the real settings, but the plugin's own
+                    // sidebar shows these, and a chain whose rows say nothing is hard to read.
+                    params = JSONObject()
+                        .put("seconds", d.seconds.toDoubleOrNull() ?: 0.0)
+                        .put("steps", d.steps.toIntOrNull() ?: 0),
+                    references = d.refs.filterIndexed { i, f -> f.isNotBlank() && i !in d.disabledRefs },
+                    graph = graphs[index]
+                )
+            }
+            val body = H3RelayClient.chainBody("", project, segments)
+            when (val answer = H3RelayClient.submitChain(live, body)) {
+                is H3RelayClient.Answer.Ok -> {
+                    val accepted = answer.value
+                    H3RelayChain.begin(context, accepted.chainId, accepted.project, accepted.segments)
+                    H3RelayChain.resetStaging(context)
+                    busy = false
+                    message = context.getString(R.string.h3_chain_submitted, accepted.project, accepted.segments)
+                }
+                is H3RelayClient.Answer.Rejected -> {
+                    busy = false
+                    message = context.getString(
+                        R.string.h3_chain_refused,
+                        answer.refused.message ?: answer.refused.failure.wire
+                    )
+                }
+                else -> {
+                    busy = false
+                    message = context.getString(R.string.h3_chain_unreachable)
+                }
+            }
+        }
+    }
+
+    // One request every two seconds while a chain exists: the summary is the whole truth about
+    // where the server got to, so the progress bar, the queue sheet and the gallery all agree.
+    LaunchedEffect(chainState.chainId) {
+        val id = chainState.chainId ?: return@LaunchedEffect
+        while (true) {
+            val live = ConnectionManager.clientOrNull ?: break
+            when (val answer = H3RelayClient.chain(live, id)) {
+                is H3RelayClient.Answer.Ok -> {
+                    H3RelayChain.report(answer.value)
+                    if (answer.value.ended) {
+                        if (answer.value.state != H3RelayClient.ChainState.FAILED) {
+                            // The plugin wrote the clips straight into the output folder, so the
+                            // gallery learns about them the same way it learns about any file.
+                            sh.hnet.comfychair.repository.GalleryRepository.getInstance().refresh()
+                        }
+                        break
+                    }
+                }
+                is H3RelayClient.Answer.Gone -> { H3RelayChain.clear(context); break }
+                else -> Unit
+            }
+            delay(2000)
+        }
     }
 
     // Every user action clears the previous answer, so a stale "上限" notice can never sit
@@ -572,14 +664,11 @@ fun H3StudioContent(
             return
         }
         val target = ConnectionManager.clientOrNull ?: run { busy = false; message = context.getString(R.string.h3_msg_connect_first); return }
-        val name = "h3_tail_${UUID.randomUUID()}.png"
-        val tailSource = H3RelayQueue.sourcePromptId(context)
-        val tailIsRelay = relayStage == H3RelayQueue.STAGE_EXTRACTING_TAIL
-        target.uploadImage(png, name, overwrite = false, returnFullPath = true) { ok, uploaded, err, _ ->
-            main.post {
-                busy = false
-                if (tailIsRelay && (H3RelayQueue.stage(context) != H3RelayQueue.STAGE_EXTRACTING_TAIL || H3RelayQueue.sourcePromptId(context) != tailSource)) return@post
-                if (target !== ConnectionManager.clientOrNull) {
+         val name = "h3_tail_${UUID.randomUUID()}.png"
+         target.uploadImage(png, name, overwrite = false, returnFullPath = true) { ok, uploaded, err, _ ->
+             main.post {
+                 busy = false
+                 if (target !== ConnectionManager.clientOrNull) {
                     message = context.getString(R.string.h3_msg_switched_tail)
                 } else if (ok && uploaded != null) {
                     val picture = filledRefs.size + 1
@@ -619,20 +708,10 @@ fun H3StudioContent(
                                     context.getString(R.string.h3_tail_attached_need_declare, picture)
                                 !applied.wrote ->
                                     context.getString(R.string.h3_tail_attached_already, picture)
-                                else ->
-                                    context.getString(R.string.h3_tail_attached, picture)
-                            }
-                            if (tailIsRelay && (H3RelayQueue.stage(context) != H3RelayQueue.STAGE_EXTRACTING_TAIL || H3RelayQueue.sourcePromptId(context) != tailSource)) return@post
-                            if (relayStage == H3RelayQueue.STAGE_EXTRACTING_TAIL) {
-                                relaySubmitAfterFrame = false
-                                if (!commitRelayHead()) {
-                                    message = context.getString(R.string.h3_msg_relay_persist_failed)
-                                }
-                            } else if (relaySubmitAfterFrame) {
-                                relaySubmitAfterFrame = false
-                                relaySubmitTick++
-                            }
-                        }
+                                 else ->
+                                     context.getString(R.string.h3_tail_attached, picture)
+                             }
+                         }
                     }
                 } else {
                     message = context.getString(R.string.h3_msg_tail_upload_failed, err ?: context.getString(R.string.h3_msg_no_filename))
@@ -653,14 +732,10 @@ fun H3StudioContent(
         }
         busy = true
         if (!auto) message = context.getString(R.string.h3_msg_taking_last_frame)
-        val source = H3RelayQueue.sourcePromptId(context)
-        val extractingRelay = relayStage == H3RelayQueue.STAGE_EXTRACTING_TAIL
         val capturedClient = ConnectionManager.clientOrNull
         scope.launch {
             val png = withContext(Dispatchers.IO) { H3Frame.lastFramePng(context, finished.uri) }
-            if (capturedClient !== ConnectionManager.clientOrNull ||
-                (extractingRelay && (H3RelayQueue.stage(context) != H3RelayQueue.STAGE_EXTRACTING_TAIL ||
-                    H3RelayQueue.sourcePromptId(context) != source))) {
+            if (capturedClient !== ConnectionManager.clientOrNull) {
                 busy = false
                 return@launch
             }
@@ -678,61 +753,10 @@ fun H3StudioContent(
         }
     }
 
-    // 连拍: refill the continuation frame as soon as a run finishes, so only the prompt and the
-    // length need editing between segments. Never touches the references the user picked.
-    // A run that finished while the app was in the background -- or after the process was killed --
-    // still gets its tail frame: the submitted id is persisted and retried when this page returns.
-    fun recoverRelayPrompt(promptId: String, live: ComfyUIClient, expectedRequestId: String) {
-        if (autoPrefs.getString("relay_submit_request_id", null) != expectedRequestId) return
-        if (live !== ConnectionManager.clientOrNull || relayStage != H3RelayQueue.STAGE_SUBMIT_UNKNOWN) return
-        val saved = autoPrefs.edit()
-            .putString("pending", promptId)
-            .putString("relay_stage", H3RelayQueue.STAGE_WAITING_RESULT)
-            .remove("relay_submit_fingerprint")
-            .remove("relay_submit_client_id")
-            .remove("relay_submit_request_id")
-            .commit()
-        if (saved) {
-            pendingAutoId = promptId
-            relayStage = H3RelayQueue.STAGE_WAITING_RESULT
-            message = context.getString(R.string.h3_msg_relay_recovered_submit)
-        } else {
-            message = context.getString(R.string.h3_msg_relay_persist_failed)
-        }
-    }
-
-    LaunchedEffect(relayStage, isVisible, relayRunMatches) {
-        if (relayStage != H3RelayQueue.STAGE_SUBMIT_UNKNOWN || !isVisible || !relayRunMatches) return@LaunchedEffect
-        val fingerprint = autoPrefs.getString("relay_submit_fingerprint", null) ?: return@LaunchedEffect
-        val expectedClientId = autoPrefs.getString("relay_submit_client_id", null) ?: return@LaunchedEffect
-        val expectedRequestId = autoPrefs.getString("relay_submit_request_id", null) ?: run {
-            message = context.getString(R.string.h3_msg_relay_submit_unknown)
-            return@LaunchedEffect
-        }
-        val live = ConnectionManager.clientOrNull ?: return@LaunchedEffect
-        live.findQueuedPromptId(expectedClientId, fingerprint, expectedRequestId) { queuedId, queueReadSucceeded ->
-            if (!queuedId.isNullOrBlank()) {
-                main.post { recoverRelayPrompt(queuedId, live, expectedRequestId) }
-            } else {
-                live.findHistoricalPromptId(expectedClientId, fingerprint, expectedRequestId) { historyId, historyReadSucceeded ->
-                    main.post {
-                        if (live !== ConnectionManager.clientOrNull) return@post
-                        if (!historyId.isNullOrBlank()) recoverRelayPrompt(historyId, live, expectedRequestId)
-                        else if (queueReadSucceeded && historyReadSucceeded) {
-                            message = context.getString(R.string.h3_msg_relay_submit_unknown)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(pendingAutoId, isVisible, relayRunMatches) {
-        val id = pendingAutoId ?: return@LaunchedEffect
-        if (!relayRunMatches) {
-            message = context.getString(R.string.h3_msg_relay_context_mismatch)
-            return@LaunchedEffect
-        }
+    // The poster for a single run this page submitted. A chain is watched through [chainState],
+    // and its clips arrive through the gallery instead of a prompt id.
+    LaunchedEffect(pendingRunId, isVisible) {
+        val id = pendingRunId ?: return@LaunchedEffect
         if (result?.promptId == id) return@LaunchedEffect
         val live = ConnectionManager.clientOrNull ?: return@LaunchedEffect
         var elapsed = 0L
@@ -952,7 +976,7 @@ fun H3StudioContent(
 
     /** Clears only the segments this phone queued; the running one is cancelled separately. */
     fun clearOwnQueue() {
-        finishRelay()
+        H3RelayChain.resetStaging(context)
         val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
         val pending = queueState.ownJobs.values
             .filter { it.status == sh.hnet.comfychair.queue.JobStatus.PENDING }
@@ -977,21 +1001,12 @@ fun H3StudioContent(
         }
     }
 
-     fun submit(front: Boolean = false) {
+      fun submit(front: Boolean = false) {
         if (busy) return
-        if (relayStage == H3RelayQueue.STAGE_SUBMIT_UNKNOWN || relayStage == H3RelayQueue.STAGE_SUBMITTING) {
-            message = context.getString(R.string.h3_msg_relay_submit_unknown)
-            return
-        }
-        if (!relayRunMatches && relayStage != H3RelayQueue.STAGE_IDLE) {
-            message = context.getString(R.string.h3_msg_relay_context_mismatch)
-            return
-        }
-        // 完整连拍: only one segment runs at a time, the rest wait here on the phone.
-        if (draft.continuationAuto && relayStage != H3RelayQueue.STAGE_READY_TO_SUBMIT &&
-            queueState.ownActiveJobCount + relayCount > 0) {
-            enqueueSegment()
-            message = context.getString(R.string.h3_msg_queued_segment, queueState.ownActiveJobCount + relayCount + 1)
+        // 完整连拍 puts the draft in the batch instead of sending it: the server needs the whole
+        // chain in one request, so 生成 only collects segments and 开始连拍 sends them.
+        if (draft.continuationAuto) {
+            stageSegment()
             return
         }
         val live = ConnectionManager.clientOrNull ?: run { message = context.getString(R.string.h3_msg_connect_first); return }
@@ -1031,12 +1046,7 @@ fun H3StudioContent(
         if (mpValue == null && customW == null) errors.add(context.getString(R.string.h3_err_mp_invalid))
         if (mpValue != null && (mpValue < 0.1 || mpValue > 1.0))
             errors.add(context.getString(R.string.h3_err_mp_range))
-        // One-at-a-time is the default 连拍 behaviour: relaying a queue would take the last frame
-        // of whichever segment happened to finish, which is how a chain silently forks.
-        if (draft.continuationAuto && draft.continuationMode == 0 && queueState.ownActiveJobCount > 0) {
-            message = context.getString(R.string.h3_msg_relay_single)
-            return
-        }
+
         if (errors.isNotEmpty()) { message = errors.joinToString("；"); return }
 
         // Rolled here rather than at build time so the number on the page is the number that
@@ -1187,12 +1197,10 @@ fun H3StudioContent(
             H3SamplingPreviewState.begin(patched.attached)
             // Keep the last few real payloads: without them a failed run cannot be reproduced.
             withContext(Dispatchers.IO) { archivePayload(context, mode, prompt) }
-            val relaySubmission = draft.continuationAuto
             val requestId = UUID.randomUUID().toString()
             val onResult: (Boolean, String?, String?) -> Unit = { ok, id, error ->
                 main.post {
                     busy = false
-                    if (relaySubmission && autoPrefs.getString("relay_submit_request_id", null) != requestId) return@post
                     if (live !== ConnectionManager.clientOrNull) return@post
                     if (ok && id != null) {
                         chain?.let { SequenceStore.record(context, id, it, chainPosition) }
@@ -1244,52 +1252,12 @@ fun H3StudioContent(
                             )
                         }
                         lastPromptId = id; result = null; resultPoster = null
-                        if (relaySubmission) {
-                            val pendingSaved = autoPrefs.edit()
-                                .putString("pending", id)
-                                .putString("relay_stage", H3RelayQueue.STAGE_WAITING_RESULT)
-                                .remove("relay_submit_fingerprint")
-                                .remove("relay_submit_client_id")
-                                .remove("relay_submit_request_id")
-                                .commit()
-                            if (pendingSaved) {
-                                relayStage = H3RelayQueue.STAGE_WAITING_RESULT
-                                pendingAutoId = id
-                            } else {
-                                setRelayStage(H3RelayQueue.STAGE_SUBMIT_UNKNOWN)
-                                message = context.getString(R.string.h3_msg_relay_persist_failed)
-                            }
-                        }
+                        pendingRunId = id
                         message = context.getString(R.string.h3_msg_submitted, context.getString(mode.labelRes), id)
                     } else {
-                        if (relaySubmission) setRelayStage(H3RelayQueue.STAGE_SUBMIT_UNKNOWN)
-                        message = if (relaySubmission) context.getString(R.string.h3_msg_relay_submit_unknown) else context.getString(R.string.h3_msg_submit_failed, error ?: context.getString(R.string.h3_msg_no_prompt_id))
+                        message = context.getString(R.string.h3_msg_submit_failed, error ?: context.getString(R.string.h3_msg_no_prompt_id))
                     }
                 }
-            }
-            if (relaySubmission) {
-                if (live !== ConnectionManager.clientOrNull) {
-                    busy = false
-                    message = context.getString(R.string.h3_msg_relay_context_mismatch)
-                    return@launch
-                }
-                val checkpointSaved = withContext(Dispatchers.IO) {
-                    autoPrefs.edit()
-                        .putString("relay_server_id", ConnectionManager.currentServerId)
-                        .putString("relay_workflow_id", workflowId)
-                        .putString("relay_area", area.name)
-                        .putString("relay_submit_client_id", ConnectionManager.clientId)
-                        .putString("relay_submit_request_id", requestId)
-                        .putString("relay_submit_fingerprint", PromptBody.fingerprint(H3Plan.nodes(JSONObject(prompt))))
-                        .putString("relay_stage", H3RelayQueue.STAGE_SUBMITTING)
-                        .commit()
-                }
-                if (!checkpointSaved) {
-                    busy = false
-                    message = context.getString(R.string.h3_msg_relay_persist_failed)
-                    return@launch
-                }
-                relayStage = H3RelayQueue.STAGE_SUBMITTING
             }
             val vm = generationViewModel
             if (vm != null && vm.getClient() === live) {
@@ -1306,82 +1274,6 @@ fun H3StudioContent(
         }
     }
 
-    // 完整连拍: when a segment finishes, the next queued one becomes the live draft before its
-    // frame is captured, so the declaration and the picture number belong to that segment.
-    LaunchedEffect(result?.promptId, draft.continuationAuto, relayPaused, pendingAutoId) {
-        // Read the delegated state once: a smart cast is not available on a remember-delegated var.
-        val finished = result ?: return@LaunchedEffect
-        if (!draft.continuationAuto || busy) return@LaunchedEffect
-        val expectedPrompt = if (relayStage == H3RelayQueue.STAGE_EXTRACTING_TAIL)
-            H3RelayQueue.sourcePromptId(context) else pendingAutoId
-        if (expectedPrompt == null || finished.promptId != expectedPrompt) return@LaunchedEffect
-        if (!relayRunMatches) {
-            message = context.getString(R.string.h3_msg_relay_context_mismatch)
-            return@LaunchedEffect
-        }
-        if (relayPaused) return@LaunchedEffect
-
-        when (relayStage) {
-            H3RelayQueue.STAGE_EXTRACTING_TAIL -> {
-                // If the uploaded filename was saved but the process died before committing the
-                // queue cursor, finish that atomic transition now. Otherwise retry frame extraction.
-                if (draft.continuation.isNotBlank()) {
-                    if (!commitRelayHead()) message = context.getString(R.string.h3_msg_relay_persist_failed)
-                } else captureLastFrame(auto = true)
-                return@LaunchedEffect
-            }
-            H3RelayQueue.STAGE_READY_TO_SUBMIT,
-            H3RelayQueue.STAGE_SUBMITTING,
-            H3RelayQueue.STAGE_SUBMIT_UNKNOWN -> return@LaunchedEffect
-        }
-
-        if (relayCount > 0) {
-            val nextDraft = relayPeek().copy(
-                continuation = "",
-                continuationOwner = H3Continuation.NONE,
-                continuationFlag = false,
-                continuationAuto = true
-            )
-            // Persist the new segment before marking the transition in progress. If the process
-            // dies before this save, the previous pending prompt is still present and will replay
-            // the transition without consuming the queue head.
-            val savedNextDraft = withContext(Dispatchers.IO) {
-                draftStore.saveDurable(workflowId, area, nextDraft)
-            }
-            if (!savedNextDraft) {
-                message = context.getString(R.string.h3_msg_relay_persist_failed)
-                return@LaunchedEffect
-            }
-            if (!setRelayStage(H3RelayQueue.STAGE_EXTRACTING_TAIL, finished.promptId)) {
-                message = context.getString(R.string.h3_msg_relay_persist_failed)
-                return@LaunchedEffect
-            }
-            draft = nextDraft
-            relaySubmitAfterFrame = true
-            captureLastFrame(auto = true)
-        } else if (relayDone > 0) {
-            finishRelay()
-            // The final clip can still be used manually as the next chain's continuation frame.
-            captureLastFrame(auto = true)
-        } else {
-            // Not part of an active chain; clear only the recovery pointer for this completed job.
-            if (autoPrefs.edit().remove("pending").putString("relay_stage", H3RelayQueue.STAGE_IDLE).commit()) {
-                relayStage = H3RelayQueue.STAGE_IDLE
-                pendingAutoId = null
-                captureLastFrame(auto = true)
-            }
-        }
-    }
-
-    LaunchedEffect(relayStage, relayPaused, relayRunMatches) {
-        if (relayStage == H3RelayQueue.STAGE_READY_TO_SUBMIT && !relayPaused && !busy && relayRunMatches) {
-            relaySubmitTick++
-        }
-    }
-
-    LaunchedEffect(relaySubmitTick) {
-        if (relaySubmitTick > 0) submit(front = false)
-    }
 
     val frames = draft.seconds.toDoubleOrNull()?.let { sec -> spec.duration?.expression?.let { ComfyFrames(it, sec) } }
     val stepsShown = draft.steps.ifBlank { spec.steps?.steps?.toString().orEmpty() }
@@ -1793,7 +1685,9 @@ fun H3StudioContent(
                         onRelayHelp = { showRelayHelp = true },
                             autoName = draft.numbered,
                             sequenceName = draft.sequenceName,
-                            queuedCount = queueState.ownActiveJobCount + relayCount,
+                            staged = stagedSegments,
+                            chain = chainState,
+                            onStartChain = { startChain() },
                             onMode = { update(draft.copy(continuationMode = it)) },
                             onSequenceName = { update(draft.copy(sequenceName = it)) },
                             onCapture = { captureLastFrame(auto = false) },
@@ -2524,9 +2418,32 @@ fun H3StudioContent(
             onDismissRequest = { showRelayHelp = false },
             title = { Text(stringResource(R.string.h3_relay_title)) },
             text = {
-                Text(
-                    stringResource(R.string.h3_relay_help)
-                )
+                // Which plugin answered, said in the dialog rather than in a toast that is gone
+                // before it can be read. A chain is refused at the server when the plugin is
+                // too old for it, so the version belongs where the install steps are.
+                var probe by remember { mutableStateOf<H3RelayClient.Info?>(null) }
+                LaunchedEffect(Unit) {
+                    val live = ConnectionManager.clientOrNull ?: return@LaunchedEffect
+                    val found = H3RelayClient.info(live)
+                    if (live === ConnectionManager.clientOrNull) probe = found
+                }
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.h3_relay_help))
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        when {
+                            ConnectionManager.clientOrNull == null -> stringResource(R.string.h3_relay_probe_offline)
+                            probe == null -> stringResource(R.string.h3_relay_probe_missing)
+                            H3RelayClient.atLeast(probe!!.version, H3RelayClient.GRAPH_MIN_VERSION) ->
+                                stringResource(R.string.h3_relay_probe_graph, probe!!.version)
+                            else -> stringResource(
+                                R.string.h3_relay_probe_old, probe!!.version, H3RelayClient.GRAPH_MIN_VERSION
+                            )
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = { showRelayHelp = false }) { Text(stringResource(R.string.h3_got_it)) }
@@ -2676,6 +2593,15 @@ fun H3StudioContent(
                         val queueLine = when {
                             failure != null -> context.getString(R.string.h3_status_failed, h3FailureGroup(failure.nodeType, context)) +
                                 (failure.message.take(46).let { if (it.isBlank()) "" else "：$it" })
+                            // A chain outranks the single-job lines: it is the thing costing minutes.
+                            chainState.active -> context.getString(
+                                R.string.h3_chain_progress, chainState.current, chainState.of
+                            )
+                            chainState.started && chainState.state == H3RelayClient.ChainState.FAILED ->
+                                context.getString(
+                                    R.string.h3_chain_failed,
+                                    chainState.error?.take(46) ?: context.getString(R.string.h3_status_failed, "?")
+                                )
                             ownJobExecuting -> context.getString(R.string.h3_status_generating, queueState.totalQueueSize)
                             ownJobWaiting && queueState.ownQueuePosition != null ->
                                 context.getString(R.string.h3_status_queued, queueState.ownQueuePosition)
@@ -2706,6 +2632,10 @@ fun H3StudioContent(
                         isUploading = busy,
                         disabledReason = if (draft.relayNameMissing)
                             context.getString(R.string.h3_msg_project_required) else null,
+                        // 连拍 collects instead of sending, so the button must not claim it will
+                        // start anything: the chain leaves only from 开始连拍.
+                        label = if (draft.continuationAuto) context.getString(R.string.h3_chain_add)
+                        else null,
                         onGenerate = { submit(front = false) },
                         onAddToFrontOfQueue = { submit(front = true) },
                         onCancelOwnJob = { abortOwnJob() },
@@ -4899,7 +4829,9 @@ private fun H3ContinuationSlot(
     mode: Int,
     autoName: Boolean,
     sequenceName: String,
-    queuedCount: Int,
+    staged: Int,
+    chain: H3RelayChain.Snapshot,
+    onStartChain: () -> Unit,
     onMode: (Int) -> Unit,
     onRelayHelp: () -> Unit,
     onSequenceName: (String) -> Unit,
@@ -5088,11 +5020,39 @@ private fun H3ContinuationSlot(
             modifier = Modifier.padding(top = 2.dp)
         )
 
-        if (auto && queuedCount > 0) Text(
-            stringResource(R.string.h3_relay_queued_n, queuedCount),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        // Where the chain stands, and the one button that hands it over. The batch stays on the
+        // phone until 开始: the server takes a whole chain in one request, so there is no such
+        // thing as appending to a chain that is already running.
+        if (auto && chain.active) {
+            Text(
+                if (chain.paused) stringResource(R.string.h3_chain_paused, chain.current, chain.of)
+                else stringResource(R.string.h3_chain_progress, chain.current, chain.of),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        } else if (auto && staged > 0) {
+            Row(
+                Modifier.padding(top = 4.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.h3_chain_staged, staged),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = onStartChain,
+                    enabled = enabled && sequenceName.isNotBlank(),
+                    modifier = Modifier.heightIn(min = 36.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.h3_chain_start),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
     }
 }

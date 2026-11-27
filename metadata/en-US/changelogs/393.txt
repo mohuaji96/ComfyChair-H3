@@ -1,0 +1,8 @@
+v0.9.8.8382.629-h3
+Updated:
+- Relay hands the whole chain to the server: Add to chain collects segments, Start chain sends them; a locked screen or a closed app changes nothing
+- Pause, resume and stop are in the queue drawer; stop lets the running segment finish and keeps it
+- A chain holds up to 48 segments, and each keeps your own model and LoRAs
+Fixed:
+- Staged segments are bound to the current workflow and server
+- The always-on relay notification and its service are gone

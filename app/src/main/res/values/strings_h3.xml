@@ -298,7 +298,7 @@
     <string name="h3_clear_short">Clear</string>
     <string name="h3_last_frame_short">Last frame</string>
     <string name="h3_cap">Limit</string>
-    <string name="h3_relay_help">What it does&#10;Joins several segments into one long clip: each one continues from the last frame of the previous run.&#10;&#10;Using it&#10;1. Turn on Relay mode; the first time it checks whether the server has the relay plugin&#10;2. Fill in a project name (required): files are named project_segment; a repeated name gets -2, -3&#10;3. Write the prompt, pick the references, tap Add to queue; each tap is one segment&#10;4. Only the current segment goes to the server; when it finishes the app takes its last frame, moves it into the reference slot and submits the next one&#10;&#10;Notes&#10;· Each segment keeps the settings from the moment you tapped Add (duration, ratio, steps, references)&#10;· Segment 1 takes up to 9 references; from segment 2 on one slot is reserved for the previous last frame, so 8&#10;· Do not swipe the app away while relay runs: frame capture and submission both depend on the phone&#10;· A failed segment stops the chain; clips already produced are kept&#10;· Turning the switch off pauses it; remaining segments are kept and resume when you turn it back on</string>
+    <string name="h3_relay_help">What it does&#10;Joins several segments into one long clip: each one continues from the last frame of the previous run.&#10;&#10;Install the plugin first&#10;Relay is a two-sided feature. The server needs the companion plugin ComfyUI H3 Relay (mohuaji96/ComfyUI-H3Relay on GitHub), 1.1.0 or newer: drop the whole folder into the custom_nodes folder of ComfyUI and restart it; the console then reports whether it mounted. Only with that in place does this switch turn on — flipping it asks the server whether a plugin is there and new enough, and flips straight back with a reason if not. The plugin alone is not enough either: it has no UI of its own and only accepts work from this app.&#10;&#10;Using it&#10;1. Turn on Relay mode&#10;2. Fill in a project name (required): files are named project_segment; a repeated name gets -2, -3&#10;3. Write the prompt, pick the references, tap Add to chain; each tap is one segment&#10;4. Tap Start chain: every staged segment goes to the server in one request&#10;&#10;Notes&#10;· Each segment keeps the settings from the moment you tapped Add (duration, ratio, steps, references)&#10;· Segment 1 takes up to 9 references; from segment 2 on one slot is reserved for the previous last frame, so 8&#10;· The whole chain runs on the server after Start: each segment\'s last frame is taken there and fed to the next one, so a locked screen or a closed app changes nothing&#10;· Pause, resume and stop are in the queue drawer; stop lets the running segment finish and keeps its clip&#10;· A failed segment stops the chain; clips already produced are kept</string>
     <string name="h3_hint_second_pass_steps">2 to 10 steps is recommended; this is the denoise steps of the Turbo second pass.</string>
     <string name="h3_hint_rtx_scale">1.0 means no upscale; 1.2 is 1.2×, 1.5 is 1.5×.</string>
     <string name="h3_steps_count">%1$s steps</string>
@@ -338,6 +338,20 @@
     <string name="h3_relay_fail_wait">Any failed segment stops the chain; finished clips are kept</string>
     <string name="h3_relay_prefix_hint">Required, e.g. my_clip</string>
     <string name="h3_relay_queued_n">%1$d queued; the next starts when this one finishes</string>
+    <string name="h3_chain_progress">Chain %1$d of %2$d · running on the server</string>
+    <string name="h3_chain_paused">Chain %1$d of %2$d · paused</string>
+    <string name="h3_chain_staged">%1$d segment(s) staged, not sent yet</string>
+    <string name="h3_chain_start">Start chain</string>
+    <string name="h3_chain_add">Add to chain</string>
+    <string name="h3_chain_added">Added: segment %1$d</string>
+    <string name="h3_chain_submitted">Handed to the server: %1$s, %2$d segments</string>
+    <string name="h3_chain_refused">The server refused this chain: %1$s</string>
+    <string name="h3_chain_unreachable">Could not reach the server; the chain was not sent</string>
+    <string name="h3_chain_busy">The last batch is still running on the server; wait for it to end</string>
+    <string name="h3_chain_full">A chain holds at most %1$d segments</string>
+    <string name="h3_chain_failed">Chain failed: %1$s</string>
+    <string name="h3_chain_pause">Pause</string>
+    <string name="h3_chain_resume">Resume</string>
     <string name="h3_audio_count">%1$d / %2$d</string>
     <string name="h3_not_selected_short">None</string>
     <string name="h3_err_extra_invalid">%1$s needs a valid number</string>
@@ -422,4 +436,8 @@
     <string name="h3_msg_relay_submit_unknown">The submit result is still unknown and no matching queued job was found. Check server history before submitting again.</string>
     <string name="plan_output_ambiguous">Multiple output branches are connected to this H3 core. Select a single active output in the workflow editor.</string>
     <string name="h3_msg_relay_persist_failed">Could not save the continuation checkpoint. The next segment was not submitted; retry or reopen the H3 workspace.</string>
+    <string name="h3_relay_probe_offline">Plugin check: not connected to a server yet.</string>
+    <string name="h3_relay_probe_missing">Plugin check: no H3 Relay plugin answered on this server.</string>
+    <string name="h3_relay_probe_graph">Plugin check: v%1$s, supports handing the whole chain to the server.</string>
+    <string name="h3_relay_probe_old">Plugin check: v%1$s, too old to run a whole chain (needs %2$s or newer).</string>
 </resources>

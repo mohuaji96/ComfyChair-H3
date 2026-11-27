@@ -53,6 +53,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.queue.JobRegistry
@@ -98,10 +99,11 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
     val livePreview by generationViewModel.livePreview.collectAsState()
     val h3Sample by sh.hnet.comfychair.ui.components.H3SamplingPreviewState.frame.collectAsState()
     val h3Frame = h3Sample
-    val relayDone by sh.hnet.comfychair.queue.H3RelayStatus.done.collectAsState()
-    val relayRemaining by sh.hnet.comfychair.queue.H3RelayStatus.remaining.collectAsState()
-    val relayDetail by sh.hnet.comfychair.queue.H3RelayStatus.detail.collectAsState()
-    val relayActive = relayDone + relayRemaining > 0
+    // The 连拍 chain runs on the server, so this row is the phone's window onto it: the same
+    // summary the H3 page polls, with the two controls the server offers.
+    val chain by sh.hnet.comfychair.queue.H3RelayChain.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    val relayActive = chain.active
     val optimizeTask by OptimizeRunner.task.collectAsState()
     var snapshot by remember { mutableStateOf<QueueSnapshot?>(null) }
     var readFailed by remember { mutableStateOf(false) }
@@ -173,23 +175,38 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    stringResource(R.string.queue_relay_progress, relayDone, relayRemaining),
+                                    if (chain.paused) stringResource(R.string.h3_chain_paused, chain.current, chain.of)
+                                    else stringResource(R.string.h3_chain_progress, chain.current, chain.of),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
-                                if (relayDetail.isNotBlank()) {
-                                    Text(
-                                        relayDetail,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                Text(
+                                    chain.project.ifBlank { stringResource(R.string.h3_relay_title) },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                            // Pause keeps the segment already generating; it only stops the next
+                            // one from starting, which is what a user mid-chain usually wants.
+                            androidx.compose.material3.TextButton(
+                                onClick = {
+                                    sh.hnet.comfychair.queue.H3RelayChain.control(
+                                        context, scope, if (chain.paused) "resume" else "pause"
                                     )
                                 }
+                            ) {
+                                Text(
+                                    stringResource(
+                                        if (chain.paused) R.string.h3_chain_resume else R.string.h3_chain_pause
+                                    )
+                                )
                             }
                             androidx.compose.material3.TextButton(
-                                // Clearing the queue is what actually stops the chain; stopping the
-                                // notification alone left the banner up and the next segment still
-                                // queued behind the running one.
-                                onClick = { sh.hnet.comfychair.queue.H3RelayQueue.clear(context) }
+                                // Soft stop: the segment that is already generating finishes and
+                                // keeps its clip, and nothing after it starts.
+                                onClick = {
+                                    sh.hnet.comfychair.queue.H3RelayChain.control(context, scope, "stop")
+                                }
                             ) {
                                 Text(stringResource(R.string.queue_stop_relay), color = MaterialTheme.colorScheme.error)
                             }

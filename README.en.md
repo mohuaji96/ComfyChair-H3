@@ -73,7 +73,7 @@ A dedicated tab for MiniMax H3 work, from the first idea to a finished clip.
 
 **Material slots.** First frame, last frame, up to 9 references and up to 3 independent audio tracks. A reference can be disabled without being deleted, which makes it easy to try several compositions in turn. Audio can be reordered, replaced or removed track by track. Everything is numbered in submission order, matching the image references in the prompt.
 
-**Relay takes.** Queue several segments at once and each one starts as soon as the previous finishes. Choose one-at-a-time or queue mode; in queue mode it shares the same queue as ordinary jobs, and the queue panel shows which segment is running. Needs the companion server plugin, see [below](#companion-plugin-relay-needs-it).
+**Relay takes.** Add to chain stacks up segments, and Start chain hands the whole chain to the server in one go; it then runs them in order, taking each segment's last frame onto the front of the next. Once it is out there, a locked screen or a closed app changes nothing — progress lives in the queue drawer, where you can also pause, resume or stop. Up to 48 segments. Needs the companion server plugin, see [below](#companion-plugin-relay-needs-it).
 
 **Auto-written last-frame declaration.** When you continue from a previous clip, the model has to know that the first image is the last frame of the previous segment, or it redraws the scene from scratch. The app can insert that sentence at the top of the prompt, checks for an existing one first (so it will not write a duplicate if you already did it by hand), and can take it back with one tap. If the prompt already declares a different picture number, it refuses to write and tells you to fix the prompt first.
 
@@ -282,7 +282,7 @@ As long as the cache is there, those assets can still be selected, used and subm
 - Android 13 (API 33) or newer
 - A reachable ComfyUI server
 - A network path between the phone and the server (LAN, tunnel or reverse proxy all work)
-- Relay additionally needs the companion [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin, 1.0.0 or newer, on the server; nothing else does
+- Relay additionally needs the companion [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin, 1.1.0 or newer, on the server; nothing else does
 
 ## Building
 
@@ -294,21 +294,23 @@ Release builds need a signing configuration. Debug builds install directly, but 
 
 ## Companion plugin: relay needs it
 
-**Relay is a two-sided feature.** The phone works out each segment's prompt, starting frame and settings; the [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin on the server runs that segment inside ComfyUI, takes its last frame and hangs it on the front of the next segment.
+**Relay is a two-sided feature.** The phone plans the segments, composes the prompts and packs each segment's complete workflow; the [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin on the server takes the whole chain, runs every segment inside ComfyUI in order, and hangs each last frame on the front of the next segment.
 
 | Side | Does | Does not |
 | --- | --- | --- |
-| ComfyChair H3 (this app) | Plan the segments, compose the prompts, write the last-frame declaration, watch progress, reattach after a break | Touch your workflow, clean up files on the server |
+| ComfyChair H3 (this app) | Plan the segments, compose the prompts, write the last-frame declaration, hand the whole chain over once, watch progress | Touch your workflow, clean up files on the server |
 | ComfyUI H3 Relay (plugin) | Run each segment on the server in order, take the last frame, chain the next one | Delete files, rewrite prompts, take over your queue |
 
 With the plugin installed, the relay switch in the H3 workspace becomes usable. Flipping it first asks the server whether a plugin is there and new enough; if not, the switch flips straight back with a reason, so you are never left with something that looks like it is running and is not.
 
 - **Repository**: [mohuaji96/ComfyUI-H3Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) (public, with the full endpoint list)
-- **Version pairing**: plugin 1.0.0 or newer with app 0.9.8.8382.628-h3 (versionCode 389) or newer; turning relay on checks the plugin version and refuses with an upgrade hint if it is too old
+- **Version pairing**: plugin 1.1.0 or newer with app 0.9.8.8382.629-h3 (versionCode 393) or newer; turning relay on checks the plugin version and refuses with an upgrade hint if it is too old
 - **Install**: drop the folder into ComfyUI's `custom_nodes` and restart ComfyUI; the server console prints whether the plugin mounted
 - **The plugin alone is not enough**: it has no UI of its own and only accepts work from this app, so installing it starts nothing by itself
 
-In this version the segments are still submitted by the phone in turn, so the app process has to stay alive — a locked screen or a backgrounded app is fine, but if the system recycles it the chain pauses where it is and reopening reattaches to it. Handing the whole chain to the server so it finishes with the phone gone is the next version.
+**Each segment runs with your own model and settings.** What the phone sends is a complete workflow per segment, not a handful of numbers, so the plugin never overwrites your UNet and LoRA with the ones in its bundled template — model, LoRA weights, resolution, steps, sampler and scheduler all stay exactly as you planned them. From the second segment on, the last-frame slot holds a placeholder that the plugin swaps for the real tail frame it just produced; if it cannot find the placeholder it errors out rather than quietly falling back to the sample image in the template.
+
+**Hand it over and forget the phone.** The whole chain goes to the server in one request and the server does the running; the phone only asks for progress every two seconds. A locked screen, a backgrounded app or a closed app changes nothing, and reopening picks the progress back up. To stop, use Stop in the queue drawer — the segment that is running is allowed to finish and is kept, so no compute goes to waste.
 
 ## Companion tool
 

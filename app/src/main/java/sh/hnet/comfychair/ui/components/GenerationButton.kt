@@ -78,7 +78,9 @@ fun GenerationButton(
     onAddToFrontOfQueue: () -> Unit = {},
     onClearQueue: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    disabledReason: String? = null
+    disabledReason: String? = null,
+    /** Replaces the default 生成 wording when the button does something else. */
+    label: String? = null
 ) {
     val focusManager = LocalFocusManager.current
     var showMenu by remember { mutableStateOf(false) }
@@ -115,7 +117,7 @@ fun GenerationButton(
             }
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
             Text(
-                text = transientLabel ?: stringResource(R.string.button_generate),
+                text = transientLabel ?: label ?: stringResource(R.string.button_generate),
                 maxLines = 1,
                 // Long translations shrink rather than wrap or cut
                 autoSize = TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 18.sp),
@@ -207,3 +209,4 @@ fun GenerationButton(
 }
 
 private val ButtonHeight = 56.dp
+

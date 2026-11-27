@@ -415,7 +415,7 @@ class SettingsViewModel : ViewModel() {
                 WorkflowManager.reloadWorkflows()
                 WorkflowManager.clearAllUserWorkflows()
                 PromptPresetStorage(context).clearAll()
-                sh.hnet.comfychair.queue.H3RelayQueue.clear(context)
+                sh.hnet.comfychair.queue.H3RelayChain.resetStaging(context)
             }
             // The settings shown (and debug logging) follow the cleared values
             reloadAppSettings(context)

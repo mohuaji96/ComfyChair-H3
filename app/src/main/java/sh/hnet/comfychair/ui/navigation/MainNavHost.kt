@@ -63,9 +63,9 @@ import sh.hnet.comfychair.R
 import sh.hnet.comfychair.navigation.MainRoute
 import sh.hnet.comfychair.navigation.SettingsRoute
 import sh.hnet.comfychair.task.OptimizeRunner
-import sh.hnet.comfychair.queue.H3RelayStatus
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.queue.JobStatus
+import sh.hnet.comfychair.queue.H3RelayChain
 import sh.hnet.comfychair.ui.components.ErrorSnackbars
 import sh.hnet.comfychair.ui.components.LocalAppSnackbarHostState
 import sh.hnet.comfychair.ui.components.LocalCoveredByMediaViewer
@@ -306,12 +306,12 @@ fun MainNavHost(
     val h3JobCount = queueState.ownJobs.values.count {
         (it.status == JobStatus.PENDING || it.status == JobStatus.EXECUTING) && it.ownerId == "H3_WORKSPACE"
     }
-    // 连拍的交接棒（跑完一段 → 截尾帧 → 交下一段）住在 H3 页面里。页签一换页面就被销毁，当前段
-    // 跑完便没人接手，链条断在半路。所以只要 H3 还有任务在跑/排队，或连拍链没走完，就把这页留在
-    // 组合里——只是缩成 0 尺寸藏起来，逻辑照跑；回到 H3 时状态还在原处。
-    val relayDoneNow by H3RelayStatus.done.collectAsState()
-    val relayLeftNow by H3RelayStatus.remaining.collectAsState()
-    val h3HasWork = h3JobCount > 0 || relayDoneNow + relayLeftNow > 0
+    // 连拍整条链现在是服务器在跑，手机只是看着它，所以页签换走不再会断链。只有手机自己提交的单段
+    // 任务还住在 H3 页面里，页签一换页面就被销毁、结果没人收，因此这种情况下照旧把这页留在组合里
+    // ——缩成 0 尺寸藏起来，逻辑照跑。
+    val chainNow by H3RelayChain.state.collectAsState()
+    // Only a job this phone submitted needs the page kept alive; a chain keeps running regardless.
+    val h3HasWork = h3JobCount > 0
     var h3EverShown by rememberSaveable { mutableStateOf(false) }
     val h3OnScreen = currentScreen == MainRoute.H3Workspace
     LaunchedEffect(h3OnScreen) { if (h3OnScreen) h3EverShown = true }
@@ -397,7 +397,9 @@ fun MainNavHost(
                                 lastVideoRoute = mainRouteOf(lastVideoRoute) ?: MainRoute.TextToVideo,
                                 lastPromptRoute = mainRouteOf(lastPromptRoute) ?: MainRoute.TagComposer,
                                 ownJobs = ownJobsPerTab,
-                                h3JobCount = h3JobCount,
+                                // A chain running on the server counts as work on this tab too:
+                                // the badge is the only sign of it while the user is elsewhere.
+                                h3JobCount = if (chainNow.active) maxOf(h3JobCount, 1) else h3JobCount,
                                 unseenResults = unseenResults.toSet(),
                                 onReopen = { route ->
                                     if (currentEntry?.destination?.route == route.route) {
