@@ -124,12 +124,12 @@
     <string name="queue_relay_progress">H3 relay running · %1$d done / %2$d left</string>
     <string name="queue_stop_relay">Stop relay</string>
     <string name="queue_last_failed">Last run failed</string>
-    <string name="relay_title_paused">Full relay paused · %1$d takes left</string>
-    <string name="relay_title_running">Full relay running</string>
+    <string name="relay_title_paused">Relay paused · %1$d takes left</string>
+    <string name="relay_title_running">Relay running</string>
     <string name="relay_body_progress">%1$d done, %2$d left</string>
     <string name="relay_action_resume">Resume</string>
     <string name="relay_action_pause">Pause</string>
-    <string name="relay_channel_name">Full relay</string>
+    <string name="relay_channel_name">Relay</string>
     <string name="relay_channel_desc">Relay progress and pause</string>
     <string name="wm_not_h3">Not a recognised H3 workflow</string>
     <string name="wm_h3_ambiguous">More than one H3 core node: confirm the executing branch in the professional editor</string>

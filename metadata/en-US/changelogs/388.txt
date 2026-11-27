@@ -1,0 +1,7 @@
+v0.9.8.8382.628-h3
+- Relay takes is now Relay mode; Auto numbering and Prefix merge into a required Project name.
+- An empty name reddens the field and greys out Generate, saying why.
+- In relay mode the last-frame note works before a frame is attached.
+- From segment 2, one reference slot is kept for the previous last frame: 8, not 9.
+- Turning relay mode on checks the server plugin and flips back if it is missing.
+- Rewrote the relay help for the new rules.

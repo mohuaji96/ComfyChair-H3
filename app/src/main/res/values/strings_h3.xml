@@ -126,7 +126,7 @@
     <string name="h3_apply">Apply</string>
     <string name="h3_save_as_new">Save as new version</string>
     <string name="h3_workflow_manage">Workflow management</string>
-    <string name="h3_relay_title">Relay takes</string>
+    <string name="h3_relay_title">Relay mode</string>
     <string name="h3_got_it">Got it</string>
     <string name="h3_declare_title">Auto last-frame note</string>
     <string name="h3_declare_what">What it writes</string>
@@ -193,6 +193,7 @@
     <string name="h3_refs_min_max">At least 1, at most %1$d</string>
     <string name="h3_refs_selected">%1$d of %2$d selected</string>
     <string name="h3_includes_last"> · includes the last frame</string>
+    <string name="h3_refs_tail_reserved"> · one slot kept for the last frame</string>
     <string name="h3_current_prefix">Now: %1$s · </string>
     <string name="h3_note_t2v">No image, text only</string>
     <string name="h3_note_first">First frame only</string>
@@ -297,7 +298,7 @@
     <string name="h3_clear_short">Clear</string>
     <string name="h3_last_frame_short">Last frame</string>
     <string name="h3_cap">Limit</string>
-    <string name="h3_relay_help">How it works&#10;Queue several segments; each one continues from the last frame of the previous run, so a long clip is built in pieces.&#10;&#10;Using it&#10;1. Turn the switch on&#10;2. Write the prompt, tap Add to queue; each tap is one segment&#10;3. Only the current segment goes to the server; when it finishes the app takes its last frame, moves it into the reference slot and submits the next one&#10;&#10;Notes&#10;· Each segment keeps the settings from the moment you tapped Add (duration, ratio, steps)&#10;· Turning the switch off pauses it; remaining segments are kept and resume when you turn it back on&#10;· Do not swipe the app away while relay runs: frame capture and submission both depend on the phone&#10;· A failed segment stops and waits for you; nothing is skipped&#10;&#10;Related setting&#10;Settings → Relay notification (off by default)&#10;When on, the notification shows how many segments finished and how many remain, with pause and resume;&#10;it also keeps the app alive through long screen-off periods.&#10;Relay works without it, but the system may stop a backgrounded app sooner;&#10;reopening the app continues from the remaining segments.</string>
+    <string name="h3_relay_help">What it does&#10;Joins several segments into one long clip: each one continues from the last frame of the previous run.&#10;&#10;Using it&#10;1. Turn on Relay mode; the first time it checks whether the server has the relay plugin&#10;2. Fill in a project name (required): files are named project_segment; a repeated name gets -2, -3&#10;3. Write the prompt, pick the references, tap Add to queue; each tap is one segment&#10;4. Only the current segment goes to the server; when it finishes the app takes its last frame, moves it into the reference slot and submits the next one&#10;&#10;Notes&#10;· Each segment keeps the settings from the moment you tapped Add (duration, ratio, steps, references)&#10;· Segment 1 takes up to 9 references; from segment 2 on one slot is reserved for the previous last frame, so 8&#10;· Do not swipe the app away while relay runs: frame capture and submission both depend on the phone&#10;· A failed segment stops the chain; clips already produced are kept&#10;· Turning the switch off pauses it; remaining segments are kept and resume when you turn it back on</string>
     <string name="h3_hint_second_pass_steps">2 to 10 steps is recommended; this is the denoise steps of the Turbo second pass.</string>
     <string name="h3_hint_rtx_scale">1.0 means no upscale; 1.2 is 1.2×, 1.5 is 1.5×.</string>
     <string name="h3_steps_count">%1$s steps</string>
@@ -334,14 +335,18 @@
     <string name="h3_preview_failed">Preview failed; check that the file is still on the server</string>
     <string name="h3_preview_loading">Loading preview…</string>
     <string name="h3_relay_auto_tail">Takes the last frame after each run and continues</string>
-    <string name="h3_relay_fail_wait">A failure stops and waits; turn it off to continue by hand</string>
-    <string name="h3_relay_prefix_hint">Leave blank = h3_seq</string>
+    <string name="h3_relay_fail_wait">Any failed segment stops the chain; finished clips are kept</string>
+    <string name="h3_relay_prefix_hint">Required, e.g. my_clip</string>
     <string name="h3_relay_queued_n">%1$d queued; the next starts when this one finishes</string>
     <string name="h3_audio_count">%1$d / %2$d</string>
     <string name="h3_not_selected_short">None</string>
     <string name="h3_err_extra_invalid">%1$s needs a valid number</string>
     <string name="h3_err_aspect_mismatch">First frame %1$d×%2$d does not match the output ratio %3$s and will be stretched (the last frame is cropped, never stretched)</string>
-    <string name="h3_auto_number">Auto numbering</string>
+    <string name="h3_project_name">Project</string>
+    <string name="h3_msg_project_required">Relay mode needs a project name; the server uses it to tell chains apart</string>
+    <string name="h3_relay_probe_failed">No usable relay plugin on this server; the switch was turned back off</string>
+    <string name="h3_relay_probe_ok">Relay plugin ready (v%1$s)</string>
+    <string name="h3_refs_reserve_tail">From segment 2 on, one slot is reserved for the previous last frame; at most %1$d</string>
 
     <string name="h3_ratio_ultrawide">Ultra wide</string>
     <string name="h3_ratio_widescreen">Widescreen</string>

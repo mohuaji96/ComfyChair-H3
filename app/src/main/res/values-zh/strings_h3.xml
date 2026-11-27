@@ -126,7 +126,7 @@
     <string name="h3_apply">套用</string>
     <string name="h3_save_as_new">另存新版本</string>
     <string name="h3_workflow_manage">工作流管理</string>
-    <string name="h3_relay_title">完整连拍</string>
+    <string name="h3_relay_title">连拍模式</string>
     <string name="h3_got_it">知道了</string>
     <string name="h3_declare_title">代写尾帧声明</string>
     <string name="h3_declare_what">它帮你写什么</string>
@@ -193,6 +193,7 @@
     <string name="h3_refs_min_max">至少 1 张，最多 %1$d 张</string>
     <string name="h3_refs_selected">已选 %1$d / %2$d 张</string>
     <string name="h3_includes_last"> · 含尾帧</string>
+    <string name="h3_refs_tail_reserved"> · 留一格给尾帧</string>
     <string name="h3_current_prefix">当前：%1$s · </string>
     <string name="h3_note_t2v">未选图片，纯文生</string>
     <string name="h3_note_first">提交首帧</string>
@@ -297,7 +298,7 @@
     <string name="h3_clear_short">清除</string>
     <string name="h3_last_frame_short">尾帧</string>
     <string name="h3_cap">上限</string>
-    <string name="h3_relay_help">用途&#10;一次排好几段，每段跑完自动接上一段最后一帧，把长视频拆开连续生成。&#10;&#10;怎么用&#10;1. 打开开关&#10;2. 写好提示词，点「添加到队列」，点几次就是几段&#10;3. 只把当前这段交给服务器；跑完自动取帧、换到参考槽、提交下一段&#10;&#10;注意&#10;· 每段用的是点「添加」那一刻的参数（时长 / 比例 / 步数）&#10;· 关掉开关会暂停，剩余段不丢，重新打开继续&#10;· 连拍期间请不要把 App 从后台划掉：取帧和提交都要靠手机，划掉会停住&#10;· 某段失败会停下等你，不会跳过&#10;&#10;相关设置&#10;设置 → 连拍通知（默认关闭）&#10;打开后：通知栏会显示「已跑完 2 段，还剩 3 段」，可以在通知里暂停 / 继续；&#10;锁屏久了也不容易被系统回收。&#10;不开也能用完整连拍，只是后台待太久时可能被系统停下，&#10;重开 App 会从剩下的段继续。</string>
+    <string name="h3_relay_help">用途&#10;把好几段拼成一条长视频：每段跑完自动接上一段最后一帧，接着生成下一段。&#10;&#10;怎么用&#10;1. 打开「连拍模式」，第一次会确认服务器上装了连拍插件&#10;2. 填项目名（必填）：文件名就是「项目名_段号」，重名会自动加 -2、-3&#10;3. 写好提示词、选好参考图，点「添加到队列」，点几次就是几段&#10;4. 只把当前这一段交给服务器；跑完自动取尾帧、换到参考槽、提交下一段&#10;&#10;注意&#10;· 每段用的是点「添加」那一刻的参数（时长 / 比例 / 步数 / 参考图）&#10;· 第 1 段最多 9 张参考图；第 2 段起要留一格给上一段的尾帧，最多 8 张&#10;· 连拍期间请不要把 App 从后台划掉：取帧和提交都要靠手机，划掉会停住&#10;· 任一段失败会停下等你，不会跳过&#10;· 关掉开关会暂停，剩余段不丢，重新打开继续</string>
     <string name="h3_hint_second_pass_steps">推荐 2 – 10 步；Turbo 加速二采去噪精修步数</string>
     <string name="h3_hint_rtx_scale">填 1.0 即为不放大；1.2 为 1.2 倍放大；1.5 为 1.5 倍放大</string>
     <string name="h3_steps_count">%1$s 步</string>
@@ -334,14 +335,18 @@
     <string name="h3_preview_failed">预览失败，请确认服务器素材仍在</string>
     <string name="h3_preview_loading">正在加载预览…</string>
     <string name="h3_relay_auto_tail">每段跑完自动取尾帧，接下一段</string>
-    <string name="h3_relay_fail_wait">失败会停下等你；关掉能手动接</string>
-    <string name="h3_relay_prefix_hint">留空 = h3_seq</string>
+    <string name="h3_relay_fail_wait">任一段失败整条停下，已出的片段保留</string>
+    <string name="h3_relay_prefix_hint">必填，例如 我的短片</string>
     <string name="h3_relay_queued_n">已排 %1$d 段，跑完当前这段自动接上</string>
     <string name="h3_audio_count">%1$d / %2$d</string>
     <string name="h3_not_selected_short">未选</string>
     <string name="h3_err_extra_invalid">%1$s 需要合法数值</string>
     <string name="h3_err_aspect_mismatch">首帧 %1$d×%2$d 与输出 %3$s 不一致，会被拉伸变形（尾帧是裁切，不会变形）</string>
-    <string name="h3_auto_number">自动编号</string>
+    <string name="h3_project_name">项目名</string>
+    <string name="h3_msg_project_required">连拍模式要先写项目名，服务器靠它认出这一条</string>
+    <string name="h3_relay_probe_failed">服务器上没有能用的连拍插件，开关已关回</string>
+    <string name="h3_relay_probe_ok">连拍插件可用（%1$s 版）</string>
+    <string name="h3_refs_reserve_tail">第 2 段起要留一格给上一段的尾帧，最多 %1$d 张</string>
 
     <string name="h3_ratio_ultrawide">超宽</string>
     <string name="h3_ratio_widescreen">宽屏</string>

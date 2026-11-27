@@ -106,6 +106,8 @@ import sh.hnet.comfychair.util.VideoUtils
 import sh.hnet.comfychair.workflow.H3Continuation
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.workflow.H3Plan
+import sh.hnet.comfychair.workflow.H3RelayClient
+import sh.hnet.comfychair.workflow.H3RelayState
 import sh.hnet.comfychair.workflow.H3Resolution
 import sh.hnet.comfychair.workflow.H3SamplingPreview
 import sh.hnet.comfychair.workflow.H3Seed
@@ -412,6 +414,13 @@ fun H3StudioContent(
     val templateSlots = if (knownRefCeiling > 0) minOf(spec.refIndices.size, knownRefCeiling) else spec.refIndices.size
     val filledRefs = draft.refs.filterIndexed { i, f -> f.isNotBlank() && i !in draft.disabledRefs }
 
+    // 连拍: the previous segment's last frame is always the final picture of the next segment, so
+    // that segment can only spend capacity-1 on its own references. Counted here, once, so the
+    // subtitle, the add button and the submission all agree instead of failing at the server.
+    val reservesTailSlot = draft.continuationAuto &&
+        (relayCount > 0 || draft.continuation.isNotBlank())
+    val refCapacity = H3_MAX_PICTURES - if (reservesTailSlot) 1 else 0
+
     val aspectOptions = remember(models.nodeDefinitionsRevision) {
         ConnectionManager.nodeTypeRegistry
             .getInputDefinition("ResolutionSelector", "aspect_ratio")?.options.orEmpty()
@@ -488,6 +497,37 @@ fun H3StudioContent(
                 context.getString(R.string.h3_msg_declare_reverted, picture)
             } else {
                 context.getString(R.string.h3_msg_nothing_to_revert)
+            }
+        }
+    }
+
+    /**
+     * 连拍模式 is the plugin's switch, so turning it on is also the moment to ask whether this
+     * server has one. The knob flips at once — a switch that only moves after a round trip feels
+     * broken — and flips back with a reason when the answer is no. Nothing is left in a state
+     * where the user believes a chain will run and nothing is going to.
+     */
+    fun setRelayMode(on: Boolean) {
+        if (!on) {
+            update(draft.copy(continuationAuto = false))
+            return
+        }
+        val live = ConnectionManager.clientOrNull ?: run {
+            message = context.getString(R.string.h3_msg_connect_first)
+            return
+        }
+        update(draft.copy(continuationAuto = true))
+        scope.launch {
+            val found = H3RelayClient.info(live)
+            main.post {
+                if (live !== ConnectionManager.clientOrNull) return@post
+                H3RelayState.remember(ConnectionManager.currentServerId, found)
+                if (found == null) {
+                    update(draft.copy(continuationAuto = false))
+                    message = context.getString(R.string.h3_relay_probe_failed)
+                } else {
+                    message = context.getString(R.string.h3_relay_probe_ok, found.version)
+                }
             }
         }
     }
@@ -880,7 +920,15 @@ fun H3StudioContent(
         // Tiles in use, not the backing list length: the draft always carries three empty
         // placeholders, and asking the server while two of them are still free is the bug.
         val used = draft.refs.indexOfLast { it.isNotBlank() } + 1
-        when (val next = H3Plan.nextRefSlot(used, templateSlots, known)) {
+        // A continuing segment has to keep its last slot for the tail frame, so the ceiling is
+        // reached one picture earlier and the answer is "reserved", not "server did not say".
+        val ceiling = minOf(refCapacity, if (known > 0) known else refCapacity)
+        if (used >= ceiling) {
+            message = if (reservesTailSlot) context.getString(R.string.h3_refs_reserve_tail, ceiling)
+            else context.getString(R.string.h3_refs_min_max, ceiling)
+            return
+        }
+        when (val next = H3Plan.nextRefSlot(used, minOf(templateSlots, ceiling), known)) {
             is H3Plan.NextRef.Pick -> startPick(next.index)
             H3Plan.NextRef.AskServer -> askCeiling(used) { startPick(used) }
         }
@@ -956,8 +1004,12 @@ fun H3StudioContent(
         // The continuation frame stays last so it keeps the highest <Picture N> whatever
         // else is picked, and one slot serves every segment of a chain.
         val submittedRefs = if (draft.continuation.isNotBlank()) refs + draft.continuation else refs
-        if (mode == H3Plan.Mode.R2V && submittedRefs.size > H3_MAX_PICTURES)
-            errors.add(context.getString(R.string.h3_err_tail_over_limit, refs.size + 1, H3_MAX_PICTURES))
+        if (mode == H3Plan.Mode.R2V && submittedRefs.size > refCapacity) {
+            errors.add(
+                if (draft.continuationAuto) context.getString(R.string.h3_refs_reserve_tail, refCapacity)
+                else context.getString(R.string.h3_err_tail_over_limit, submittedRefs.size, refCapacity)
+            )
+        }
         when (mode) {
             H3Plan.Mode.R2V -> if (refs.isEmpty()) errors.add(context.getString(R.string.h3_err_ref_required))
             H3Plan.Mode.I2V -> if (draft.first.isBlank()) errors.add(context.getString(R.string.h3_err_first_required))
@@ -1087,10 +1139,12 @@ fun H3StudioContent(
             var prompt = preflight.prompt
             var chain: String? = null
             var chainPosition = 0
-            if (draft.continuationAuto) {
-                chain = H3Naming.chainName(draft.sequenceName, draft.sequenceAutoName)
+            if (draft.numbered) {
+                // A named run is numbered on purpose: the project name is what the gallery groups
+                // by and what the server keeps on disk, so both single runs and chains use it.
+                chain = H3Naming.chainName(draft.sequenceName, true)
                 chainPosition = nextChainPosition(chain)
-                prompt = H3Naming.applyPrefix(prompt, H3Naming.prefixFor(chain, chainPosition, draft.sequenceAutoName))
+                prompt = H3Naming.applyPrefix(prompt, H3Naming.prefixFor(chain, chainPosition, true))
             }
             // 采样预览: decided once per run, on the payload that actually goes out. The stored graph
             // is never edited, so a template keeps working whichever way the switch points.
@@ -1401,8 +1455,12 @@ fun H3StudioContent(
                     }
                 ) {
                     // Only where a tail frame can live: this switch writes the declaration for
-                    // that slot, and the other tabs have no such slot at all.
-                    if (area == H3Plan.Area.R2V && draft.continuation.isNotBlank()) {
+                    // that slot, and the other tabs have no such slot at all. 连拍模式 shows it
+                    // before a frame is attached, because that is when a continuing segment's
+                    // prompt still has to be told which picture is its predecessor's last.
+                    if (area == H3Plan.Area.R2V &&
+                        (draft.continuation.isNotBlank() || draft.continuationAuto)
+                    ) {
                         val picture = filledRefs.size + 1
                         val claim = H3Continuation.declaredPicture(draft.prompt)
                         val mismatch = claim != null && claim != picture
@@ -1557,7 +1615,8 @@ fun H3StudioContent(
                                             showFullscreenPrompt = false
                                             submit(front = false)
                                         },
-                                        enabled = !busy && client != null && !draft.mpOutOfRange
+                                        enabled = !busy && client != null && !draft.mpOutOfRange &&
+                                            !draft.relayNameMissing
                                     ) {
                                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
@@ -1575,10 +1634,11 @@ fun H3StudioContent(
                 H3Card(
                     title = stringResource(if (area == H3Plan.Area.R2V) R.string.h3_section_refs else R.string.h3_section_material),
                     subtitle = if (area == H3Plan.Area.R2V) {
-                        val maxCap = knownRefCeiling.takeIf { it > 0 } ?: H3_MAX_PICTURES
-                        if (filledRefs.isEmpty()) stringResource(R.string.h3_refs_min_max, maxCap)
+                        val maxCap = minOf(refCapacity, knownRefCeiling.takeIf { it > 0 } ?: refCapacity)
+                        (if (filledRefs.isEmpty()) stringResource(R.string.h3_refs_min_max, maxCap)
                         else stringResource(R.string.h3_refs_selected, filledRefs.size, maxCap) +
-                            (if (draft.continuation.isNotBlank()) stringResource(R.string.h3_includes_last) else "")
+                            (if (draft.continuation.isNotBlank()) stringResource(R.string.h3_includes_last) else "")) +
+                            (if (reservesTailSlot) stringResource(R.string.h3_refs_tail_reserved) else "")
                     } else {
                         stringResource(R.string.h3_current_prefix, modeLabel) + when {
                             mode == H3Plan.Mode.T2V -> stringResource(R.string.h3_note_t2v)
@@ -1731,15 +1791,14 @@ fun H3StudioContent(
                             hasResult = result != null,
                             mode = 0,
                         onRelayHelp = { showRelayHelp = true },
-                            autoName = draft.sequenceAutoName,
+                            autoName = draft.numbered,
                             sequenceName = draft.sequenceName,
                             queuedCount = queueState.ownActiveJobCount + relayCount,
                             onMode = { update(draft.copy(continuationMode = it)) },
-                            onToggleAutoName = { update(draft.copy(sequenceAutoName = it)) },
                             onSequenceName = { update(draft.copy(sequenceName = it)) },
                             onCapture = { captureLastFrame(auto = false) },
                             onPickVideo = { tailVideoPicker.launch("video/*") },
-                            onToggleAuto = { update(draft.copy(continuationAuto = it)) },
+                            onToggleAuto = { setRelayMode(it) },
                             onClear = {
                                 val owned = draft.continuationOwner
                                 update(
@@ -2642,8 +2701,11 @@ fun H3StudioContent(
                     GenerationButton(
                         modifier = Modifier.width(180.dp),
                         canCancelOwnJob = ownJobExecuting,
-                        isEnabled = !busy && client != null && !draft.mpOutOfRange,
+                        isEnabled = !busy && client != null && !draft.mpOutOfRange &&
+                            !draft.relayNameMissing,
                         isUploading = busy,
+                        disabledReason = if (draft.relayNameMissing)
+                            context.getString(R.string.h3_msg_project_required) else null,
                         onGenerate = { submit(front = false) },
                         onAddToFrontOfQueue = { submit(front = true) },
                         onCancelOwnJob = { abortOwnJob() },
@@ -2878,7 +2940,17 @@ private data class H3Draft(
     val continuationOwner: Int = H3Continuation.NONE,
     /** True when the `[video continuation]` summary marker is ours and may be taken back. */
     val continuationFlag: Boolean = false
-)
+) {
+    /**
+     * Whether files carry a `_01` segment number. 连拍模式 only: a plain single run keeps the
+     * template's own `h3_00001` name and stays outside any chain group, exactly as before. The
+     * project name is a chain's identity, so it must not start renaming or grouping single runs.
+     */
+    val numbered: Boolean get() = continuationAuto
+
+    /** 连拍模式 cannot start without a project name: it is how the server tells chains apart. */
+    val relayNameMissing: Boolean get() = continuationAuto && H3Naming.sanitize(sequenceName).isBlank()
+}
 
 private data class H3LoraAdd(val name: String = "", val strength: String = "1.0")
 
@@ -4830,7 +4902,6 @@ private fun H3ContinuationSlot(
     queuedCount: Int,
     onMode: (Int) -> Unit,
     onRelayHelp: () -> Unit,
-    onToggleAutoName: (Boolean) -> Unit,
     onSequenceName: (String) -> Unit,
     onCapture: () -> Unit,
     onPickVideo: () -> Unit,
@@ -4900,129 +4971,122 @@ private fun H3ContinuationSlot(
 
         H3Divider()
 
-        // Left column: the two switches only. Right column: what 连拍 does, then what the files
-        // will be called. Splitting it this way means neither side has to borrow a row from the
-        // other, which is what left an empty patch in every earlier arrangement.
-        Row(Modifier.fillMaxWidth()) {
-            Column(Modifier.width(126.dp)) {
-                Row(
-                    Modifier.height(36.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.h3_relay_title),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface
+        // One switch, one required field. The project name is the chain's identity: the server
+        // writes it into every filename and the gallery groups by it, so an unnamed chain is a
+        // chain that cannot be handed back. The old 「自动编号」 switch is gone — a name implies
+        // numbering, and a blank one simply keeps the plain single-run filename.
+        Row(
+            Modifier.height(36.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.h3_relay_title),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.width(4.dp))
+            Switch(
+                checked = auto,
+                enabled = enabled,
+                onCheckedChange = onToggleAuto
+            )
+            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .border(
+                        0.8.dp,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        RoundedCornerShape(9.dp)
                     )
-                    Spacer(Modifier.width(4.dp))
-                    Switch(
-                        checked = auto,
-                        enabled = enabled,
-                        onCheckedChange = onToggleAuto
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .size(18.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .border(
-                                0.8.dp,
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                                RoundedCornerShape(9.dp)
-                            )
-                            .clickable { onRelayHelp() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "?",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    Modifier.height(36.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.h3_auto_number),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Switch(
-                        checked = autoName,
-                        enabled = enabled,
-                        onCheckedChange = onToggleAutoName
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                // 10dp lands the first note line on the same centre as 完整连拍, whose
-                // row is 36dp tall; the 2dp below keeps 前缀 level with 自动编号.
-                Spacer(Modifier.height(10.dp))
+                    .clickable { onRelayHelp() },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    stringResource(R.string.h3_relay_auto_tail),
-                    style = noteStyle,
+                    "?",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.h3_relay_fail_wait),
-                    style = noteStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.h3_prefix), style = noteStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .width(118.dp)
-                            .height(26.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                if (autoName) MaterialTheme.colorScheme.surface
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                            .border(
-                                0.8.dp,
-                                if (autoName) MaterialTheme.colorScheme.outlineVariant
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 5.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        BasicTextField(
-                            value = sequenceName,
-                            onValueChange = onSequenceName,
-                            singleLine = true,
-                            enabled = enabled && autoName,
-                            textStyle = noteStyle.copy(
-                                color = if (autoName) MaterialTheme.colorScheme.onSurface else faint
-                            ),
-                            decorationBox = { inner ->
-                                if (sequenceName.isBlank()) Text(
-                                    stringResource(R.string.h3_relay_prefix_hint),
-                                    style = noteStyle.copy(color = faint)
-                                )
-                                inner()
-                            }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    fileName,
-                    style = noteStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
+        Text(
+            stringResource(R.string.h3_relay_auto_tail),
+            style = noteStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            stringResource(R.string.h3_relay_fail_wait),
+            style = noteStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(6.dp))
+        // Only the chain is named. With the switch off this cell is dead weight — it would change
+        // nothing about the file — so it dims and stops taking input rather than accepting a name
+        // that the submission is going to ignore.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.h3_project_name),
+                style = noteStyle,
+                color = if (auto) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (auto) MaterialTheme.colorScheme.surface
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                    .border(
+                        0.8.dp,
+                        when {
+                            !auto -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            sequenceName.isBlank() -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.outlineVariant
+                        },
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                BasicTextField(
+                    value = sequenceName,
+                    onValueChange = onSequenceName,
+                    singleLine = true,
+                    enabled = enabled && auto,
+                    textStyle = noteStyle.copy(
+                        color = if (auto) MaterialTheme.colorScheme.onSurface else faint
+                    ),
+                    decorationBox = { inner ->
+                        if (sequenceName.isBlank()) Text(
+                            stringResource(R.string.h3_relay_prefix_hint),
+                            style = noteStyle.copy(color = faint)
+                        )
+                        inner()
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            fileName,
+            style = noteStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        // The button is already greyed out on an unnamed chain; this says why, next to the
+        // field that fixes it rather than in a toast that has scrolled away.
+        if (auto && sequenceName.isBlank()) Text(
+            stringResource(R.string.h3_msg_project_required),
+            style = noteStyle,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 2.dp)
+        )
 
         if (auto && queuedCount > 0) Text(
             stringResource(R.string.h3_relay_queued_n, queuedCount),

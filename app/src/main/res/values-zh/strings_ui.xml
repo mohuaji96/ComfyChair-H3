@@ -124,12 +124,12 @@
     <string name="queue_relay_progress">H3 连拍进行中 · 已完成 %1$d / 剩 %2$d 段</string>
     <string name="queue_stop_relay">停止连拍</string>
     <string name="queue_last_failed">最近一次执行失败</string>
-    <string name="relay_title_paused">完整连拍已暂停 · 还剩 %1$d 段</string>
-    <string name="relay_title_running">完整连拍进行中</string>
+    <string name="relay_title_paused">连拍已暂停 · 还剩 %1$d 段</string>
+    <string name="relay_title_running">连拍进行中</string>
     <string name="relay_body_progress">已跑完 %1$d 段，还剩 %2$d 段</string>
     <string name="relay_action_resume">继续</string>
     <string name="relay_action_pause">暂停</string>
-    <string name="relay_channel_name">完整连拍</string>
+    <string name="relay_channel_name">连拍</string>
     <string name="relay_channel_desc">连拍进度与暂停</string>
     <string name="wm_not_h3">不是已识别的 H3 工作流</string>
     <string name="wm_h3_ambiguous">存在多个 H3 核心节点，请在专业编辑器中确认执行分支</string>
