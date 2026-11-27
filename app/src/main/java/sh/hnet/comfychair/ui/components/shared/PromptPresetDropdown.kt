@@ -1,5 +1,6 @@
 package sh.hnet.comfychair.ui.components.shared
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BookmarkAdd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
@@ -61,7 +63,12 @@ fun PromptPresetDropdown(
     onSaveCurrentPrompt: () -> Unit,
     onResetPrompt: () -> Unit = {},
     onOptimizePrompt: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * The "still running" chip next to the icon. The full-screen editor turns it off because the
+     * same chip now lives in its top bar, where there is room for the full wording.
+     */
+    showRunningChip: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
     val close = { expanded = false }
@@ -180,25 +187,37 @@ fun PromptPresetDropdown(
         }
 
         // A rewrite keeps running after the sheet closes; without this the only sign of life
-        // was the queue sheet, which nobody opens at that moment.
-        optimizeTask?.let { task ->
+        // was the queue sheet, which nobody opens at that moment. Next to a three-line field the
+        // wording has to stay short: a spinner plus the clock says the same thing in ~60dp
+        // instead of ~130dp, and the dock has no room to spare.
+        if (showRunningChip) optimizeTask?.let { task ->
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Text(
-                    stringResource(R.string.opt_chip_running, shortElapsed(task.elapsedMs)),
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(start = 7.dp, end = 9.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(10.dp),
+                        strokeWidth = 1.4.dp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        shortElapsed(task.elapsedMs),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         }
     }
 }
 
-/** 23000 ms -> "00:23"; the chip is a glance, so no decimals. */
-private fun shortElapsed(ms: Long): String {
+/** 23000 ms -> "00:23"; the chip is a glance, so no decimals. Shared with the full-screen top bar. */
+internal fun shortElapsed(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(total / 60, total % 60)
 }

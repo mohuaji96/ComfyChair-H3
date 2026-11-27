@@ -1114,11 +1114,20 @@ fun H3StudioContent(
                 registry.getNodeDefinition(H3SamplingPreview.NODE_TYPE) != null -> true
                 else -> !registry.isPopulated()
             }
+            // Frame rate and frame count come from the advanced settings cells, so the two fields
+            // there are no longer decoration that this step overwrote with a constant.
+            val previewExtras = spec.extras.filter { it.nodeClass == H3SamplingPreview.NODE_TYPE }
+            fun previewInt(input: String, fallback: Int): Int =
+                previewExtras.firstOrNull { it.input == input }
+                    ?.let { draft.extras[it.key] ?: it.value.toString() }
+                    ?.toDoubleOrNull()?.toInt() ?: fallback
             val patched = H3SamplingPreview.apply(
                 prompt,
                 enabled = previewWanted,
                 nodeAvailable = nodeAvailable,
-                tinyVae = H3SamplingPreview.pickTinyVae(previewSchema)
+                tinyVae = H3SamplingPreview.pickTinyVae(previewSchema),
+                frames = previewInt("preview_frames", H3SamplingPreview.ANIMATED_FRAMES),
+                fps = previewInt("preview_fps", H3SamplingPreview.PREVIEW_FPS)
             )
             prompt = patched.json
             H3SamplingPreviewState.begin(patched.attached)
@@ -2100,28 +2109,30 @@ fun H3StudioContent(
                             if (visibleExtras.isEmpty()) Text(stringResource(R.string.h3_no_scalar_params),
                                 style = MaterialTheme.typography.labelSmall)
                             // 种子在主页面有自己的控件；在这里再放一份是两份 seed 打架的来源。
-                            visibleExtras.chunked(2).forEach { pair ->
-                                Row(Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    pair.forEach { extra ->
-                                        val text = draft.extras[extra.key] ?: extra.value.toString()
-                                        H3AdvancedField(
-                                            label = if (extra.labelRes != 0) stringResource(extra.labelRes) else extra.label,
-                                            value = text,
-                                            enabled = !busy,
-                                            modifier = Modifier.weight(1f),
-                                            onChange = { update(draft.copy(extras = draft.extras + (extra.key to it))) }
-                                        )
-                                    }
-                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            // 选项表来自服务器对这类节点这一格的声明，不是我们猜的：采样器、采样调度
+                            // 都是这样拿到全量可选项，换一套工作流也不用改代码。
+                            val optionMap = remember(models.nodeDefinitionsRevision, visibleExtras) {
+                                visibleExtras.associate {
+                                    it.key to (ConnectionManager.nodeTypeRegistry
+                                        .getInputDefinition(it.nodeClass, it.input)?.options.orEmpty())
                                 }
                             }
+                            val withOptions = visibleExtras.filter { !optionMap[it.key].isNullOrEmpty() }
+                            val withoutOptions = visibleExtras.filter { optionMap[it.key].isNullOrEmpty() }
+                            val switches = withoutOptions.filter { it.isSwitch }
+                            val numbers = withoutOptions.filter { !it.isSwitch && isNumericExtra(it) }
+                            val texts = withoutOptions.filter { !it.isSwitch && !isNumericExtra(it) }
+                            H3AdvancedGrid(withOptions, optionMap, draft, !busy, ::update)
+                            H3AdvancedGrid(switches, optionMap, draft, !busy, ::update)
+                            H3AdvancedGrid(numbers, optionMap, draft, !busy, ::update)
+                            H3AdvancedGrid(texts, optionMap, draft, !busy, ::update)
                             Text(stringResource(R.string.h3_advanced_kept),
                                 style = MaterialTheme.typography.labelSmall)
                         }
 
-                        // D. 尺寸与预设：精确尺寸和对齐倍数绕过比例选择器，对齐图 5 排版。
-                        H3Group(stringResource(R.string.h3_custom_size_title)) {
+                        // D1. 精确尺寸：直接给宽高，绕过比例选择器。对齐倍数只在高级设置里有一处
+                        // ——原来这里也有一份，而填了宽高时那一份根本不参与（对齐被写死 32）。
+                        H3Group(stringResource(R.string.h3_exact_size_title)) {
                             // 第一行：精确宽 + 精确高 + 清除
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -2159,26 +2170,11 @@ fun H3StudioContent(
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(4.dp))
-                            // 第二行：对齐倍数 (8-128)
-                            H3CompactField(
-                                value = draft.multiple,
-                                onValueChange = { text -> update(draft.copy(multiple = text.filter(Char::isDigit))) },
-                                placeholder = stringResource(R.string.h3_align_multiple),
-                                enabled = !busy,
-                                keyboardType = KeyboardType.Number,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        }
 
-                            H3Divider()
-
-                            // 第三行：参数预设
-                            Text(
-                                stringResource(R.string.h3_presets_title),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(4.dp))
+                        // D2. 参数预设：整套参数存成一份，与上面填尺寸是两件事，合成一张卡时
+                        // 预设列表会被当成尺寸的一部分，越滚越长。
+                        H3Group(stringResource(R.string.h3_presets_title)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2978,7 +2974,9 @@ private fun H3TurboPipelineBody(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 H3PanelChips(
-                    presets = listOf("0.5", "1", "1.5"),
+                    // The second pass is a refinement at or below the first pass size, not a
+                    // second upscale; 1.0 and up lived here and only ever produced bigger files.
+                    presets = listOf("0.5", "0.6", "0.7", "0.8"),
                     value = secondPassMp,
                     enabled = !busy,
                     onPreset = { picked ->
@@ -3674,6 +3672,114 @@ private fun H3Group(
  * 不用 OutlinedTextField 是因为它自带 56dp 的最小高度，两列排下来反而比一行一个更高；
  * 这里用 BasicTextField 自己画边框，40dp 够手指点，六项能从六行压到三行。
  */
+/** A cell whose declared type is a number; anything else stays a free text box. */
+private fun isNumericExtra(extra: H3Plan.Extra): Boolean =
+    extra.value is Number || (extra.value as? String)?.toDoubleOrNull() != null
+
+/**
+ * Renders one kind of parameter at a time, two per row.
+ *
+ * Grouping by control rather than by position is the point: a run of dropdowns, then switches,
+ * then numbers, reads as three lists the eye can scan, while the file order mixes them and makes
+ * every row a fresh guess. Inside a kind the workflow's own order is kept, so a workflow always
+ * puts the same thing in the same place. An odd one out keeps the left cell and the right cell is
+ * left empty instead of being padded with something unrelated.
+ */
+@Composable
+private fun H3AdvancedGrid(
+    items: List<H3Plan.Extra>,
+    options: Map<String, List<String>>,
+    draft: H3Draft,
+    enabled: Boolean,
+    onDraft: (H3Draft) -> Unit
+) {
+    items.chunked(2).forEach { pair ->
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            pair.forEach { extra ->
+                H3AdvancedCell(
+                    extra = extra,
+                    options = options[extra.key].orEmpty(),
+                    draft = draft,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    onDraft = onDraft
+                )
+            }
+            if (pair.size == 1) Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun H3AdvancedCell(
+    extra: H3Plan.Extra,
+    options: List<String>,
+    draft: H3Draft,
+    enabled: Boolean,
+    modifier: Modifier,
+    onDraft: (H3Draft) -> Unit
+) {
+    val text = draft.extras[extra.key] ?: extra.value.toString()
+    val label = if (extra.labelRes != 0) stringResource(extra.labelRes) else extra.label
+    val write: (String) -> Unit = { onDraft(draft.copy(extras = draft.extras + (extra.key to it))) }
+    when {
+        // The server already narrowed this cell to a fixed list, so a picker can never send a
+        // value it would reject.
+        options.isNotEmpty() -> Column(modifier) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(3.dp))
+            H3ModelChoiceBox(
+                label = label,
+                selectedValue = text,
+                options = options,
+                onValueChange = write,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        extra.isSwitch -> Row(
+            modifier,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Switch(
+                checked = text.equals("true", ignoreCase = true),
+                onCheckedChange = { write(it.toString()) },
+                enabled = enabled
+            )
+        }
+        else -> H3AdvancedField(
+            label = label,
+            value = text,
+            enabled = enabled,
+            modifier = modifier,
+            // A number cell keeps only characters a number can hold, so a stray letter never
+            // makes it into the payload and comes back as a server-side type error.
+            onChange = { raw ->
+                write(if (isNumericExtra(extra)) raw.filter { it.isDigit() || it == '.' || it == '-' } else raw)
+            }
+        )
+    }
+}
+
 @Composable
 private fun H3AdvancedField(
     label: String,

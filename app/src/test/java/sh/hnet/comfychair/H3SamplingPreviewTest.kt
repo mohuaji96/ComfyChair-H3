@@ -124,6 +124,28 @@ class H3SamplingPreviewTest {
         assertEquals(85, inputs.optInt("jpeg_quality"))
     }
 
+    /**
+     * The page's two preview fields used to be decoration: this object overwrote both with
+     * constants on every submission. They now arrive as arguments, and out-of-range values are
+     * clamped rather than sent to a phone that has to decode the result.
+     */
+    @Test
+    fun `frame rate and frame count come from the page`() {
+        val custom = H3SamplingPreview.apply(
+            withPreviewNode().toString(), enabled = true, nodeAvailable = true, frames = 24, fps = 12
+        )
+        val inputs = JSONObject(custom.json).optJSONObject("20")!!.optJSONObject("inputs")!!
+        assertEquals(24, inputs.optInt("preview_frames"))
+        assertEquals(12, inputs.optInt("preview_fps"))
+
+        val clamped = H3SamplingPreview.apply(
+            withPreviewNode().toString(), enabled = true, nodeAvailable = true, frames = 999, fps = 0
+        )
+        val bounded = JSONObject(clamped.json).optJSONObject("20")!!.optJSONObject("inputs")!!
+        assertEquals(H3SamplingPreview.MAX_FRAMES, bounded.optInt("preview_frames"))
+        assertEquals(H3SamplingPreview.MIN_FPS, bounded.optInt("preview_fps"))
+    }
+
     @Test
     fun `switching off removes the node and restores the direct model link`() {
         val result = H3SamplingPreview.apply(withPreviewNode().toString(), enabled = false, nodeAvailable = true)

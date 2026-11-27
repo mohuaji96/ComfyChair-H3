@@ -26,35 +26,40 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.BookmarkAdd
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -71,12 +76,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import sh.hnet.comfychair.R
+import sh.hnet.comfychair.task.OptimizeRunner
+import sh.hnet.comfychair.ui.components.LocalAppSnackbarHostState
 import sh.hnet.comfychair.ui.components.PromptOptimizeSheet
 import sh.hnet.comfychair.ui.components.config.CommonGenerationState
 import sh.hnet.comfychair.ui.components.shared.PromptPresetDropdown
 import sh.hnet.comfychair.ui.components.shared.TooltipIconButton
 import sh.hnet.comfychair.ui.components.shared.rememberSpellCheckVisualTransformation
+import sh.hnet.comfychair.ui.components.shared.shortElapsed
 import sh.hnet.comfychair.viewmodel.PromptPresetUiState
 import sh.hnet.comfychair.viewmodel.PromptPresetViewModel
 
@@ -116,6 +126,37 @@ fun PromptDock(
         presetViewModel.clearActivePreset()
     }
 
+    val snackbar = LocalAppSnackbarHostState.current
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Clearing takes the whole prompt away in one tap, and undoing happened to live nowhere, so
+     * one wrong thumb press cost the text. Every clear now offers it back for a few seconds; the
+     * preset marker comes back too, otherwise the next save would store a second copy of it.
+     */
+    fun clearWithUndo(tab: PromptTab) {
+        val cleared = if (tab == PromptTab.POSITIVE) state.positivePrompt else state.negativePrompt
+        if (cleared.isEmpty()) return
+        val preset = presetUiState.activePresetId
+        if (tab == PromptTab.POSITIVE) positiveChange("") else onNegativeChange("")
+        val host = snackbar ?: return
+        scope.launch {
+            val result = host.showSnackbar(
+                message = context.getString(R.string.prompt_cleared),
+                actionLabel = context.getString(R.string.button_undo),
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                if (tab == PromptTab.POSITIVE) {
+                    onPositiveChange(cleared)
+                    presetViewModel.restoreActivePreset(preset)
+                } else {
+                    onNegativeChange(cleared)
+                }
+            }
+        }
+    }
+
     if (hasPositive) {
         PromptComposer(
             text = state.positivePrompt,
@@ -123,7 +164,7 @@ fun PromptDock(
             placeholderRes = R.string.hint_describe_generation,
             spellCheckEnabled = spellCheckEnabled,
             onOpenFullscreen = { editorTab = PromptTab.POSITIVE },
-            onClear = { positiveChange("") },
+            onClear = { clearWithUndo(PromptTab.POSITIVE) },
             leading = {
                 PromptLibraryButton(
                     positivePrompt = state.positivePrompt,
@@ -140,7 +181,7 @@ fun PromptDock(
             placeholderRes = R.string.hint_negative_prompt,
             spellCheckEnabled = spellCheckEnabled,
             onOpenFullscreen = { editorTab = PromptTab.NEGATIVE },
-            onClear = { onNegativeChange("") }
+            onClear = { clearWithUndo(PromptTab.NEGATIVE) }
         )
     }
 
@@ -290,7 +331,8 @@ private fun PromptLibraryButton(
     positivePrompt: String,
     presetViewModel: PromptPresetViewModel,
     presetUiState: PromptPresetUiState,
-    onOptimizePrompt: (() -> Unit)? = null
+    onOptimizePrompt: (() -> Unit)? = null,
+    showRunningChip: Boolean = true
 ) {
     PromptPresetDropdown(
         favorites = presetUiState.favorites,
@@ -300,7 +342,8 @@ private fun PromptLibraryButton(
         onOpenLibrary = { presetViewModel.showLibrary() },
         onSaveCurrentPrompt = { presetViewModel.showSaveDialog(positivePrompt) },
         onResetPrompt = { presetViewModel.resetPrompt() },
-        onOptimizePrompt = onOptimizePrompt
+        onOptimizePrompt = onOptimizePrompt,
+        showRunningChip = showRunningChip
     )
 }
 
@@ -342,6 +385,28 @@ private fun PromptEditor(
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(tab) { focusRequester.requestFocus() }
+
+    val optimizeTask by OptimizeRunner.task.collectAsState()
+
+    // Clearing is one tap away from a blank field, so it always leaves a way back. The sheet is
+    // its own window: the page's snackbar sits behind it and would never be seen.
+    var undoText by remember { mutableStateOf<String?>(null) }
+    var undoPreset by remember { mutableStateOf<String?>(null) }
+    var undoTab by remember { mutableStateOf<PromptTab?>(null) }
+    LaunchedEffect(undoText) {
+        if (undoText != null) {
+            delay(6000)
+            undoText = null
+        }
+    }
+    val clearCurrent: () -> Unit = {
+        if (text.isNotEmpty()) {
+            undoText = text
+            undoPreset = presetUiState.activePresetId
+            undoTab = tab
+            onTextChange("")
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -388,6 +453,30 @@ private fun PromptEditor(
                     TooltipIconButton(Icons.Rounded.Check, stringResource(R.string.button_done), onDismiss)
                 }
 
+                // Rewriting in the background, said in the one place with room for the full
+                // wording. It sits under the top bar rather than in it: preview + tabs + done
+                // already fill a 360dp row, and the chip was what pushed Generate into a column.
+                optimizeTask?.let { task ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 1.5.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            stringResource(R.string.opt_chip_running, shortElapsed(task.elapsedMs)),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 // Writing area
                 TextField(
                     value = fieldValue,
@@ -424,45 +513,82 @@ private fun PromptEditor(
                         .focusRequester(focusRequester)
                 )
 
-                // Bottom bar: prompt actions on the left + AI Optimize + Generate on the right
+                // The way back, right where the text used to be.
+                undoText?.let { saved ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.prompt_cleared),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = {
+                            if (undoTab == PromptTab.POSITIVE) onPositiveChange(saved) else onNegativeChange(saved)
+                            presetViewModel.restoreActivePreset(undoPreset)
+                            undoText = null
+                        }) {
+                            Text(stringResource(R.string.button_undo))
+                        }
+                    }
+                }
+
+                // Bottom bar. Everything that can change width sits in the weighted left group,
+                // which is the only part allowed to take the loss; Generate keeps its size.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (tab == PromptTab.POSITIVE) {
-                        PromptLibraryButton(
-                            positivePrompt = positive,
-                            presetViewModel = presetViewModel,
-                            presetUiState = presetUiState,
-                            onOptimizePrompt = onOptimizePrompt
-                        )
-                        TooltipIconButton(
-                            icon = Icons.Rounded.BookmarkAdd,
-                            label = stringResource(R.string.metadata_save_prompt),
-                            onClick = { presetViewModel.showSaveDialog(positive) },
-                            enabled = positive.isNotBlank()
-                        )
-                    }
-                    TooltipIconButton(
-                        icon = Icons.AutoMirrored.Rounded.Backspace,
-                        label = stringResource(R.string.content_description_clear),
-                        onClick = { onTextChange("") },
-                        enabled = text.isNotEmpty()
-                    )
-                    if (tab == PromptTab.POSITIVE && onOptimizePrompt != null) {
-                        Spacer(Modifier.width(4.dp))
-                        FilledTonalButton(
-                            onClick = onOptimizePrompt,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clipToBounds(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Deleting the whole prompt used to sit between "save" and "optimize",
+                        // where a thumb reaching for optimize hit it first. A backspace icon
+                        // promised one character, and the clear-all icon that replaced it still
+                        // read as decoration — three bars say nothing on their own. The word does.
+                        TextButton(
+                            onClick = clearCurrent,
+                            enabled = text.isNotEmpty(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                         ) {
-                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.pe_optimize))
+                            Text(
+                                stringResource(R.string.prompt_clear_action),
+                                fontSize = 14.sp,
+                                color = if (text.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (tab == PromptTab.POSITIVE) {
+                            PromptLibraryButton(
+                                positivePrompt = positive,
+                                presetViewModel = presetViewModel,
+                                presetUiState = presetUiState,
+                                onOptimizePrompt = onOptimizePrompt,
+                                showRunningChip = false
+                            )
+                            if (onOptimizePrompt != null) {
+                                Spacer(Modifier.width(4.dp))
+                                FilledTonalButton(
+                                    onClick = onOptimizePrompt,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.pe_optimize))
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
                     val size = ButtonDefaults.MediumContainerHeight
                     Button(
                         onClick = onGenerate,

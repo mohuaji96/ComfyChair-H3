@@ -1,0 +1,8 @@
+v0.9.8.8382.627-h3
+- Fixed the queue claiming no jobs after a reconnect; it re-reads while open.
+- Fixed the clear button: it reads Clear now, and offers an undo.
+- Fixed Generate squeezed into two lines in the full-screen editor.
+- Fixed missing seed row on two built-in templates.
+- Fixed Alignment under Exact size, and Preview frame rate being ignored.
+- Advanced settings take choices from the workflow's nodes, grouped by kind.
+- Added Preview frames; Exact size and Presets split apart.

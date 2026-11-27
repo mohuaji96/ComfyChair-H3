@@ -32,8 +32,13 @@ object H3SamplingPreview {
      * roughly two seconds of motion: enough to judge movement, and a small enough payload to decode
      * on a phone for every step of a run.
      */
-    private const val ANIMATED_FRAMES = 16
-    private const val PREVIEW_FPS = 8
+    const val ANIMATED_FRAMES = 16
+    const val PREVIEW_FPS = 8
+    /** Bounds the page allows; the node itself accepts anything, the phone has to decode it. */
+    const val MIN_FRAMES = 4
+    const val MAX_FRAMES = 48
+    const val MIN_FPS = 2
+    const val MAX_FPS = 24
     /**
      * The node's own default is 1024/q80; the phone used to ask for 512/q78 to keep every step cheap,
      * which is what made the picture look soft next to the desktop client's preview. Stills are one
@@ -44,9 +49,23 @@ object H3SamplingPreview {
 
     data class Result(val json: String, val attached: Boolean)
 
-    fun apply(promptJson: String, enabled: Boolean, nodeAvailable: Boolean, tinyVae: String? = null): Result {
+    /**
+     * [frames] and [fps] come from the page's own preview settings. They used to be constants, so the
+     * "preview frame rate" field under advanced settings could be edited and changed nothing: this
+     * object overwrote it on every submission.
+     */
+    fun apply(
+        promptJson: String,
+        enabled: Boolean,
+        nodeAvailable: Boolean,
+        tinyVae: String? = null,
+        frames: Int = ANIMATED_FRAMES,
+        fps: Int = PREVIEW_FPS
+    ): Result {
         val root = runCatching { JSONObject(promptJson) }.getOrNull()
             ?: return Result(promptJson, false)
+        val nFrames = frames.coerceIn(MIN_FRAMES, MAX_FRAMES)
+        val nFps = fps.coerceIn(MIN_FPS, MAX_FPS)
         val ids = nodeIds(root)
         val existing = ids.filter { root.optJSONObject(it)?.optString("class_type") == NODE_TYPE }
 
@@ -57,7 +76,7 @@ object H3SamplingPreview {
         }
 
         if (existing.isNotEmpty()) {
-            existing.forEach { stillOnly(root.optJSONObject(it), tinyVae) }
+            existing.forEach { stillOnly(root.optJSONObject(it), tinyVae, nFrames, nFps) }
             val first = existing.first()
             val source = link(root.optJSONObject(first)?.optJSONObject("inputs")?.opt("model"))
             if (source != null) bindGuiders(root, first, source)
@@ -75,21 +94,21 @@ object H3SamplingPreview {
         if (sources.isEmpty()) return Result(promptJson, false)
         for (source in sources) {
             val id = freeId(root)
-            root.put(id, previewNode(source, tinyVae))
+            root.put(id, previewNode(source, tinyVae, nFrames, nFps))
             bindGuiders(root, id, source)
         }
         return Result(root.toString(), true)
     }
 
-    private fun previewNode(source: Pair<String, Int>, tinyVae: String?): JSONObject = JSONObject()
+    private fun previewNode(source: Pair<String, Int>, tinyVae: String?, frames: Int, fps: Int): JSONObject = JSONObject()
         .put("class_type", NODE_TYPE)
         .put(
             "inputs",
             JSONObject()
                 .put("model", JSONArray().put(source.first).put(source.second))
                 .put("preview", "")
-                .put("preview_frames", ANIMATED_FRAMES)
-                .put("preview_fps", PREVIEW_FPS)
+                .put("preview_frames", frames)
+                .put("preview_fps", fps)
                 .put("jpeg_quality", JPEG_QUALITY)
                 .put("max_resolution", MAX_RESOLUTION)
                 .put("tiny_vae", tinyVae ?: "none")
@@ -118,12 +137,12 @@ object H3SamplingPreview {
      * length, which the desktop UI can afford and a phone cannot: that is a hundred-odd frames
      * encoded and shipped for every single step.
      */
-    private fun stillOnly(node: JSONObject?, tinyVae: String?) {
+    private fun stillOnly(node: JSONObject?, tinyVae: String?, frames: Int, fps: Int) {
         val inputs = node?.optJSONObject("inputs") ?: return
         inputs.put("preview", "")
-        inputs.put("preview_frames", ANIMATED_FRAMES)
+        inputs.put("preview_frames", frames)
         if (tinyVae != null) inputs.put("tiny_vae", tinyVae)
-        inputs.put("preview_fps", PREVIEW_FPS)
+        inputs.put("preview_fps", fps)
         inputs.put("jpeg_quality", JPEG_QUALITY)
         inputs.put("max_resolution", MAX_RESOLUTION)
         inputs.put("suppress_default_preview", true)

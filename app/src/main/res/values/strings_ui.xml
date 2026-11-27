@@ -12,7 +12,7 @@
     <string name="po_provider">Provider</string>
     <string name="po_unnamed_provider">Unnamed provider</string>
     <string name="po_no_model">No model name</string>
-    <string name="po_template">Template</string>
+    <string name="po_template">Prompt template</string>
     <string name="po_builtin">Built-in</string>
     <string name="po_custom">Custom</string>
     <string name="po_lines">%1$d lines</string>
@@ -160,7 +160,11 @@
     <string name="opt_task_title">Prompt rewrite</string>
     <string name="opt_task_running">Rewriting · running %1$s</string>
     <string name="opt_task_section">On this device</string>
-    <string name="opt_chip_running">Optimizing · %1$s</string>
+    <string name="opt_chip_running">Optimizing prompt · %1$s</string>
+    <string name="prompt_cleared">Prompt cleared</string>
+    <string name="prompt_clear_action">Clear</string>
+    <string name="msg_queue_reading">Reading the queue…</string>
+    <string name="msg_queue_read_failed">Can not read the queue, retrying…</string>
     <string name="opt_done_toast">Prompt rewritten and saved to history</string>
     <string name="opt_failed_toast">Rewrite failed: %1$s</string>
     <string name="po_field_thinking">Deep thinking</string>

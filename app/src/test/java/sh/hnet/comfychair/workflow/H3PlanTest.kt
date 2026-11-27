@@ -281,6 +281,47 @@ class H3PlanTest {
             .getJSONObject("inputs").getInt("multiple"))
     }
 
+    /**
+     * The four templates keep their seed on three different nodes, and the Turbo pair uses one
+     * whose class name never appeared in the old lookup table. Recognising the cell by its input
+     * name is what makes all four — and any imported workflow — end up with a seed row.
+     */
+    @Test
+    fun everyTemplateExposesASeedWhicheverNodeCarriesIt() {
+        for (name in listOf(
+            "ttv_h3_mobile_frames.json",
+            "itv_h3_mobile_r2v.json",
+            "itv_h3_mobile_r2v_turbo.json",
+            "itv_h3_mobile_guide_turbo.json"
+        )) {
+            val spec = H3Plan.resolve(raw(name))
+            assertNotNull(name, spec)
+            val seeds = spec!!.extras.filter { it.input in H3Seed.INPUTS }
+            assertTrue(name, seeds.isNotEmpty())
+            // A cell fed by a link is skipped: the number lives on the node that feeds it.
+            assertTrue(name, seeds.none { it.value is org.json.JSONArray })
+        }
+    }
+
+    /**
+     * Custom width and height used to be snapped to a literal 32 while the alignment cell was
+     * ignored entirely, so the number on screen never reached the payload.
+     */
+    @Test
+    fun customSizeFollowsTheAlignmentMultiple() {
+        val spec = H3Plan.resolve(frames)!!
+        val out = H3Plan.build(frames, spec, H3Plan.Request(
+            mode = H3Plan.Mode.T2V, customWidth = 1000, customHeight = 600, multiple = 16
+        ), emptyList())
+        assertTrue(out.errors.toString(), out.ok)
+        val inputs = JSONObject(out.json).getJSONObject(spec.coreId).getJSONObject("inputs")
+        assertEquals(0, inputs.getInt("width") % 16)
+        assertEquals(0, inputs.getInt("height") % 16)
+        // Rounded to the nearest multiple, not truncated: 1000 → 1008 and 600 → 608.
+        assertEquals(1008, inputs.getInt("width"))
+        assertEquals(608, inputs.getInt("height"))
+    }
+
     @Test
     fun clipAndBothVaesAreBoundForTheModelCard() {
         val spec = H3Plan.resolve(frames)!!

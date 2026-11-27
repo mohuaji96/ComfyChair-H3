@@ -12,7 +12,7 @@
     <string name="po_provider">供应商</string>
     <string name="po_unnamed_provider">未命名供应商</string>
     <string name="po_no_model">未填模型名</string>
-    <string name="po_template">模板</string>
+    <string name="po_template">提示词优化模板</string>
     <string name="po_builtin">内置</string>
     <string name="po_custom">自定义</string>
     <string name="po_lines">%1$d 行</string>
@@ -160,7 +160,11 @@
     <string name="opt_task_title">提示词优化</string>
     <string name="opt_task_running">正在优化 · 已跑 %1$s</string>
     <string name="opt_task_section">本机任务</string>
-    <string name="opt_chip_running">优化中 · %1$s</string>
+    <string name="opt_chip_running">提示词优化中 · %1$s</string>
+    <string name="prompt_cleared">提示词已清空</string>
+    <string name="prompt_clear_action">清空</string>
+    <string name="msg_queue_reading">正在读取队列…</string>
+    <string name="msg_queue_read_failed">读不到队列，正在重试…</string>
     <string name="opt_done_toast">提示词已优化，已存入历史</string>
     <string name="opt_failed_toast">优化失败：%1$s</string>
     <string name="po_field_thinking">深度思考</string>

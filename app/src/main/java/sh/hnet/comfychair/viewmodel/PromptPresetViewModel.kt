@@ -360,6 +360,15 @@ class PromptPresetViewModel : ViewModel() {
     }
 
     /**
+     * Puts the marker back without touching the text. Undoing a clear restores the text through
+     * the normal path, which drops the marker; restoring it here keeps the next save from storing
+     * a second copy of a preset that was never changed.
+     */
+    fun restoreActivePreset(id: String?) {
+        _uiState.update { it.copy(activePresetId = id) }
+    }
+
+    /**
      * Check if a name is already taken for the current screen type.
      */
     fun isNameTaken(name: String, excludeId: String? = null): Boolean {

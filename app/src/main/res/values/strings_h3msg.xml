@@ -104,7 +104,7 @@
     <string name="plan_note_guides">This workflow attaches keyframes through guide nodes instead of core node inputs</string>
     <string name="plan_note_audio">Reference audio %1$d → %2$s</string>
     <string name="plan_note_custom_wh">Custom size written straight to the core node: %1$s × %2$s (bypasses the ratio selector, this submission only)</string>
-    <string name="plan_note_aligned32">Aligned to a multiple of 32 (node constraint)</string>
+    <string name="plan_note_aligned">Aligned to a multiple of %1$d</string>
     <string name="plan_note_ratio">Ratio → %1$s</string>
     <string name="plan_note_megapixels">Megapixels → %1$s MP</string>
     <string name="plan_note_multiple">Alignment multiple → %1$d</string>

@@ -130,9 +130,13 @@ object H3Plan {
         val value: Any,
         val combo: Boolean,
         val hidden: Boolean = false,
-        @StringRes val labelRes: Int = 0
+        @StringRes val labelRes: Int = 0,
+        /** The class that declared this cell; the interface asks the server for its option list. */
+        val nodeClass: String = ""
     ) {
         val key: String get() = "$nodeId:$input"
+        /** A two-state cell renders as a switch rather than as text the user has to type. */
+        val isSwitch: Boolean get() = value is Boolean
     }
 
     data class Spec(
@@ -544,10 +548,9 @@ object H3Plan {
                 Triple("format", "视频格式", R.string.h3_field_format)
             ),
             "ModelPreviewOverrideKJ" to listOf(
-                Triple("preview_fps", "预览帧率", R.string.h3_field_preview_fps)
+                Triple("preview_fps", "预览帧率", R.string.h3_field_preview_fps),
+                Triple("preview_frames", "预览帧数", R.string.h3_field_preview_frames)
             ),
-            "easy seed" to listOf(Triple("seed", "随机种子 Seed", R.string.h3_field_seed)),
-            "RandomNoise" to listOf(Triple("noise_seed", "随机种子 Seed", R.string.h3_field_seed)),
             "PrimitiveBoolean" to listOf(Triple("value", "开关状态", R.string.h3_field_switch)),
             "PrimitiveFloat" to listOf(Triple("value", "浮点数值", R.string.h3_field_float)),
             "INTConstant" to listOf(Triple("value", "整型常量", R.string.h3_field_int)),
@@ -571,7 +574,15 @@ object H3Plan {
             for ((input, defaultLabel, defaultRes) in fields) {
                 val key = "$id:$input"
                 if (key in taken) continue
-                val value = ins.opt(input)
+                val raw = ins.opt(input)
+                // The templates wire the preview node's frame count and rate from other nodes, but
+                // this page overwrites both at submission time, so a linked cell is shown with the
+                // number that will actually be written instead of being dropped.
+                val value = if (cls == H3SamplingPreview.NODE_TYPE && input == "preview_frames")
+                    H3SamplingPreview.ANIMATED_FRAMES
+                else if (cls == H3SamplingPreview.NODE_TYPE && input == "preview_fps")
+                    H3SamplingPreview.PREVIEW_FPS
+                else raw
                 if (value != null && value !== JSONObject.NULL && value !is JSONArray && value !is JSONObject) {
                     var labelRes = defaultRes
                     val label = when {
@@ -604,8 +615,38 @@ object H3Plan {
                         cls == "PrimitiveFloat" && (id == "23" || isSecondPass) -> true
                         else -> false
                     }
-                    extras.add(Extra(id, input, label, value, combo, hidden, labelRes))
+                    extras.add(Extra(id, input, label, value, combo, hidden, labelRes, cls))
                 }
+            }
+        }
+
+        // Seeds are found by input name across the whole graph, the way the main client does it.
+        // Keying on the node class only ever matched two of the four templates: the Turbo pair keeps
+        // its seed on rgthree's `Seed (rgthree)`, so those two had no seed row at all, and an
+        // imported workflow almost never matched. A cell that is fed by a link is skipped, because
+        // the real number lives on whichever node feeds it.
+        for (id in n.keys()) {
+            val node = n.optJSONObject(id) ?: continue
+            val ins = node.optJSONObject("inputs") ?: continue
+            for (input in H3Seed.INPUTS) {
+                if (ins.has(input).not()) continue
+                val value = ins.opt(input)
+                if (value == null || value === JSONObject.NULL || value is JSONArray || value is JSONObject) continue
+                val key = "$id:$input"
+                if (key in taken) continue
+                if (extras.any { it.key == key }) continue
+                extras.add(
+                    Extra(
+                        nodeId = id,
+                        input = input,
+                        label = "随机种子 Seed",
+                        value = value,
+                        combo = false,
+                        hidden = false,
+                        labelRes = R.string.h3_field_seed,
+                        nodeClass = node.optString("class_type")
+                    )
+                )
             }
         }
 
@@ -810,11 +851,20 @@ object H3Plan {
                         errors + H3Message(R.string.plan_err_custom_wh))
                     val h = request.customHeight ?: return Result(source, notes,
                         errors + H3Message(R.string.plan_err_custom_wh))
-                    val sw = H3Resolution.snap(w.toDouble(), 32, 32, 16384)
-                    val sh = H3Resolution.snap(h.toDouble(), 32, 32, 16384)
+                    // Custom width and height were snapped to a literal 32 and the alignment field
+                    // was then skipped, so whatever the page showed was ignored. Both now follow
+                    // the same cell the page edits, falling back to the node's own value.
+                    val step = (request.multiple ?: (ins.opt("multiple") as? Number)?.toInt() ?: 32)
+                        .coerceIn(8, 128)
+                    if (ins.has("multiple")) {
+                        ins.put("multiple", step)
+                        notes.add(H3Message(R.string.plan_note_multiple, step))
+                    }
+                    val sw = H3Resolution.snap(w.toDouble(), step, 8, 16384)
+                    val sh = H3Resolution.snap(h.toDouble(), step, 8, 16384)
                     ci.put("width", sw); ci.put("height", sh)
                     notes.add(H3Message(R.string.plan_note_custom_wh, sw, sh))
-                    if (sw != w || sh != h) notes.add(H3Message(R.string.plan_note_aligned32))
+                    if (sw != w || sh != h) notes.add(H3Message(R.string.plan_note_aligned, step))
                 } else {
                     request.ratio?.let { label ->
                         val option = matchRatio(label, aspectOptions.ifEmpty { defaultAspectOptions })
@@ -834,8 +884,9 @@ object H3Plan {
                 }
             }
         } else if (request.customWidth != null && request.customHeight != null) {
-            val sw = H3Resolution.snap(request.customWidth.toDouble(), 32, 32, 16384)
-            val sh = H3Resolution.snap(request.customHeight.toDouble(), 32, 32, 16384)
+            val step = (request.multiple ?: 32).coerceIn(8, 128)
+            val sw = H3Resolution.snap(request.customWidth.toDouble(), step, 8, 16384)
+            val sh = H3Resolution.snap(request.customHeight.toDouble(), step, 8, 16384)
             ci.put("width", sw); ci.put("height", sh)
             notes.add(H3Message(R.string.plan_note_wh, sw, sh))
         }

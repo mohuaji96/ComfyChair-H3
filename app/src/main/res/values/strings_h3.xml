@@ -360,6 +360,7 @@
     <string name="h3_field_crf">Video quality (CRF)</string>
     <string name="h3_field_format">Video format</string>
     <string name="h3_field_preview_fps">Preview frame rate</string>
+    <string name="h3_field_preview_frames">Preview frames</string>
     <string name="h3_field_seed">Seed</string>
     <string name="h3_field_switch">Switch state</string>
     <string name="h3_field_float">Float value</string>
@@ -396,7 +397,7 @@
     <string name="h3_hint_ratio_pick">Six common ratios, more below</string>
     <string name="h3_panel_sheet_title">Quick Settings</string>
     <string name="h3_save_short">Save</string>
-    <string name="h3_custom_size_title">Custom Size</string>
+    <string name="h3_exact_size_title">Exact size</string>
     <string name="h3_interp_toggle">Frame Interpolation</string>
     <string name="h3_presets_title">Presets</string>
     <string name="h3_second_pass_note">Second pass and latent upscaler models are preserved.</string>

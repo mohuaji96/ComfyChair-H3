@@ -53,6 +53,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.queue.JobRegistry
 import sh.hnet.comfychair.queue.QueueSnapshot
@@ -103,15 +104,34 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
     val relayActive = relayDone + relayRemaining > 0
     val optimizeTask by OptimizeRunner.task.collectAsState()
     var snapshot by remember { mutableStateOf<QueueSnapshot?>(null) }
+    var readFailed by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
 
-    fun refresh() = generationViewModel.fetchQueueSnapshot { snapshot = it }
+    /**
+     * A null answer means the read itself failed — no client yet, or a socket still coming back
+     * after a reconnect — and the last good list is kept. Replacing it with null made the sheet
+     * fall silent; replacing it with an empty one made it say "no jobs" while the header chip,
+     * which polls on its own, counted one.
+     */
+    fun refresh() = generationViewModel.fetchQueueSnapshot { fresh ->
+        readFailed = fresh == null
+        if (fresh != null) snapshot = fresh
+    }
     fun reportFailure(success: Boolean) {
         if (!success) AppErrors.report(context, R.string.error_queue_action)
         refresh()
     }
     // Read again whenever the queue changes while the sheet is open
     LaunchedEffect(queueState.totalQueueSize, queueState.executingPromptId, queueState.ownJobs.keys) { refresh() }
+    // And keep reading while it is open. The counters above only change when the queue's size
+    // does, so a first read that landed while the session was still being renewed — the empty
+    // half-built answer a reconnect produces — stayed on screen for good.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2500)
+            refresh()
+        }
+    }
 
     val own = queueState.ownJobs
     val current = snapshot
@@ -222,10 +242,19 @@ fun QueueSheet(generationViewModel: GenerationViewModel, onDismiss: () -> Unit) 
                 }
             }
 
-            if (current != null && current.running.isEmpty() && current.pending.isEmpty() && lastFailure == null && !relayActive && optimizeTask == null) {
+            val noRows = current == null || (current.running.isEmpty() && current.pending.isEmpty())
+            if (noRows && lastFailure == null && !relayActive && optimizeTask == null) {
                 item {
+                    // Three different situations, three different sentences: nothing read yet,
+                    // could not read it, and read it — it really is empty.
                     Text(
-                        stringResource(R.string.msg_queue_empty),
+                        stringResource(
+                            when {
+                                current == null -> R.string.msg_queue_reading
+                                readFailed -> R.string.msg_queue_read_failed
+                                else -> R.string.msg_queue_empty
+                            }
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 16.dp)

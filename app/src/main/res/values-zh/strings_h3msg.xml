@@ -104,7 +104,7 @@
     <string name="plan_note_guides">该工作流用引导节点挂首尾帧，不写核心节点输入</string>
     <string name="plan_note_audio">参考音频 %1$d → %2$s</string>
     <string name="plan_note_custom_wh">自定义宽高直接写入核心节点：%1$s × %2$s（绕过比例选择器，仅本次提交）</string>
-    <string name="plan_note_aligned32">已对齐到 32 的倍数（节点约束）</string>
+    <string name="plan_note_aligned">已对齐到 %1$d 的倍数</string>
     <string name="plan_note_ratio">比例 → %1$s</string>
     <string name="plan_note_megapixels">像素量 → %1$s MP</string>
     <string name="plan_note_multiple">对齐倍数 → %1$d</string>
