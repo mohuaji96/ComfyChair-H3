@@ -14,7 +14,7 @@ Android 13+ · GPL-3.0 · bring your own ComfyUI server
 
 - **Images**: text to image and image to image on two tabs; editing and inpainting with a brush and feather control; up to 5 LoRAs per chain, strength -100 to 100
 - **Video**: text to video, image to video, video to video on three tabs; separate high-noise and low-noise chains; source video up to 100 MB
-- **H3 workspace**: 4 bundled templates, 4 modes that switch with the material you drop in; first frame, last frame, up to 9 references and 3 audio tracks; relay takes, auto-written last-frame declaration, second-pass refinement, presets, resumable jobs
+- **H3 workspace**: 4 bundled templates, 4 modes that switch with the material you drop in; first frame, last frame, up to 9 references and 3 audio tracks; relay takes (needs the companion plugin), auto-written last-frame declaration, second-pass refinement, presets, resumable jobs
 - **Prompt tools**: 2625 words across 39 categories, split into SFW and NSFW libraries (SFW is 1518 words across 41 categories); four-act story composer with 4 cast sizes; optional rewrite by an external model
 - **Visible progress**: a status lamp that shows connection and model inventory at a glance, a progress bar that reports the stage and elapsed time, and a sampling preview that plays as an animation — stop the moment it looks wrong
 - **Keeps and hides**: the gallery cache survives a server restart (5 GB default cap), any result can be hidden with one tap, and memory-only mode leaves nothing on disk
@@ -73,7 +73,7 @@ A dedicated tab for MiniMax H3 work, from the first idea to a finished clip.
 
 **Material slots.** First frame, last frame, up to 9 references and up to 3 independent audio tracks. A reference can be disabled without being deleted, which makes it easy to try several compositions in turn. Audio can be reordered, replaced or removed track by track. Everything is numbered in submission order, matching the image references in the prompt.
 
-**Relay takes.** Queue several segments at once and each one starts as soon as the previous finishes. Choose one-at-a-time or queue mode; in queue mode it shares the same queue as ordinary jobs, and the queue panel shows which segment is running.
+**Relay takes.** Queue several segments at once and each one starts as soon as the previous finishes. Choose one-at-a-time or queue mode; in queue mode it shares the same queue as ordinary jobs, and the queue panel shows which segment is running. Needs the companion server plugin, see [below](#companion-plugin-relay-needs-it).
 
 **Auto-written last-frame declaration.** When you continue from a previous clip, the model has to know that the first image is the last frame of the previous segment, or it redraws the scene from scratch. The app can insert that sentence at the top of the prompt, checks for an existing one first (so it will not write a duplicate if you already did it by hand), and can take it back with one tap. If the prompt already declares a different picture number, it refuses to write and tells you to fix the prompt first.
 
@@ -282,6 +282,7 @@ As long as the cache is there, those assets can still be selected, used and subm
 - Android 13 (API 33) or newer
 - A reachable ComfyUI server
 - A network path between the phone and the server (LAN, tunnel or reverse proxy all work)
+- Relay additionally needs the companion [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin, 1.0.0 or newer, on the server; nothing else does
 
 ## Building
 
@@ -290,6 +291,24 @@ As long as the cache is there, those assets can still be selected, used and subm
 ```
 
 Release builds need a signing configuration. Debug builds install directly, but they share the release package name, so the two cannot coexist.
+
+## Companion plugin: relay needs it
+
+**Relay is a two-sided feature.** The phone works out each segment's prompt, starting frame and settings; the [ComfyUI H3 Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) plugin on the server runs that segment inside ComfyUI, takes its last frame and hangs it on the front of the next segment.
+
+| Side | Does | Does not |
+| --- | --- | --- |
+| ComfyChair H3 (this app) | Plan the segments, compose the prompts, write the last-frame declaration, watch progress, reattach after a break | Touch your workflow, clean up files on the server |
+| ComfyUI H3 Relay (plugin) | Run each segment on the server in order, take the last frame, chain the next one | Delete files, rewrite prompts, take over your queue |
+
+With the plugin installed, the relay switch in the H3 workspace becomes usable. Flipping it first asks the server whether a plugin is there and new enough; if not, the switch flips straight back with a reason, so you are never left with something that looks like it is running and is not.
+
+- **Repository**: [mohuaji96/ComfyUI-H3Relay](https://github.com/mohuaji96/ComfyUI-H3Relay) (public, with the full endpoint list)
+- **Version pairing**: plugin 1.0.0 or newer with app 0.9.8.8382.628-h3 (versionCode 389) or newer; turning relay on checks the plugin version and refuses with an upgrade hint if it is too old
+- **Install**: drop the folder into ComfyUI's `custom_nodes` and restart ComfyUI; the server console prints whether the plugin mounted
+- **The plugin alone is not enough**: it has no UI of its own and only accepts work from this app, so installing it starts nothing by itself
+
+In this version the segments are still submitted by the phone in turn, so the app process has to stay alive — a locked screen or a backgrounded app is fine, but if the system recycles it the chain pauses where it is and reopening reattaches to it. Handing the whole chain to the server so it finishes with the phone gone is the next version.
 
 ## Companion tool
 
