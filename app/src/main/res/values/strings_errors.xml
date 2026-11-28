@@ -55,4 +55,11 @@
     <string name="poe_tls_error">HTTPS certificate error: %1$s</string>
     <string name="poe_request_failed">Request failed: %1$s</string>
     <string name="poe_context_too_long">Input is longer than this model accepts — shorten the source text or pick a model with a larger context</string>
+    <string name="err_lib_dup_category">Duplicate category id: %1$s</string>
+    <string name="err_lib_dup_slot">Duplicate slot id: %1$s</string>
+    <string name="err_lib_dup_word">Duplicate word in one slot: %1$s</string>
+    <string name="err_lib_truncated">%1$d places exceed the limit and would be cut off (at most %2$d words per slot)</string>
+    <string name="err_lib_empty_slot">%1$d slots have no words and would be dropped</string>
+    <string name="err_lib_unknown_placeholder">Placeholders the engine does not know: %1$s</string>
+    <string name="err_lib_no_template">No template for: %1$s</string>
 </resources>

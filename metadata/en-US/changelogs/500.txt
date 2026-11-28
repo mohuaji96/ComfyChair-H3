@@ -1,0 +1,7 @@
+v0.9.8.8382.632-h3
+- Tag and story combos keep separate saves and locks per rating, so switching no longer overwrites the other side
+- Cross-rating import confirmation now covers only the file it was shown for
+- Story combos gained people-count labels for solo, duo and trio actions
+- Added hand-usage labels, so two-handed actions stop stacking with another hand action
+- Returned fifty-odd misplaced words to proper slots
+- Aligned the four built-in libraries' version strings with this build

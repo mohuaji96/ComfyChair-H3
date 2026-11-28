@@ -55,4 +55,11 @@
     <string name="poe_tls_error">HTTPS 证书错误：%1$s</string>
     <string name="poe_request_failed">请求失败：%1$s</string>
     <string name="poe_context_too_long">输入超过了该模型能接受的长度：把原文缩短，或换一个上下文更大的模型</string>
+    <string name="err_lib_dup_category">有重复的分类编号：%1$s</string>
+    <string name="err_lib_dup_slot">有重复的格子编号：%1$s</string>
+    <string name="err_lib_dup_word">同一格里有重复的词：%1$s</string>
+    <string name="err_lib_truncated">有 %1$d 处超出上限，导入后会被截断（每格最多 %2$d 条）</string>
+    <string name="err_lib_empty_slot">有 %1$d 个格子没有词条，导入后会被丢掉</string>
+    <string name="err_lib_unknown_placeholder">模板里有认不出的占位符：%1$s</string>
+    <string name="err_lib_no_template">这些人数缺少模板：%1$s</string>
 </resources>

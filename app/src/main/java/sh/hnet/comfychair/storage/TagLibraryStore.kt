@@ -71,7 +71,11 @@ class TagLibraryStore private constructor(
     /** 导入的文件自报的是另一个档，先让用户确认再收。 */
     class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
-    fun importFrom(uri: Uri, merge: Boolean = false, force: Boolean = false): Result<TagLibrary> = runCatching {
+    fun importFrom(
+        uri: Uri,
+        merge: Boolean = false,
+        confirmed: ContentProfile? = null
+    ): Result<TagLibrary> = runCatching {
         val text = readImport(uri)
             ?: throw IllegalArgumentException(context.getString(R.string.err_tl_read_failed))
         val incoming = TagLibraryJson.parse(text)
@@ -86,22 +90,34 @@ class TagLibraryStore private constructor(
             "nsfw" -> ContentProfile.NSFW
             else -> ContentProfile.fromRating(incoming.rating)
         }
-        if (!force && declared != profile) {
+        // 放过只放过用户当场点头的那一个档：以前是个布尔开关，任何调用点传 true 就能把
+        // 第三个档的文件也塞进来，弹窗里问的和实际收下的可以不是同一件事。
+        if (declared != profile && declared != confirmed) {
             throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
         }
+        // 结构体检：重复编号、同一格的重复词、会被静默截断的超限格子，都在这里拦下。
+        val structural = sh.hnet.comfychair.model.LibraryCheck.tagLibrary(context, text)
+        if (structural.isNotEmpty()) throw IllegalArgumentException(structural.joinToString("\n"))
         val library = if (merge) mergeInto(_library.value, incoming) else incoming
         // 普通档自己声明 rating 不算数：整包体检，禁词命中就整包拒收，当前词库一点不动。
         if (profile == ContentProfile.SFW) {
             val bad = SfwGuard.validate(context, library)
             if (bad.isNotEmpty()) throw IllegalArgumentException(bad.joinToString("\n"))
         }
-        // 先落主文件，再写基线与「已导入」标记。倒过来做的话，基线写成功、主文件写失败时
-        // 库里留下半套状态：本次的基线配上上次的工作副本，下次启动按错误的基线做三方合并。
-        persist(library)
+        // 工作副本和基线一起换：两份都先在临时文件里写好，再整组换上去。
+        // 以前是一份一份写，第二份失败时第一份已经生效，库里留下半套状态——本次的基线
+        // 配上上次的工作副本，下次启动按错误的基线做三方合并。现在任一步失败整组退回。
+        val workingTemp = File(context.filesDir, "${workingFile.name}.import")
+        workingTemp.writeText(TagLibraryJson.write(library), Charsets.UTF_8)
+        val steps = mutableListOf(workingTemp to workingFile)
         if (!merge) {
-            runCatching { writeBase(incoming) }
-            runCatching { pinnedFile.createNewFile() }
+            val baseTemp = File(context.filesDir, "${baseFile.name}.import")
+            baseTemp.writeText(TagLibraryJson.write(incoming), Charsets.UTF_8)
+            steps += baseTemp to baseFile
         }
+        AtomicSwap.commit(steps)
+        if (!merge) runCatching { pinnedFile.createNewFile() }
+        _library.value = library
         library
     }
 

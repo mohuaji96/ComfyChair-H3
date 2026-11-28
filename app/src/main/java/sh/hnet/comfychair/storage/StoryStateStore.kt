@@ -2,6 +2,7 @@ package sh.hnet.comfychair.storage
 
 import android.content.Context
 import org.json.JSONObject
+import sh.hnet.comfychair.model.ContentProfile
 import sh.hnet.comfychair.workflow.StoryGenerator
 import sh.hnet.comfychair.workflow.StoryPick
 
@@ -19,10 +20,14 @@ data class StoryState(
  * 存下来主要是为了修一个难看的问题：以前每次进页面都重新初始化为「一男一女 + 锁定」，
  * 第二次进去选择就没了。现在进来先读这份，没有才初始化。
  */
-class StoryStateStore(context: Context) {
+class StoryStateStore(context: Context, profile: ContentProfile) {
 
-    private val prefs =
-        context.getSharedPreferences("story_composer_state", Context.MODE_PRIVATE)
+    private val prefs = context.applicationContext
+        .getSharedPreferences(prefsName(profile), Context.MODE_PRIVATE)
+
+    init {
+        seedFromLegacy(context.applicationContext, prefs, profile)
+    }
 
     fun load(): StoryState? {
         val raw = prefs.getString(KEY, null) ?: return null
@@ -119,13 +124,57 @@ class StoryStateStore(context: Context) {
     }
 
     fun clear() {
-        prefs.edit().remove(KEY).apply()
+        prefs.edit().remove(KEY).putBoolean(KEY_SEEDED, true).apply()
     }
 
     private companion object {
         const val KEY = "state"
+        const val LEGACY_PREFS_NAME = "story_composer_state"
+        const val KEY_SEEDED = "seeded_from_legacy"
+        const val KEY_LEGACY_OWNER = "legacy_owner"
 
         /** 旧「内搭」里属于脚上的那几件。 */
         val SHOE_WORDS = setOf("高跟鞋", "绣花鞋", "拖鞋", "赤脚", "木屐", "布鞋")
+
+        private fun prefsName(profile: ContentProfile) = "story_composer_state_${profile.key}"
+
+        /**
+         * 老版本两档共用一份剧情存档。升级后第一次按档打开时接过来一次，只认领一次：
+         * 认领的档位写进旧文件，另一档再打开就跳过。重置清空之后不再从旧文件捞回来。
+         */
+        private fun seedFromLegacy(
+            context: Context,
+            target: android.content.SharedPreferences,
+            profile: ContentProfile
+        ) {
+            if (target.getBoolean(KEY_SEEDED, false)) return
+            if (target.all.isNotEmpty()) {
+                target.edit().putBoolean(KEY_SEEDED, true).apply()
+                return
+            }
+            val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+            if (legacy.all.isEmpty()) {
+                target.edit().putBoolean(KEY_SEEDED, true).apply()
+                return
+            }
+            val owner = legacy.getString(KEY_LEGACY_OWNER, null)
+            if (owner != null && owner != profile.key) {
+                target.edit().putBoolean(KEY_SEEDED, true).apply()
+                return
+            }
+            val editor = target.edit()
+            legacy.all.forEach { (key, value) ->
+                when (value) {
+                    is String -> editor.putString(key, value)
+                    is Boolean -> editor.putBoolean(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is Long -> editor.putLong(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                }
+            }
+            editor.putBoolean(KEY_SEEDED, true).apply()
+            legacy.edit().putString(KEY_LEGACY_OWNER, profile.key).apply()
+        }
     }
 }

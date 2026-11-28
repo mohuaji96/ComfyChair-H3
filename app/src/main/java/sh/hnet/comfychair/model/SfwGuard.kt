@@ -63,8 +63,6 @@ object SfwGuard {
             return listOf(context.getString(R.string.err_sfw_rules_missing))
         }
 
-        val forbidden = forbidden(context)
-        val allow = allowed(context)
         val seen = mutableMapOf<String, String>()
         val ids = library.categories.map { it.id }
 
@@ -78,10 +76,7 @@ object SfwGuard {
                     bad += context.getString(R.string.err_sfw_empty_pool, category.label, slot.label)
                 }
                 slot.pool.forEach { word ->
-                    val hit = forbidden.firstOrNull { it in word }
-                    if (hit != null && word !in allow) {
-                        bad += context.getString(R.string.err_sfw_forbidden_hit, hit, word)
-                    }
+                    // 禁词判定统一交给 collect，别在这里另写一套——两套尺子必然走偏。
                     val owner = seen.putIfAbsent(word, category.id)
                     if (owner != null && owner != category.id) {
                         bad += context.getString(
@@ -100,6 +95,8 @@ object SfwGuard {
             if (count > 3) bad += context.getString(R.string.err_sfw_people_over, word, count)
         }
 
+        // 口径与 violations 合并：凡是会被渲染出来的文字都过一遍，风格串也不例外。
+        bad += collect(context, rendered(library))
         return bad.take(MAX_REPORT)
     }
 
@@ -113,47 +110,52 @@ object SfwGuard {
 
     /** 可渲染词的并集与禁词表求交；空列表表示干净。 */
     fun violations(context: Context, library: TagLibrary): List<String> =
-        collect(context, library.categories.flatMap { category ->
-            category.slots.flatMap { it.pool }
-        } + library.stylePrompts.values)
+        collect(context, rendered(library))
 
     fun violations(context: Context, library: StoryLibrary): List<String> =
-        collect(
-            context,
-            library.pools.values.flatten().map { it.text } +
-                library.casts.values.flatMap { listOf(it.text, it.male) }
-        )
+        collect(context, rendered(library))
 
     /** 剧情词库的导入体检，口径与标签词库一致：只查安全与结构。 */
     fun validate(context: Context, library: StoryLibrary): List<String> {
+        if (forbidden(context).isEmpty()) {
+            return listOf(context.getString(R.string.err_sfw_rules_missing))
+        }
         val bad = mutableListOf<String>()
         if (library.pools.isEmpty()) bad += context.getString(R.string.err_sfw_no_pools)
         if (library.casts.isEmpty()) bad += context.getString(R.string.err_sfw_no_casts)
-        if (forbidden(context).isEmpty()) return listOf(context.getString(R.string.err_sfw_rules_missing))
-
-        val forbidden = forbidden(context)
-        val allow = allowed(context)
-        fun check(where: String, word: String) {
-            if (word.isBlank()) return
-            val hit = forbidden.firstOrNull { it in word } ?: return
-            if (word !in allow) bad += context.getString(R.string.err_sfw_hit_in, where, hit, word)
-        }
-        library.pools.forEach { (name, words) -> words.forEach { check(name, it.text) } }
-        library.casts.forEach { (id, cast) ->
-            check("cast.$id", cast.text)
-            check("cast.$id.male", cast.male)
-        }
+        bad += collect(context, rendered(library))
         return bad.take(MAX_REPORT)
     }
 
+    /** 标签库会被渲染出来的全部文字：各格词条加风格串。 */
+    private fun rendered(library: TagLibrary): List<String> =
+        library.categories.flatMap { category ->
+            category.slots.flatMap { it.pool }
+        } + library.stylePrompts.values
+
+    /** 剧情库会被渲染出来的全部文字：各池词条、人数说明、模板固定语句。 */
+    private fun rendered(library: StoryLibrary): List<String> =
+        library.pools.values.flatten().map { it.text } +
+            library.casts.values.flatMap { listOf(it.text, it.male) } +
+            library.templates.values.flatten()
+
+    /**
+     * 唯一的一把尺子：命中禁词且不在放行名单里才算违规。
+     *
+     * 规则文件读不到时返回「规则缺失」而不是空列表——空列表意味着「全部干净」，
+     * 那等于悄悄把整道闸关掉。宁可让这次操作被拒，也不能放未校验的内容进普通档。
+     */
     private fun collect(context: Context, words: List<String>): List<String> {
         val forbidden = forbidden(context)
-        if (forbidden.isEmpty()) return emptyList()
+        if (forbidden.isEmpty()) return listOf(context.getString(R.string.err_sfw_rules_missing))
+        val allow = allowed(context)
         return words.asSequence()
+            .filter { it.isNotBlank() && it !in allow }
             .mapNotNull { word ->
                 val hit = forbidden.firstOrNull { it in word } ?: return@mapNotNull null
                 context.getString(R.string.err_sfw_violation, hit, word)
             }
+            .distinct()
             .take(MAX_REPORT)
             .toList()
     }

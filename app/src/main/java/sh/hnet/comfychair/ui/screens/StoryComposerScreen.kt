@@ -105,7 +105,8 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     // 直到退出重进。getSharedPreferences 与单例查表都很轻，每次组合读一次即可。
     val profile = AppSettings.getContentProfile(context)
     val store = StoryLibraryStore.get(context, profile)
-    val stateStore = remember { StoryStateStore(context) }
+    // 按档位建：切了档就要读目标档那一份存档，不能沿用上一档的选择。
+    val stateStore = remember(profile) { StoryStateStore(context, profile) }
     val library by store.library.collectAsStateWithLifecycle()
     val generator = remember(library) { StoryGenerator(library) }
     val clipboard = LocalClipboardManager.current
@@ -127,7 +128,8 @@ fun StoryComposerScreen(onBack: () -> Unit) {
         scope.launch { snackbar.showSnackbar(text) }
     }
 
-    var restored by remember { mutableStateOf(false) }
+    // 跟着档位重置：换了档要重新读那一档的存档，而不是继续用上一档读到的内容。
+    var restored by remember(profile) { mutableStateOf(false) }
     LaunchedEffect(generator) {
         // 只在第一次进来读存档。词库一变就重读，刚点的那一下会被旧存档盖掉。
         val saved = if (restored) null else stateStore.load()
@@ -178,14 +180,15 @@ fun StoryComposerScreen(onBack: () -> Unit) {
     var pendingImport by remember { mutableStateOf<Pair<Uri, ContentProfile>?>(null) }
     // 读文件、解析、体检、落盘走后台线程；剧情库上千条，占着主线程就是界面顿住几秒。
     val importScope = rememberCoroutineScope()
-    fun runImport(uri: Uri, force: Boolean) {
+    fun runImport(uri: Uri, confirmed: ContentProfile? = null) {
         importScope.launch {
-            val result = withContext(Dispatchers.IO) { store.importFrom(uri, force) }
+            val result = withContext(Dispatchers.IO) { store.importFrom(uri, confirmed) }
             result
                 .onSuccess { lib -> say(context.getString(R.string.st_import_done, lib.wordCount)) }
                 .onFailure { err ->
                     val mismatch = err as? StoryLibraryStore.ProfileMismatch
-                    if (mismatch != null && !force) {
+                    // 只在下一次还问到同一个档时才弹窗；确认过的那一档已经放过，不会再来。
+                    if (mismatch != null && mismatch.found != confirmed) {
                         pendingImport = uri to mismatch.found
                     } else {
                         say(err.message ?: context.getString(R.string.st_import_failed))
@@ -196,7 +199,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let { runImport(it, force = false) } }
+    ) { uri -> uri?.let { runImport(it) } }
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -454,7 +457,7 @@ fun StoryComposerScreen(onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     pendingImport = null
-                    runImport(uri, force = true)
+                    runImport(uri, confirmed = found)
                 }) { Text(stringResource(R.string.st_import_anyway)) }
             },
             dismissButton = {

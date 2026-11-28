@@ -1,5 +1,5 @@
 {
-  "version": 40,
+  "version": "0.9.8.8382.632",
   "categories": [
     {
       "id": "sceneTrace",
@@ -13133,7 +13133,7 @@
   "meta": {
     "name": "词库组合默认词库",
     "note": "handCap 为全局手占用上限；handCost 为每个词占几只；posture 为姿态组；requires 为该词的成立前提。stylePrompts 为每个媒介的整句输出；styleFeel 为媒介强制指定的调色词；styleGroups 为媒介在界面上的分组。",
-    "version": "0.9.8.8382.611",
+    "version": "0.9.8.8382.632",
     "promptTiers": {
       "0": [
         "mood",

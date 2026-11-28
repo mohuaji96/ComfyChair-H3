@@ -241,7 +241,7 @@ class StoryLibraryStore private constructor(
     /** 导入的文件自报的是另一个档，先让用户确认再收。 */
     class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
-    fun importFrom(uri: Uri, force: Boolean = false): Result<StoryLibrary> = runCatching {
+    fun importFrom(uri: Uri, confirmed: ContentProfile? = null): Result<StoryLibrary> = runCatching {
         val text = readImport(uri) ?: error(context.getString(R.string.err_st_read_failed))
         val incoming = StoryLibraryJson.parse(text)
         require(incoming.pools.isNotEmpty() && incoming.casts.isNotEmpty()) {
@@ -253,19 +253,34 @@ class StoryLibraryStore private constructor(
             "nsfw" -> ContentProfile.NSFW
             else -> ContentProfile.fromRating(incoming.rating)
         }
-        if (!force && declared != profile) {
+        // 放过只放过用户当场点头的那一个档，不再是一个谁传谁过的开关。
+        if (declared != profile && declared != confirmed) {
             throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
         }
+        // 结构体检：认不出的占位符、缺模板的人数，解析时是静默丢掉的，这里整包退回。
+        val structural = sh.hnet.comfychair.model.LibraryCheck.storyLibrary(context, text)
+        if (structural.isNotEmpty()) throw IllegalArgumentException(structural.joinToString("\n"))
         // 普通档：整包体检，禁词命中就拒收，本地那份一个字都不动。
         if (profile == ContentProfile.SFW) {
             val bad = SfwGuard.validate(context, incoming)
             if (bad.isNotEmpty()) throw IllegalArgumentException(bad.joinToString("\n"))
         }
+        // 旧副本、正文、已导入标记一起换：三份都先在临时文件里写好，再整组换上去。
+        // 以前是先写正文再写标记，标记那步失败就会出现「内容换了、版本没换」，
+        // 下次启动按旧版本判定，又把这批内容当成待升级的重来一遍。
+        val steps = mutableListOf<Pair<File, File>>()
         if (workingFile.exists()) {
-            runCatching { backupFile.writeText(workingFile.readText(Charsets.UTF_8), Charsets.UTF_8) }
+            val backupTemp = File(context.filesDir, "${backupFile.name}.import")
+            backupTemp.writeText(workingFile.readText(Charsets.UTF_8), Charsets.UTF_8)
+            steps += backupTemp to backupFile
         }
-        writeAtomic(workingFile, StoryLibraryJson.write(incoming))
-        runCatching { importMark.writeText(incoming.version, Charsets.UTF_8) }
+        val workingTemp = File(context.filesDir, "${workingFile.name}.import")
+        workingTemp.writeText(StoryLibraryJson.write(incoming), Charsets.UTF_8)
+        steps += workingTemp to workingFile
+        val markTemp = File(context.filesDir, "${importMark.name}.import")
+        markTemp.writeText(incoming.version, Charsets.UTF_8)
+        steps += markTemp to importMark
+        AtomicSwap.commit(steps)
         republish(incoming)
         incoming
     }

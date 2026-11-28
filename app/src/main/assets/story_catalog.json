@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "version": "0.9.8.8382.610-story",
+  "version": "0.9.8.8382.632-story",
   "note": "剧情组合专用词库。六族体位 + 衣物状态机，requires 查在场，requiresWorn 查还穿着。 525: partner/outfit_b 池内置，mood 走模板占位。",
   "casts": {
     "solo": {

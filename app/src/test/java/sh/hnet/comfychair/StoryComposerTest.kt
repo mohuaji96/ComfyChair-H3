@@ -1306,7 +1306,7 @@ class StoryComposerTest {
         assertFalse("「她」后面不该加「的」：$textMid", textMid.contains("她的身上的衣物"))
 
         // 3. 验证版本号同步
-        assertEquals("0.9.8.8382.610-story", library().version)
+        assertEquals("0.9.8.8382.632-story", library().version)
     }
 
     @Test
@@ -1319,7 +1319,7 @@ class StoryComposerTest {
         assertEquals("服务端有任务时队列数字必须正确统计", 2, resolvedQueueSize)
 
         // 验证版本号同步为 8382.591
-        assertEquals("0.9.8.8382.610-story", library().version)
+        assertEquals("0.9.8.8382.632-story", library().version)
     }
 
     /** 整段重抽要换人数，单格重抽不能把人数一起换掉。 */

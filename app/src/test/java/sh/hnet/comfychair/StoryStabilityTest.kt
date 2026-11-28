@@ -129,6 +129,34 @@ class StoryStabilityTest {
         assertTrue("说话神态没进正文：$text", text.contains(voice))
     }
 
+    /**
+     * 快照式的稳定：同一份选择、不同随机源、渲染多次，正文必须逐字相同。
+     * 以前模板变体是抽的，预览里看到一段、生成出来又是另一段。
+     */
+    @Test
+    fun `the same snapshot always renders the same text`() {
+        val lib = library()
+        val gen = StoryGenerator(lib, Random(5150))
+        val picks = gen.randomize(gen.emptyPicks()).first
+        val texts = (1..5).map { seed ->
+            StoryGenerator(lib, Random(seed * 31)).compose(picks, detail = true, dialogue = false)
+        }
+        assertTrue("快照没拼出正文", texts.first().isNotBlank())
+        texts.drop(1).forEach { assertEquals("同一份选择渲染出了不同正文", texts.first(), it) }
+    }
+
+    /** 眼睛关掉的词，即使旧状态里还留着值，也不能进正文。 */
+    @Test
+    fun `an ignored pick never survives into the text`() {
+        val lib = library()
+        val detail = lib.pool("detail").firstOrNull()?.text.orEmpty()
+        assumeTrue("没有 detail 池", detail.isNotEmpty())
+        val picks = samplePicks(lib) +
+            (StoryGenerator.DETAIL to StoryPick(value = detail, ignored = true))
+        val text = StoryGenerator(lib, Random(5151)).compose(picks, detail = true, dialogue = false)
+        assertFalse("被关掉的词还是出现了：$text", text.contains(detail))
+    }
+
     @Test
     fun `a word switched off never reaches the text`() {
         val lib = library()

@@ -42,7 +42,8 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
 
     private val app: Application = application
     private var libraryStore = TagLibraryStore.get(application, AppSettings.getContentProfile(application))
-    private val stateStore = TagComposerState(application)
+    // 两档各一份选择存档：同一个词在两库里都有时，切档不把上一档的选择带过去。
+    private var stateStore = TagComposerState(application, AppSettings.getContentProfile(application))
 
     /** 当前内容级别。两档各自一整套词库，切档不走混合，只换加载的文件。 */
     var profile by mutableStateOf(AppSettings.getContentProfile(application))
@@ -223,16 +224,28 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
     /**
      * 切内容级别：白名单式过滤，不做全清空。
      *
-     * 存档是两档共用一份的（键是 `分类.槽位`），切过去只把「目标库没有的」从**视图**里拿掉，
-     * 存档原样留着，切回来还能恢复。所以这里不调 save，改名/覆盖由 [commit] 负责合并。
+     * 两档各有自己的存档文件，切过去读目标档那一份，互不覆盖。
+     *
+     * 旧版本只有一份共用存档，升级后第一次按档打开会接过去一次（见 [TagComposerState]），
+     * 接完之后两档各走各的。切档前先把当前选择写回它自己的档，否则换过去的瞬间内存里
+     * 还是旧档的副本。
      */
     fun switchProfile(next: ContentProfile) {
         if (next == profile) return
+        stateStore.save(mode, picks)
+        stateStore.saveLockedGroups(mode, lockedGroups)
+
         profile = next
         AppSettings.setContentProfile(app, next)
         libraryStore = TagLibraryStore.get(app, next)
         _library.value = libraryStore.library.value
         watchLibrary()
+        stateStore = TagComposerState(app, next)
+
+        stored[TagComposerState.MODE_SOLO] = migrateAliases(stateStore.load(TagComposerState.MODE_SOLO))
+        stored[TagComposerState.MODE_MULTI] = migrateAliases(stateStore.load(TagComposerState.MODE_MULTI))
+        mode = stateStore.loadMode()
+        lockedGroups = stateStore.loadLockedGroups(mode)
 
         val saved = stored[mode].orEmpty()
         picks = visiblePicks(library.value, saved)
@@ -614,19 +627,20 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
     fun confirmPendingImport() {
         val pending = pendingImport ?: return
         pendingImport = null
-        importLibrary(pending.uri, pending.merge, force = true)
+        // 只把弹窗里说的那个档放过去。
+        importLibrary(pending.uri, pending.merge, confirmed = pending.found)
     }
 
     fun dismissPendingImport() {
         pendingImport = null
     }
 
-    fun importLibrary(uri: Uri, merge: Boolean, force: Boolean = false) {
+    fun importLibrary(uri: Uri, merge: Boolean, confirmed: ContentProfile? = null) {
         // 读文件、解析、体检、落盘都在后台线程：词库动辄上千条，放在主线程上会卡住
         // 界面几秒，用户以为点空了，往往就再点一次。
         viewModelScope.launch {
             val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                libraryStore.importFrom(uri, merge, force)
+                libraryStore.importFrom(uri, merge, confirmed)
             }
             result
             .onSuccess { imported ->

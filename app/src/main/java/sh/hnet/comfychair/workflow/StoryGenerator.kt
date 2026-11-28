@@ -574,7 +574,7 @@ class StoryGenerator(
             // 「顺势挺腰」只对插入类动作成立。口交、足交、夹着磨这类并进去就是病句，
             // 让它们用逗号直接接上。
             val penetrating = library.word("act", act)?.penetrating ?: true
-            val actText = if (twoWomen) attributeAct(act, subject, other, cast) else act
+            val actText = if (twoWomen) attributeAct(act, subject, other, cast, picks) else act
             if (pose.isNotEmpty() && actText.isNotEmpty()) {
                 // 「顺势挺腰」只能接在纯动词短语前。「把她的腿压到胸前」「一手按着她的小腹」
                 // 本身就是完整分句，前面再塞一个动作就成了「顺势挺腰把她抱到台面上」。
@@ -604,7 +604,13 @@ class StoryGenerator(
      * 另一种是单人口吻。前一种把人称换成女一女二，后一种补一句另一个人在做什么，
      * 免得第二个人整段只有外貌、没有动作。
      */
-    private fun attributeAct(act: String, subject: String, other: String, cast: String = "mff"): String {
+    private fun attributeAct(
+        act: String,
+        subject: String,
+        other: String,
+        cast: String = "mff",
+        picks: Map<String, StoryPick> = emptyMap(),
+    ): String {
         if (act.isEmpty()) return act
         val lead = act.replace("她们", "两人").replace("她", subject)
         if ("另一人" in lead) {
@@ -619,8 +625,21 @@ class StoryGenerator(
             }
         }
         val pool = if (cast == "ff") FF_PARTNER_HALVES else MFF_PARTNER_HALVES
-        val partner = pool.randomOrNull(random) ?: return lead
+        val partner = stablePick(pool, "partner", picks) ?: return lead
         return "$lead，$other${partner.replace("她", subject)}"
+    }
+
+    /**
+     * 同一份选择永远落同一条。
+     *
+     * 预览和正文各渲染一次，用随机抽就会一段里是「肩胛骨」、另一段里是「空调」。
+     * 把随机换成按选择算出的稳定下标，换一套选择自然换一条，不会千篇一律。
+     */
+    private fun <T> stablePick(pool: List<T>, salt: String, picks: Map<String, StoryPick>): T? {
+        if (pool.isEmpty()) return null
+        val seed = picks.entries.sortedBy { it.key }
+            .joinToString("|") { "${it.key}=${it.value.value}" } + "#" + salt
+        return pool[Math.floorMod(seed.hashCode(), pool.size)]
     }
 
     /** 双女档把「她」换成「女一」；「她们」先换掉，免得变成「女一们」。 */
@@ -737,6 +756,8 @@ class StoryGenerator(
     fun compose(rawPicks: Map<String, StoryPick>, detail: Boolean, dialogue: Boolean): String {
         // 池子里已经没有的词（删掉的、被排除的）不要拼进句子。
         val picks = rawPicks.mapValues { (key, pick) ->
+            // 被眼睛关掉的格子一律当空：界面上已经变灰，正文里不能再照念。
+            if (pick.ignored) return@mapValues pick.copy(value = "")
             val pool = field(key)?.pool ?: return@mapValues pick
             if (pick.value.isEmpty() || !library.pools.containsKey(pool)) return@mapValues pick
             // 排除掉的词（眼睛关掉的）也要当成不在池子里：只判存在不判排除，
@@ -753,7 +774,12 @@ class StoryGenerator(
 
         val place = picks[PLACE]?.value.orEmpty()
         val group = placeGroup(place)
-        val template = templates[random.nextInt(templates.size)]
+        // 模板变体按这套选择本身来定，不用随机数：预览和正文各渲染一次，
+        // 同一份选择就该是同一段文字。换一套选择自然换一个变体，也不会千篇一律。
+        val variantSeed = picks.entries.sortedBy { it.key }
+            .joinToString("|") { "${it.key}=${it.value.value}" }
+            .hashCode()
+        val template = templates[Math.floorMod(variantSeed, templates.size)]
         val scene = sceneBefore("", picks)
         // 「状态」属于镜头一，按脱之前身上的东西判断，别被「过程中：已经脱光」带空。
         val stateScene = sceneBefore(STATE, picks)
@@ -898,7 +924,7 @@ class StoryGenerator(
                     else -> "，$raw"
                 }
             },
-            "look_f" to look.ifEmpty { library.pool("hair").randomOrNull(random)?.text.orEmpty() },
+            "look_f" to look.ifEmpty { stablePick(library.pool("hair"), "look_f", picks)?.text.orEmpty() },
             "look_m" to ""
         )
         if ("{outfit_b}" in template) {
@@ -908,10 +934,10 @@ class StoryGenerator(
                     (worldEras.any { it == "modern" || it == "cyber" } || it.allowsEra(worldEras)) &&
                         it.allowsGroup(group) && scene.present.containsAll(it.requires)
                 }
-                .randomOrNull(random)?.text.orEmpty()
+                .let { stablePick(it, "outfit_b", picks)?.text.orEmpty() }
         }
         if ("{look_m}" in template) {
-            values["look_m"] = library.pool("look_m").randomOrNull(random)?.text.orEmpty()
+            values["look_m"] = stablePick(library.pool("look_m"), "look_m", picks)?.text.orEmpty()
         }
         if ("{mood}" in template) {
             val rawMood = picks[MOOD]?.value.orEmpty()
@@ -965,12 +991,14 @@ class StoryGenerator(
                 pickedDetail
             } else if (detail) {
                 // 兜底抽词要走「可选池」：走原池会把用户眼睛关掉的词抽回来。
-                library.pickablePool("detail").filter {
+                // 挑哪一句也按选择定：同一份快照补的必须是同一句，否则预览和正文对不上。
+                val candidates = library.pickablePool("detail").filter {
                     it.allowsCast(cast) &&
                         it.allowsGroup(group) &&
                         scene.present.containsAll(it.requires) &&
                         (it.needs.isEmpty() || out.contains(it.needs))
-                }.randomOrNull(random)?.text.orEmpty()
+                }
+                stablePick(candidates, "detail", picks)?.text.orEmpty()
             } else {
                 ""
             }
