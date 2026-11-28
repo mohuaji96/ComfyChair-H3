@@ -76,7 +76,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sh.hnet.comfychair.ui.theme.LocalSemanticColors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.hnet.comfychair.model.StoryLibrary
 import sh.hnet.comfychair.storage.AppSettings
 import sh.hnet.comfychair.storage.StoryLibraryStore
@@ -174,17 +176,22 @@ fun StoryComposerScreen(onBack: () -> Unit) {
 
     // 跨档导入先问一句：SFW 的剧情库覆盖 NSFW，一次误操作就找不回来。
     var pendingImport by remember { mutableStateOf<Pair<Uri, ContentProfile>?>(null) }
+    // 读文件、解析、体检、落盘走后台线程；剧情库上千条，占着主线程就是界面顿住几秒。
+    val importScope = rememberCoroutineScope()
     fun runImport(uri: Uri, force: Boolean) {
-        store.importFrom(uri, force)
-            .onSuccess { lib -> say(context.getString(R.string.st_import_done, lib.wordCount)) }
-            .onFailure { err ->
-                val mismatch = err as? StoryLibraryStore.ProfileMismatch
-                if (mismatch != null && !force) {
-                    pendingImport = uri to mismatch.found
-                } else {
-                    say(err.message ?: context.getString(R.string.st_import_failed))
+        importScope.launch {
+            val result = withContext(Dispatchers.IO) { store.importFrom(uri, force) }
+            result
+                .onSuccess { lib -> say(context.getString(R.string.st_import_done, lib.wordCount)) }
+                .onFailure { err ->
+                    val mismatch = err as? StoryLibraryStore.ProfileMismatch
+                    if (mismatch != null && !force) {
+                        pendingImport = uri to mismatch.found
+                    } else {
+                        say(err.message ?: context.getString(R.string.st_import_failed))
+                    }
                 }
-            }
+        }
     }
 
     val importLauncher = rememberLauncherForActivityResult(

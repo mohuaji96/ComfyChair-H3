@@ -1,0 +1,7 @@
+v0.9.8.8382.631-h3
+- After a redraw every field still holds: change the place and poses no longer follow the old one
+- A redraw now settles dependencies several levels deep, not just one pass
+- The everyday accent slot is called speaking manner, matching what it holds
+- Importing a large library no longer freezes the screen
+- Story library import runs in the background too, switching tabs will not cut it off
+- All four cast combinations are covered by a composition self-check

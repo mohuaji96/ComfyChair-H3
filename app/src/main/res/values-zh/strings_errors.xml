@@ -13,6 +13,7 @@
     <string name="err_sfw_multi_male">出现多男结构：%1$s</string>
     <string name="err_sfw_people_over">人数超过 3：%1$s = %2$d</string>
     <string name="err_sfw_no_pools">没有词池</string>
+    <string name="err_sfw_rules_missing">安全词表读取失败，这份词库没有收下。重装应用可以恢复词表。</string>
     <string name="err_sfw_no_casts">没有人数结构</string>
     <string name="err_sfw_hit_in">%1$s 命中禁词「%2$s」：%3$s</string>
     <string name="err_sfw_violation">「%1$s」→ %2$s</string>
@@ -22,6 +23,7 @@
     <string name="err_tl_schema_too_new">词库版本过新（schemaVersion %1$d），请升级应用</string>
     <string name="err_tl_write_failed">无法写入词库文件，请检查存储空间</string>
     <string name="err_tl_export_failed">无法写入文件</string>
+    <string name="err_tl_too_large">文件超过 %1$d MB，请选一个小一点的词库</string>
     <string name="err_tl_upgrade_kept">词库已更新到 %1$s，你加的 %2$d 个词保留了</string>
     <string name="err_tl_upgrade_new">词库已更新到 %1$s，新增 %2$d 个词</string>
     <string name="err_tl_upgrade_plain">词库已更新到 %1$s</string>
@@ -31,6 +33,7 @@
     <string name="err_st_not_story">这份文件不像剧情词库</string>
     <string name="err_st_write_failed">写不进这个位置</string>
     <string name="err_st_write_file">写不进 %1$s</string>
+    <string name="err_st_too_large">文件超过 %1$d MB，请选一个小一点的词库</string>
 
     <!-- PromptOptimizer：填写校验、传输与协议错误 -->
     <string name="poe_missing_url">还没填 API URL</string>

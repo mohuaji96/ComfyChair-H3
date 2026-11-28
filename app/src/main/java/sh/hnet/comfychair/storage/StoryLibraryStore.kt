@@ -10,10 +10,15 @@ import sh.hnet.comfychair.model.SfwGuard
 import sh.hnet.comfychair.R
 import sh.hnet.comfychair.model.StoryLibrary
 import sh.hnet.comfychair.model.StoryLibraryJson
+import sh.hnet.comfychair.util.AppError
+import sh.hnet.comfychair.util.AppErrors
 import sh.hnet.comfychair.util.DebugLogger
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * 剧情词库的存取。
@@ -80,7 +85,13 @@ class StoryLibraryStore private constructor(
         return out
     }
 
-    private fun writeOverrides() {
+    /**
+     * 把自己加的词、排除、删除三笔账写下去；写不成返回 false。
+     *
+     * 以前失败被 runCatching 吞掉，随后照样发布内存状态、界面照样报成功，
+     * 重启之后用户加的词凭空消失。现在失败就是失败，调用方回滚并提示。
+     */
+    private fun writeOverrides(): Boolean {
         val root = JSONObject()
         val addNode = JSONObject()
         custom.forEach { (pool, words) -> addNode.put(pool, JSONArray(words)) }
@@ -91,7 +102,13 @@ class StoryLibraryStore private constructor(
         root.put("add", addNode)
         root.put("exclude", offNode)
         root.put("remove", goneNode)
-        runCatching { customFile.writeText(root.toString(2), Charsets.UTF_8) }
+        return runCatching { writeAtomic(customFile, root.toString(2)) }
+            .onFailure {
+                AppErrors.report(
+                    AppError(context.getString(R.string.err_st_write_file, customFile.name))
+                )
+            }
+            .isSuccess
     }
 
     private fun publish() {
@@ -102,14 +119,28 @@ class StoryLibraryStore private constructor(
     fun addCustom(pool: String, text: String): Boolean {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return false
+        // 普通档手打的新词也要过禁词表，和导入口同一把尺子。
+        if (profile == ContentProfile.SFW) {
+            val hit = SfwGuard.scan(context, listOf(trimmed)).firstOrNull()
+            if (hit != null) {
+                AppErrors.report(AppError(hit))
+                return false
+            }
+        }
         // 判重要拿「看得见的池子」：删掉的词还在 base 里，不加这个判断就加不回来。
         val gone = removed[pool].orEmpty()
         if (base.pool(pool).any { it.text == trimmed && trimmed !in gone }) return false
         val list = custom.getOrPut(pool) { mutableListOf() }
         if (trimmed in list) return false
-        removed[pool]?.remove(trimmed)
+        val restored = removed[pool]?.remove(trimmed)
         list += trimmed
-        writeOverrides()
+        // 写不下去就把内存里这一笔撤回：留在内存里会让界面显示加成功，重启后却不见了。
+        if (!writeOverrides()) {
+            list.remove(trimmed)
+            if (list.isEmpty()) custom.remove(pool)
+            if (restored == true) removed.getOrPut(pool) { mutableSetOf() } += trimmed
+            return false
+        }
         publish()
         return true
     }
@@ -117,30 +148,45 @@ class StoryLibraryStore private constructor(
     /** 垃圾桶：从列表里拿掉，内置词也能删。 */
     fun removeWord(pool: String, text: String) {
         val mine = custom[pool]
-        if (mine != null && mine.remove(text)) {
-            if (mine.isEmpty()) custom.remove(pool)
-        } else {
-            removed.getOrPut(pool) { mutableSetOf() } += text
+        val wasMine = mine != null && mine.contains(text)
+        if (wasMine) mine.remove(text) else removed.getOrPut(pool) { mutableSetOf() } += text
+        if (mine != null && mine.isEmpty()) custom.remove(pool)
+        val wasExcluded = excluded[pool]?.remove(text) == true
+        if (!writeOverrides()) {
+            if (wasMine) custom.getOrPut(pool) { mutableListOf() } += text
+            else removed[pool]?.remove(text)
+            if (wasExcluded) excluded.getOrPut(pool) { mutableSetOf() } += text
+            return
         }
-        excluded[pool]?.remove(text)
-        writeOverrides()
         publish()
     }
 
     /** 眼睛：还在列表里，但不参与随机。 */
     fun toggleExcluded(pool: String, text: String) {
         val set = excluded.getOrPut(pool) { mutableSetOf() }
-        if (!set.remove(text)) set += text
+        val off = !set.remove(text)
+        if (off) set += text
         if (set.isEmpty()) excluded.remove(pool)
-        writeOverrides()
+        if (!writeOverrides()) {
+            // 撤回这一次开关：写着「已排除」但没落盘，下次打开又变回来更难理解。
+            if (off) excluded[pool]?.remove(text) else excluded.getOrPut(pool) { mutableSetOf() } += text
+            if (excluded[pool]?.isEmpty() == true) excluded.remove(pool)
+            return
+        }
         publish()
     }
 
     /** 还原内置时清掉排除和删除的记录，自己加的词保留。 */
     fun clearOverrides() {
+        val oldExcluded = excluded
+        val oldRemoved = removed
         excluded = mutableMapOf()
         removed = mutableMapOf()
-        writeOverrides()
+        if (!writeOverrides()) {
+            excluded = oldExcluded
+            removed = oldRemoved
+            return
+        }
         publish()
     }
 
@@ -174,11 +220,16 @@ class StoryLibraryStore private constructor(
         return fresh
     }
 
-    /** 0.9.8.8382.10 要比 0.9.8.8382.9 新，按段比数字。 */
+    /**
+     * 0.9.8.8382.10 要比 0.9.8.8382.9 新，按段比数字。
+     *
+     * 日常档的版本号带 -sfw 后缀（0.9.8.8382.611-sfw），整段转数字会失败退化成 0，
+     * 610-sfw 和 611-sfw 就变成一样大，随包词库永远顶不掉本地那份。取每段开头的数字。
+     */
     private fun newerThan(candidate: String, current: String): Boolean {
         if (current.isBlank()) return true
-        val a = candidate.split('.')
-        val b = current.split('.')
+        val a = candidate.split('.').map { it.takeWhile(Char::isDigit) }
+        val b = current.split('.').map { it.takeWhile(Char::isDigit) }
         for (index in 0 until maxOf(a.size, b.size)) {
             val x = a.getOrNull(index)?.toIntOrNull() ?: 0
             val y = b.getOrNull(index)?.toIntOrNull() ?: 0
@@ -191,9 +242,7 @@ class StoryLibraryStore private constructor(
     class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
     fun importFrom(uri: Uri, force: Boolean = false): Result<StoryLibrary> = runCatching {
-        val text = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.bufferedReader(Charsets.UTF_8).readText()
-        } ?: error(context.getString(R.string.err_st_read_failed))
+        val text = readImport(uri) ?: error(context.getString(R.string.err_st_read_failed))
         val incoming = StoryLibraryJson.parse(text)
         require(incoming.pools.isNotEmpty() && incoming.casts.isNotEmpty()) {
             context.getString(R.string.err_st_not_story)
@@ -207,6 +256,11 @@ class StoryLibraryStore private constructor(
         if (!force && declared != profile) {
             throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
         }
+        // 普通档：整包体检，禁词命中就拒收，本地那份一个字都不动。
+        if (profile == ContentProfile.SFW) {
+            val bad = SfwGuard.validate(context, incoming)
+            if (bad.isNotEmpty()) throw IllegalArgumentException(bad.joinToString("\n"))
+        }
         if (workingFile.exists()) {
             runCatching { backupFile.writeText(workingFile.readText(Charsets.UTF_8), Charsets.UTF_8) }
         }
@@ -214,6 +268,28 @@ class StoryLibraryStore private constructor(
         runCatching { importMark.writeText(incoming.version, Charsets.UTF_8) }
         republish(incoming)
         incoming
+    }
+
+    /** 与标签词库同口径：整份读进内存之前先限体积，超限当场拒绝。 */
+    private fun readImport(uri: Uri): String? {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        return input.use { stream ->
+            val buffer = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(64 * 1024)
+            var total = 0
+            while (true) {
+                val read = stream.read(chunk)
+                if (read < 0) break
+                total += read
+                if (total > MAX_IMPORT_BYTES) {
+                    throw IllegalArgumentException(
+                        context.getString(R.string.err_st_too_large, MAX_IMPORT_BYTES / (1024 * 1024))
+                    )
+                }
+                buffer.write(chunk, 0, read)
+            }
+            String(buffer.toByteArray(), Charsets.UTF_8)
+        }
     }
 
     fun exportTo(uri: Uri): Result<Unit> = runCatching {
@@ -240,16 +316,27 @@ class StoryLibraryStore private constructor(
         return _library.value
     }
 
+    /**
+     * 换掉一个文件，旧的那份在新的一份落位之前一直留在原地。
+     *
+     * 以前是先删旧文件再改名：改名那一下失败，唯一的副本就没了，用户的自定义词库
+     * 会直接消失。现在用覆盖式改名，失败时旧文件仍然完整，只是这次没写成。
+     */
     private fun writeAtomic(target: File, text: String) {
         val temp = File(target.parentFile, target.name + ".tmp")
         temp.writeText(text, Charsets.UTF_8)
-        if (target.exists() && !target.delete()) {
+        try {
+            try {
+                Files.move(
+                    temp.toPath(), target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } catch (error: Exception) {
             temp.delete()
-            error(context.getString(R.string.err_st_write_file, target.name))
-        }
-        if (!temp.renameTo(target)) {
-            temp.delete()
-            error(context.getString(R.string.err_st_write_file, target.name))
+            throw IllegalStateException(context.getString(R.string.err_st_write_file, target.name), error)
         }
     }
 
@@ -260,6 +347,8 @@ class StoryLibraryStore private constructor(
 
     companion object {
         private const val TAG = "StoryLibraryStore"
+        /** 内置剧情库不到 100 KB；16 MB 足够放整包备份，再多就是选错文件。 */
+        private const val MAX_IMPORT_BYTES = 16 * 1024 * 1024
         private val instances = mutableMapOf<ContentProfile, StoryLibraryStore>()
 
         fun get(context: Context, profile: ContentProfile = ContentProfile.NSFW): StoryLibraryStore =

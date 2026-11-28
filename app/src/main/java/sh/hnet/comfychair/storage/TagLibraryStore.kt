@@ -72,9 +72,8 @@ class TagLibraryStore private constructor(
     class ProfileMismatch(val found: ContentProfile, message: String) : IllegalArgumentException(message)
 
     fun importFrom(uri: Uri, merge: Boolean = false, force: Boolean = false): Result<TagLibrary> = runCatching {
-        val text = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.bufferedReader(Charsets.UTF_8).readText()
-        } ?: throw IllegalArgumentException(context.getString(R.string.err_tl_read_failed))
+        val text = readImport(uri)
+            ?: throw IllegalArgumentException(context.getString(R.string.err_tl_read_failed))
         val incoming = TagLibraryJson.parse(text)
         if (incoming.schemaVersion > SUPPORTED_SCHEMA) {
             throw IllegalArgumentException(
@@ -91,12 +90,46 @@ class TagLibraryStore private constructor(
             throw ProfileMismatch(declared, context.getString(R.string.err_profile_mismatch))
         }
         val library = if (merge) mergeInto(_library.value, incoming) else incoming
-        if (!merge) {
-            pinnedFile.createNewFile()
-            runCatching { writeBase(incoming) }
+        // 普通档自己声明 rating 不算数：整包体检，禁词命中就整包拒收，当前词库一点不动。
+        if (profile == ContentProfile.SFW) {
+            val bad = SfwGuard.validate(context, library)
+            if (bad.isNotEmpty()) throw IllegalArgumentException(bad.joinToString("\n"))
         }
+        // 先落主文件，再写基线与「已导入」标记。倒过来做的话，基线写成功、主文件写失败时
+        // 库里留下半套状态：本次的基线配上上次的工作副本，下次启动按错误的基线做三方合并。
         persist(library)
+        if (!merge) {
+            runCatching { writeBase(incoming) }
+            runCatching { pinnedFile.createNewFile() }
+        }
         library
+    }
+
+    /**
+     * 整份读进内存之前先看一眼体积。
+     *
+     * 以前是 readText() 无上限：几十兆的文件会直接把播放器式的 OOM 甩给用户，
+     * 而且解析到中途才炸，当前词库是保住了，界面却卡死几秒。现在超限当场拒绝。
+     */
+    private fun readImport(uri: Uri): String? {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        return input.use { stream ->
+            val buffer = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(64 * 1024)
+            var total = 0
+            while (true) {
+                val read = stream.read(chunk)
+                if (read < 0) break
+                total += read
+                if (total > MAX_IMPORT_BYTES) {
+                    throw IllegalArgumentException(
+                        context.getString(R.string.err_tl_too_large, MAX_IMPORT_BYTES / (1024 * 1024))
+                    )
+                }
+                buffer.write(chunk, 0, read)
+            }
+            String(buffer.toByteArray(), Charsets.UTF_8)
+        }
     }
 
     /** Union of two libraries, keeping the current one's order and wording where they differ. */
@@ -220,6 +253,15 @@ class TagLibraryStore private constructor(
     }
 
     /**
+     * 手打新词之前的体检：普通档命中禁词就返回提示行，调用方据此拦下并告知。
+     *
+     * 导入口已经拒收禁词了，但「自己加词」是另一个入口——两个口各写一套判定，
+     * 就成了导入被拒、手打却能进的破窗。成人档不检查，原样返回空。
+     */
+    fun guardHits(words: List<String>): List<String> =
+        if (profile == ContentProfile.SFW) SfwGuard.scan(context, words) else emptyList()
+
+    /**
      * Written through a temp file and renamed. A half-written catalog would leave the user
      * with an empty page after the next launch, and rename is the only step that is atomic.
      */
@@ -228,16 +270,30 @@ class TagLibraryStore private constructor(
         _library.value = library
     }
 
+    /**
+     * 换掉一个文件，旧的那份在新的一份落位之前一直留在原地。
+     *
+     * 以前改名失败会先把目标删掉再改名：第二次改名再失败，词库就两份都没了。
+     * 覆盖式改名在 Windows 和 Android 上都可用，失败时旧文件完好。
+     */
     private fun writeAtomic(target: File, text: String) {
         val tmp = File(context.filesDir, "${target.name}.tmp")
         try {
             tmp.writeText(text, Charsets.UTF_8)
-            if (!tmp.renameTo(target)) {
-                target.delete()
-                if (!tmp.renameTo(target)) {
-                    throw java.io.IOException(context.getString(R.string.err_tl_write_failed))
-                }
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                )
             }
+        } catch (error: java.io.IOException) {
+            throw java.io.IOException(context.getString(R.string.err_tl_write_failed), error)
         } finally {
             if (tmp.exists()) tmp.delete()
         }
@@ -328,6 +384,8 @@ class TagLibraryStore private constructor(
     companion object {
         private const val SUPPORTED_SCHEMA = 1
         private const val TAG = "TagLibraryStore"
+        /** 内置词库不到 1 MB；给到 16 MB 已经够放三份，再大就是选错了文件。 */
+        private const val MAX_IMPORT_BYTES = 16 * 1024 * 1024
         private val instances = mutableMapOf<ContentProfile, TagLibraryStore>()
 
         /**

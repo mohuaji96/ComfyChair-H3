@@ -496,7 +496,11 @@ object TagLibraryJson {
             defaultLocked = meta?.strList("defaultLocked").orEmpty(),
             commonFirst = readListMap(meta?.optJSONObject("commonFirst")),
             sectionMode = meta?.optBoolean("sectionMode", false) ?: false,
-            version = meta?.optString("version").orEmpty(),
+            // 版本号有两处：根上的 version 和 meta.version。界面、升级判定、导出各读一处
+            // 就会出现「标题写着 611、升级判定却当成 566」。以 meta.version 为准，
+            // 缺了才退回根上的那份，两边从此是同一个值。
+            version = meta?.optString("version").orEmpty()
+                .ifBlank { root.optString("version") },
             stylePacks = readListMap(meta?.optJSONObject("stylePacks")),
             stylePrompts = readStringMap(meta?.optJSONObject("stylePrompts")),
             styleFeel = readStringMap(meta?.optJSONObject("styleFeel")),

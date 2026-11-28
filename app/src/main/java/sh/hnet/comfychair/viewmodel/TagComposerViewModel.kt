@@ -276,8 +276,11 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
         engine.randomize(mutable, holdGroups = lockedGroups)
     }
 
+    // 段锁对「重抽一个分类」同样有效：锁住的是那一段不被改动，不是只有全局随机才守。
     fun randomizeCategory(categoryId: String) =
-        draw("重抽分类") { engine, mutable -> engine.randomize(mutable, categoryId) }
+        draw("重抽分类") { engine, mutable ->
+            engine.randomize(mutable, categoryId, holdGroups = lockedGroups)
+        }
 
     /** 锁住/解锁一整段。只拦全局随机，段内单格重抽不受影响。 */
     fun toggleSectionLock(group: String) {
@@ -575,6 +578,12 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
             message = app.getString(R.string.tc_word_exists, text)
             return
         }
+        // 普通档手打也要过一遍禁词表，和导入口同一把尺子。
+        val hits = libraryStore.guardHits(slot.pool + text)
+        if (hits.isNotEmpty()) {
+            message = hits.first()
+            return
+        }
         libraryStore.updateSlot(categoryId, slot.copy(pool = slot.pool + text))
     }
 
@@ -613,7 +622,13 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun importLibrary(uri: Uri, merge: Boolean, force: Boolean = false) {
-        libraryStore.importFrom(uri, merge, force)
+        // 读文件、解析、体检、落盘都在后台线程：词库动辄上千条，放在主线程上会卡住
+        // 界面几秒，用户以为点空了，往往就再点一次。
+        viewModelScope.launch {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                libraryStore.importFrom(uri, merge, force)
+            }
+            result
             .onSuccess { imported ->
                 if (merge) {
                     // Keep both sheets as they are; only re-check keys that may have disappeared.
@@ -648,6 +663,7 @@ class TagComposerViewModel(application: Application) : AndroidViewModel(applicat
                     )
                 }
             }
+        }
     }
 
     fun exportLibrary(uri: Uri) {

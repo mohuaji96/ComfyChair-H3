@@ -57,6 +57,11 @@ object SfwGuard {
     fun validate(context: Context, library: TagLibrary): List<String> {
         val bad = mutableListOf<String>()
         if (library.categories.isEmpty()) return listOf(context.getString(R.string.err_sfw_no_categories))
+        // 规则文件读不到时不能当成「没命中」：那样等于临时关掉了整道闸。
+        // 宁可这次导入被拒、让用户知道规则坏了，也不能放一份没校验过的库进普通档。
+        if (forbidden(context).isEmpty()) {
+            return listOf(context.getString(R.string.err_sfw_rules_missing))
+        }
 
         val forbidden = forbidden(context)
         val allow = allowed(context)
@@ -98,6 +103,14 @@ object SfwGuard {
         return bad.take(MAX_REPORT)
     }
 
+    /**
+     * 一串词的安全体检：空列表表示干净。
+     *
+     * 导入口和「自己加词」口都要走这一条，否则两道门各写一套判定，
+     * 会出现导入被拒、手打却能进的情况。
+     */
+    fun scan(context: Context, words: List<String>): List<String> = collect(context, words)
+
     /** 可渲染词的并集与禁词表求交；空列表表示干净。 */
     fun violations(context: Context, library: TagLibrary): List<String> =
         collect(context, library.categories.flatMap { category ->
@@ -116,6 +129,7 @@ object SfwGuard {
         val bad = mutableListOf<String>()
         if (library.pools.isEmpty()) bad += context.getString(R.string.err_sfw_no_pools)
         if (library.casts.isEmpty()) bad += context.getString(R.string.err_sfw_no_casts)
+        if (forbidden(context).isEmpty()) return listOf(context.getString(R.string.err_sfw_rules_missing))
 
         val forbidden = forbidden(context)
         val allow = allowed(context)

@@ -896,9 +896,9 @@ class TagComposerEngine(
      * want is what actually keeps the picture on the chosen side.
      */
     fun negatives(picks: Map<String, TagPick>, english: Boolean = false): String {
-        val category = library.category(MOOD) ?: return ""
-        if (MOOD in skipped(picks)) return ""
-        val text = activeValues(picks, category).values.joinToString("")
+        // 判断的是「画风」，所以取画风那几格：成人档在 mood.medium，日常档在 style.medium。
+        // 以前只看 mood，日常档拿到的是「安静/慵懒」，三个分支一个都不命中，反向词恒空。
+        val text = slotText(picks, MOOD, "medium") + slotText(picks, "style", "medium")
         if (text.isEmpty()) return ""
 
         // 动漫 is its own word: "日式动漫" contains neither 动画 nor 漫画, so it used to fall
@@ -1253,10 +1253,12 @@ class TagComposerEngine(
         // speak. Choosing which one to drop has to happen after knowing what is actually there:
         // counting every member first spent the whole budget on the three absent ones and threw
         // 腿 away on every single draw.
+        // 超预算时按固定顺序取前几个，不用 shuffled()：同一份已保存的选择每次重新渲染
+        // 都要给出同一段文字，否则预览和正文对不上，用户会以为重抽了。
         val bodyKeeping = BODY_BLOCK.filter { it in byCategory }
             .let { present ->
                 if (present.size <= BODY_BLOCK_CAP) present.toSet()
-                else present.shuffled().take(BODY_BLOCK_CAP).toSet()
+                else present.take(BODY_BLOCK_CAP).toSet()
             }
         // 种族 / 妆容 / 年龄 / 气质 已经并进同一句，不再各自成段。
         val personLine = personClause(picks)
@@ -1642,17 +1644,35 @@ class TagComposerEngine(
     private fun canonicalStyle(name: String): String =
         if (name.isEmpty()) name else library.styleAliases[name] ?: name
 
+    /**
+     * 某一格里第一段有值的文字；槽位不存在就当没有。
+     *
+     * 两档的词库形状本来就不一样：成人档是 mood.medium + grade.tone/feel，日常档是
+     * style.medium + grade.kind + mood.kind。以前按成人档的槽名硬读，日常档这三格
+     * 全读空，风格、调色、氛围选了也不进提示词。所以这里按槽位找，不认档位。
+     */
+    private fun slotText(picks: Map<String, TagPick>, categoryId: String, vararg slots: String): String {
+        val category = library.category(categoryId) ?: return ""
+        val values = activeValues(picks, category)
+        for (slot in slots) {
+            val text = values[slot].orEmpty()
+            if (text.isNotEmpty()) return text
+        }
+        return ""
+    }
+
     private fun moodStyle(picks: Map<String, TagPick>): String? {
-        val style = library.category(MOOD)
-        val grade = library.category(GRADE)
-        val medium = style?.let { activeValues(picks, it)["medium"] }.orEmpty()
-        val graded = grade?.let { activeValues(picks, it) }.orEmpty()
+        // 成人档风格在这一格；日常档的风格是独立分类（style.medium），走段首，不在这里重复。
+        val medium = slotText(picks, MOOD, "medium")
         // A style whose name promises a colour cannot leave it to chance: 霓虹夜色 without neon
         // is a night portrait. The forced word still shows in 调色, and the player can change it.
-        val feel = graded["feel"].orEmpty().ifEmpty { library.styleFeel[canonicalStyle(medium)].orEmpty() }
-        // 调色与主色已并成一格、光质与光位并成一格，这里只认这两格。
-        val tone = graded["tone"].orEmpty()
-        if (medium.isEmpty() && feel.isEmpty() && tone.isEmpty()) {
+        val feel = slotText(picks, GRADE, "feel")
+            .ifEmpty { library.styleFeel[canonicalStyle(medium)].orEmpty() }
+        // 成人档是 tone（光位），日常档这一格叫 kind（调色），同一个位置取到哪个都算。
+        val tone = slotText(picks, GRADE, "tone").ifEmpty { slotText(picks, GRADE, "kind") }
+        // 日常档才有的「氛围」：安静、慵懒这类定调词。
+        val air = slotText(picks, MOOD, "kind")
+        if (medium.isEmpty() && feel.isEmpty() && tone.isEmpty() && air.isEmpty()) {
             return null
         }
 
@@ -1665,6 +1685,7 @@ class TagComposerEngine(
         }
         if (feel.isNotEmpty()) parts += feel
         if (tone.isNotEmpty()) parts += tone
+        if (air.isNotEmpty()) parts += air
         // The sentence already ends with 。; joining with a comma produced "。，暗调胶片".
         return parts.joinToString("，").replace("。，", "。")
     }

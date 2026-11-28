@@ -1,0 +1,8 @@
+v0.9.8.8382.631-h3
+- Everyday prompts now carry colour grade, mood and matching negatives
+- Imports and typed words are checked against the blocklist
+- Files over 16 MB are refused before being read in
+- A failed library write says so and keeps the old copy
+- Library files are swapped without losing the old copy
+- Everyday updates land again; cast options without templates are hidden
+- Switched-off words no longer appear in the story

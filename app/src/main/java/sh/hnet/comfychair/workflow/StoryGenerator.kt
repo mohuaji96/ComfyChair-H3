@@ -57,7 +57,7 @@ class StoryGenerator(
                 StoryField(BUST_SHAPE, "胸型", "bust_shape", group = "bust"),
                 StoryField(AREOLA, "乳晕", "areola", group = "bust"),
                 StoryField(NIPPLE, "乳头", "nipple", group = "bust"),
-                StoryField(ACCENT, "配饰", "accent"),
+                StoryField(ACCENT, accentLabel, "accent"),
                 StoryField(GLASSES, "眼镜", "glasses"),
                 // 她穿什么和她是同一件事：从「场景与穿着」挪到这里，跟女二自己那几行对齐。
                 // 抽取时地点、时间、天气已经在循环前定好，穿着照样看得见这一轮的环境。
@@ -82,7 +82,7 @@ class StoryGenerator(
                 StoryField("w2_bust_shape", "胸型", "bust_shape", group = "bust2"),
                 StoryField("w2_areola", "乳晕", "areola", group = "bust2"),
                 StoryField("w2_nipple", "乳头", "nipple", group = "bust2"),
-                StoryField("w2_accent", "配饰", "accent"),
+                StoryField("w2_accent", accentLabel, "accent"),
                 StoryField("w2_glasses", "眼镜", "glasses"),
                 StoryField("w2_outfit", "穿着", "outfit"),
                 StoryField("w2_socks", "袜", "socks"),
@@ -140,6 +140,14 @@ class StoryGenerator(
 
     val fields: List<StoryField> = sections.flatMap { it.fields }
 
+    /**
+     * 「accent」两档装的东西不是一回事：常规档是耳环项链这类配饰，日常档全是语速、音色、
+     * 笑起来带鼻音这类说话神态。格子的名字跟着内容走，不然日常档点开「配饰」会抽到
+     * 「声音偏低」，用户以为是抽错了。
+     */
+    private val accentLabel: String
+        get() = if (library.profile == "sfw") "说话神态" else "配饰"
+
     fun field(key: String): StoryField? = fields.firstOrNull { it.key == key }
 
     fun label(key: String, value: String): String = when {
@@ -186,17 +194,22 @@ class StoryGenerator(
 
         // 女二的衣服要按地点与天气挑，而她的字段在面板上排在场景之前。
         // 先一步把时间、地点、天气定下来，后面每一格才看得见这一轮的环境。
+        // 抽过的这三格记下来，主循环里不再重抽——重抽等于把环境换掉，
+        // 排在它前面的女二那身衣服就是照着上一份环境挑的，白挑。
+        val sceneDrawn = mutableSetOf<String>()
         if (only.isEmpty()) {
             listOf(TIME, PLACE, WEATHER).forEach { key ->
                 val scene = field(key) ?: return@forEach
                 val p = next[key] ?: StoryPick()
                 if (key in held || p.ignored || p.locked) return@forEach
                 next[key] = p.copy(value = pickWeighted(key, allowed(key, next, forPick = true), next))
+                sceneDrawn += key
             }
         }
 
         for (field in fields) {
             if (field.key in held) continue
+            if (field.key in sceneDrawn) continue
             val pick = next[field.key] ?: StoryPick()
             // 独角戏里没有男人：那三格留空，免得后台抽一堆用不上的值。
             if (next[CAST]?.value == "solo" &&
@@ -268,20 +281,28 @@ class StoryGenerator(
             )
         }
         // 只重抽了一组时，别的分项可能因为上游改变而失效（换了场景，姿势还要求台面）。
-        // 过一遍约束，不成立的清掉并说明。
-        for (field in fields) {
-            if (field.key in held) continue
-            val kept = next[field.key] ?: continue
-            if (kept.ignored || kept.locked || kept.value.isEmpty()) continue
-            if (field.key == ACT) continue
-            if (!valueValid(field.key, kept.value, allowed(field.key, next, forPick = true))) {
+        // 捋一遍不够：换掉场景会让姿势失效，重抽姿势又让动作失效，常常两三层。
+        // 所以反复捋，直到一遍下来没有任何改动为止；上限三遍，防两条词互相否个没完。
+        var pass = 0
+        var changed = true
+        while (changed && pass < REPAIR_PASSES) {
+            changed = false
+            pass++
+            for (field in fields) {
+                if (field.key in held) continue
+                val kept = next[field.key] ?: continue
+                if (kept.ignored || kept.locked || kept.value.isEmpty()) continue
+                if (field.key == ACT) continue
+                if (valueValid(field.key, kept.value, allowed(field.key, next, forPick = true))) continue
                 // 优先重抽一条符合当前题材/场景设定的值替换，绝不粗暴清空成未选并弹窗骚扰用户
                 val replacement = pickWeighted(field.key, allowed(field.key, next, forPick = true), next)
                 if (replacement.isNotEmpty()) {
                     next[field.key] = kept.copy(value = replacement)
+                    changed = true
                     continue
                 }
                 next[field.key] = kept.copy(value = "")
+                changed = true
                 notes += "「${field.label}」和现在的设定对不上，已清空"
             }
         }
@@ -290,7 +311,11 @@ class StoryGenerator(
 
     /** 某个分项在这一刻能选哪些值。界面弹层和抽取共用同一份判断。 */
     fun allowed(key: String, picks: Map<String, StoryPick>, forPick: Boolean = false): List<String> {
-        if (key == CAST) return StoryLibrary.CAST_ORDER
+        // 人数只看这份库真有的：导入的库少了某一种，界面照样列出来就会出现
+        // 「选了却没有模板」的空正文。顺序仍按 CAST_ORDER，缺的跳过。
+        if (key == CAST) return StoryLibrary.CAST_ORDER.filter {
+            library.casts.containsKey(it) && library.templates[it].orEmpty().isNotEmpty()
+        }.ifEmpty { StoryLibrary.CAST_ORDER }
         val field = field(key) ?: return emptyList()
         // 只拦自动抽取：穿着整身衣服时不要自动写乳晕和乳头。
         // 面板（forPick）必须给全量候选，否则点开两格是空的，和别的字段不一样。
@@ -397,9 +422,13 @@ class StoryGenerator(
         // 但人数和天气这两条不能放宽——单人句子里出现「让她转过身」是硬错。
         val loose = words.filter { passes(it, strict = false) }.map { it.text }
         if (loose.isNotEmpty()) return loose
+        // 最后这层只放宽「物件在不在场」，硬约束一条都不能破：互斥、避讳、道具依赖
+        // 放进兜底，会出现「姿势选了乳交、动作却配普通抽插」这类自相矛盾的句子。
         return words.filter {
             it.allowsCast(cast) && eraOk(it) && it.allowsGroup(group) &&
-                it.groups.none { g -> g in scene.blocked }
+                it.groups.none { g -> g in scene.blocked } &&
+                !clashesWithMutex(it.text, picks) &&
+                (it.avoid.isEmpty() || it.avoid.split("|").none { token -> token in outfit })
         }.map { it.text }
     }
 
@@ -710,8 +739,11 @@ class StoryGenerator(
         val picks = rawPicks.mapValues { (key, pick) ->
             val pool = field(key)?.pool ?: return@mapValues pick
             if (pick.value.isEmpty() || !library.pools.containsKey(pool)) return@mapValues pick
-            val left = pick.value.split(SEP)
-                .filter { it.isNotBlank() && library.word(pool, it) != null }
+            // 排除掉的词（眼睛关掉的）也要当成不在池子里：只判存在不判排除，
+            // 会出现「列表里已经变灰、正文里还照念」的错位。
+            val left = pick.value.split(SEP).filter {
+                it.isNotBlank() && library.word(pool, it) != null && !library.isExcluded(pool, it)
+            }
             pick.copy(value = left.joinToString(SEP))
         }
         val cast = picks[CAST]?.value.orEmpty().ifEmpty { DEFAULT_CAST }
@@ -928,10 +960,12 @@ class StoryGenerator(
         }
         if ("{detail}" in out) {
             val pickedDetail = picks[DETAIL]?.value.orEmpty()
+            // 手选的那句照念：开关管的是「要不要自动补一句」，不是推翻用户点出来的值。
             val detailText = if (pickedDetail.isNotEmpty()) {
                 pickedDetail
             } else if (detail) {
-                library.pool("detail").filter {
+                // 兜底抽词要走「可选池」：走原池会把用户眼睛关掉的词抽回来。
+                library.pickablePool("detail").filter {
                     it.allowsCast(cast) &&
                         it.allowsGroup(group) &&
                         scene.present.containsAll(it.requires) &&
@@ -1334,6 +1368,9 @@ class StoryGenerator(
         private const val SCENE_WEIGHT = 3
         /** 贴年代的再乘两倍。 */
         private const val ERA_WEIGHT = 2
+
+        /** 收尾校验最多捋几遍。下游往往依赖两层以上，一遍捋不干净；也不能无限捋。 */
+        private const val REPAIR_PASSES = 3
 
         private val BRIDGES = listOf("把她换个姿势", "把她翻过来", "抱着她换个位置")
         /** 单人档的过渡：没有第二个人可翻。 */

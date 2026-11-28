@@ -13,6 +13,7 @@
     <string name="err_sfw_multi_male">Several men in one tag: %1$s</string>
     <string name="err_sfw_people_over">More than 3 people: %1$s = %2$d</string>
     <string name="err_sfw_no_pools">No word pools</string>
+    <string name="err_sfw_rules_missing">The safety word list could not be read, so this library was not accepted. Reinstall the app to restore it.</string>
     <string name="err_sfw_no_casts">No cast size structure</string>
     <string name="err_sfw_hit_in">%1$s contains the forbidden word \"%2$s\": %3$s</string>
     <string name="err_sfw_violation">\"%1$s\" → %2$s</string>
@@ -22,6 +23,7 @@
     <string name="err_tl_schema_too_new">Library is newer than this app (schemaVersion %1$d). Please update the app.</string>
     <string name="err_tl_write_failed">Cannot write the library file. Check free storage.</string>
     <string name="err_tl_export_failed">Cannot write the file</string>
+    <string name="err_tl_too_large">File is larger than %1$d MB. Please pick a smaller library.</string>
     <string name="err_tl_upgrade_kept">Library updated to %1$s; the %2$d words you added were kept</string>
     <string name="err_tl_upgrade_new">Library updated to %1$s; %2$d new words</string>
     <string name="err_tl_upgrade_plain">Library updated to %1$s</string>
@@ -31,6 +33,7 @@
     <string name="err_st_not_story">This file does not look like a story library</string>
     <string name="err_st_write_failed">Cannot write to this location</string>
     <string name="err_st_write_file">Cannot write %1$s</string>
+    <string name="err_st_too_large">File is larger than %1$d MB. Please pick a smaller library.</string>
 
     <!-- PromptOptimizer: validation, transport and protocol failures -->
     <string name="poe_missing_url">API URL is not filled in</string>
